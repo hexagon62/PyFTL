@@ -1,0 +1,48 @@
+ROOMS
+hall1 385 205 35 70
+hall2 420 240 70 35
+hall3 455 275 70 35
+engines 420 310 70 70
+piloting 490 310 35 70
+hall4 455 380 70 35
+artillery 420 415 70 35
+hall5 385 415 35 70
+doors 525 275 35 70
+oxygen 525 345 35 70
+medbay 560 310 70 70
+shields 630 310 70 70
+hall6 700 310 35 70
+sensors 735 310 70 35
+hall7 735 345 70 35
+weapons 805 275 70 70
+hall8 805 345 70 70
+hall9 875 310 35 70
+
+DOORS
+hall1 hall2 420 257
+hall2 hall3 472 275
+hall3 engines 472 310
+engines piloting 490 362
+hall3 doors 525 292
+doors medbay 560 327
+oxygen medbay 560 362
+hall4 oxygen 525 397
+engines hall4 472 380
+hall4 artillery 472 415
+artillery hall5 420 432
+medbay shields 630 362
+shields hall6 700 327
+weapons hall9 875 327
+hall8 hall9 875 362
+hall6 sensors 735 327
+sensors weapons 805 327
+hall6 hall7 735 362
+hall7 hall8 805 362
+weapons hall8 822 345
+hall1 outside 385 257
+hall1 outside 385 222
+hall5 outside 385 432
+hall5 outside 385 467
+hall9 outside 910 327
+hall9 outside 910 362
+

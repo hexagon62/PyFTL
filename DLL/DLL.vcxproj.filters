@@ -1,0 +1,96 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClInclude Include="Memory.hpp" />
+    <ClInclude Include="..\..\..\C++ Resources\include\imgui.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\C++ Resources\include\imgui_impl_opengl3.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\C++ Resources\include\imgui_impl_opengl3_loader.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\C++ Resources\include\imgui_impl_win32.h">
+      <Filter>imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="GameState\Addresses.hpp">
+      <Filter>GameState</Filter>
+    </ClInclude>
+    <ClInclude Include="GameState\Reader.hpp">
+      <Filter>GameState</Filter>
+    </ClInclude>
+    <ClInclude Include="GameState\State.hpp">
+      <Filter>GameState</Filter>
+    </ClInclude>
+    <ClInclude Include="GameState\StatePrinting.hpp">
+      <Filter>GameState</Filter>
+    </ClInclude>
+    <ClInclude Include="Player\Input.hpp">
+      <Filter>Player</Filter>
+    </ClInclude>
+    <ClInclude Include="Player\Player.hpp">
+      <Filter>Player</Filter>
+    </ClInclude>
+    <ClInclude Include="GUI\GUI.hpp">
+      <Filter>GUI</Filter>
+    </ClInclude>
+    <ClInclude Include="GameState\Raw.hpp">
+      <Filter>GameState</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="Memory.cpp" />
+    <ClCompile Include="..\..\..\C++ Resources\src\imgui.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\C++ Resources\src\imgui_draw.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\C++ Resources\src\imgui_stl.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\C++ Resources\src\imgui_tables.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\C++ Resources\src\imgui_widgets.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\C++ Resources\src\imgui_impl_opengl3.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\C++ Resources\src\imgui_impl_win32.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\C++ Resources\src\imgui_demo.cpp">
+      <Filter>imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="GameState\Addresses.cpp">
+      <Filter>GameState</Filter>
+    </ClCompile>
+    <ClCompile Include="GameState\Reader.cpp">
+      <Filter>GameState</Filter>
+    </ClCompile>
+    <ClCompile Include="Player\Input.cpp">
+      <Filter>Player</Filter>
+    </ClCompile>
+    <ClCompile Include="Player\Player.cpp">
+      <Filter>Player</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="imgui">
+      <UniqueIdentifier>{0bba110c-ddc3-4c9c-96d0-746b9382f378}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="GameState">
+      <UniqueIdentifier>{e0d5c2a9-5fdf-4d3d-b051-f95c434bec7f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Player">
+      <UniqueIdentifier>{e0c36a00-9b81-4d26-b461-da623d7d4c53}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="GUI">
+      <UniqueIdentifier>{2800e564-7acc-4f6b-b7ab-0354aed5a494}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+</Project>
