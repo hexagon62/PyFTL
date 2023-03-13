@@ -118,21 +118,41 @@ BOOL __stdcall wglSwapBuffers_hook(HDC hDc)
     return wglSwapBuffers_orig(hDc);
 }
 
+class ConsoleHandler
+{
+public:
+    ConsoleHandler()
+    {
+        AllocConsole();
+        this->f = new FILE();
+        freopen_s(&f, "CONOUT$", "w", stdout);
+    }
+
+    ~ConsoleHandler()
+    {
+        FreeConsole();
+        fclose(this->f);
+        this->f = nullptr;
+    }
+
+private:
+    FILE* f = nullptr;
+};
+
 DWORD WINAPI patcherThread(HMODULE hModule)
 {
     constexpr char PointerMapFile[] = "pointermap.cfg";
     std::ifstream map(PointerMapFile);
+
+    ConsoleHandler con;
+
     if (!map)
     {
-        AllocConsole();
-        FILE* f = new FILE();
-        freopen_s(&f, "CONOUT$", "w", stdout);
-
         std::cout <<
             "Couldn't open " << PointerMapFile << ".\n"
             "Make sure it's present and make sure the application has appropriate permissions.\n";
 
-        FreeConsole();
+        std::system("pause");
 
         return 1;
     }
@@ -145,14 +165,10 @@ DWORD WINAPI patcherThread(HMODULE hModule)
     }
     catch (const std::exception& e)
     {
-        AllocConsole();
-        FILE* f = new FILE();
-        freopen_s(&f, "CONOUT$", "w", stdout);
-
         std::cout << "Couldn't parse " << PointerMapFile << ".\n";
         std::cout << e.what() << '\n';
 
-        FreeConsole();
+        std::system("pause");
 
         return 1;
     }

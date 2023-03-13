@@ -107,7 +107,7 @@ private:
                 this->rawStateSection();
             }
 
-            ImGui::Checkbox("In game?", &s.inGame);
+            /*ImGui::Checkbox("In game?", &s.inGame);
 
             if (s.inGame)
             {
@@ -128,7 +128,7 @@ private:
                     ImGui::InputFloat("Max FTL", &s.player.ftl.second);
                 }
 
-            }
+            }*/
         }
         ImGui::End();
     }
@@ -141,6 +141,7 @@ private:
 
         if (ImGui::CollapsingHeader("Raw state"))
         {
+            ImGui::Checkbox("Running", &rs.app->Running);
             ImGui::Checkbox("shift_held", &rs.app->shift_held);
 
             if (rs.app->gui && ImGui::TreeNode("gui"))
