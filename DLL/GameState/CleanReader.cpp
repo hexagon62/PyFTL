@@ -1431,7 +1431,7 @@ void readStore(Store& store, const raw::Store& raw)
 
 		auto&& box = store.boxes.emplace_back();
 		box.type = store.sections[section];
-		box.cost = rawBox.desc.cost;
+		box.actualPrice = rawBox.desc.cost;
 		box.id = i;
 		box.page2 = section >= 2;
 
@@ -2685,6 +2685,9 @@ PYBIND11_EMBEDDED_MODULE(ftl, module)
 
 	py::class_<StoreBox>(module, "StoreBox")
 		.def_readonly("type", &StoreBox::type)
+		.def_readonly("actual_price", &StoreBox::actualPrice)
+		.def_readonly("id", &StoreBox::id)
+		.def_readonly("page2", &StoreBox::page2)
 		.def_readonly("weapon", &StoreBox::weapon)
 		.def_readonly("drone", &StoreBox::drone)
 		.def_readonly("augment", &StoreBox::augment)

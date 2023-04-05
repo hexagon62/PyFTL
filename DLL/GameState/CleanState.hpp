@@ -913,7 +913,7 @@ enum class StoreBoxType
 struct StoreBox
 {
 	StoreBoxType type = StoreBoxType::Invalid;
-	int cost = 0; // may differ from blueprint!
+	int actualPrice = 0; // may differ from blueprint!
 	int id = 0;
 	bool page2 = false;
 
