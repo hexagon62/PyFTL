@@ -692,6 +692,55 @@ struct ItemBlueprint : Blueprint
 
 };
 
+struct WeaponMount
+{
+	Point position;
+	bool mirror = false;
+	bool rotate = false;
+	Pad<2> _u0;
+	int slide = 0;
+	int gib = 0;
+};
+
+struct WeaponAnimation
+{
+	Animation anim;
+	bool bFireShot = false;
+	bool bFiring = false;
+	Pad<2> _u0;
+	float fChargeLevel = 0.f;
+	int iChargedFrame = 0;
+	int iFireFrame = 0;
+	bool bMirrored = false;
+	bool bRotation = false;
+	Pad<2> _u1;
+	Point fireLocation;
+	bool bPowered = false;
+	Pad<3> _u2;
+	Point mountPoint;
+	Point renderPoint;
+	Point fireMountVector;
+	AnimationTracker slideTracker;
+	int slideDirection = 0;
+	CachedImage iChargeImage;
+	Animation explosionAnim;
+	WeaponMount mount;
+	float fDelayChargeTime = 0.f;
+	Animation boostAnim;
+	int boostLevel = -1;
+	bool bShowcharge = false;
+	Pad<3> _u3;
+	float fActualChargeLevel = 0.f;
+	int iChargeOffset = 0;
+	int iChargeLevels = 0;
+	int currentOffset = 0;
+	CachedImage chargeBox, chargeBar;
+	int iHackLevel = 0;
+	Animation hackSparks;
+	bool playerShip = false;
+	Pad<3> _u4;
+};
+
 struct Projectile : Collideable, Targetable
 {
 	Pointf position, last_position;
@@ -799,57 +848,8 @@ struct PDSFire : LaserBlast
 	Pad<3> _u0;
 	float currentScale = 1.f;
 	bool missed = false;
-	Pad<3> _u0;
+	Pad<3> _u1;
 	Animation explosionAnimation;
-};
-
-struct WeaponMount
-{
-	Point position;
-	bool mirror = false;
-	bool rotate = false;
-	Pad<2> _u0;
-	int slide = 0;
-	int gib = 0;
-};
-
-struct WeaponAnimation
-{
-	Animation anim;
-	bool bFireShot = false;
-	bool bFiring = false;
-	Pad<2> _u0;
-	float fChargeLevel = 0.f;
-	int iChargedFrame = 0;
-	int iFireFrame = 0;
-	bool bMirrored = false;
-	bool bRotation = false;
-	Pad<2> _u1;
-	Point fireLocation;
-	bool bPowered = false;
-	Pad<3> _u2;
-	Point mountPoint;
-	Point renderPoint;
-	Point fireMountVector;
-	AnimationTracker slideTracker;
-	int slideDirection = 0;
-	CachedImage iChargeImage;
-	Animation explosionAnim;
-	WeaponMount mount;
-	float fDelayChargeTime = 0.f;
-	Animation boostAnim;
-	int boostLevel = -1;
-	bool bShowcharge = false;
-	Pad<3> _u3;
-	float fActualChargeLevel = 0.f;
-	int iChargeOffset = 0;
-	int iChargeLevels = 0;
-	int currentOffset = 0;
-	CachedImage chargeBox, chargeBar;
-	int iHackLevel = 0;
-	Animation hackSparks;
-	bool playerShip = false;
-	Pad<3> _u4;
 };
 
 struct CloakingSystem;

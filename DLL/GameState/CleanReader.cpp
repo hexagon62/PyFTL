@@ -1349,11 +1349,11 @@ void readSpace(Space& space, const raw::SpaceManager& raw)
 			auto&& rawRate = gen.spawnRate[i];
 			auto&& rawLen = gen.stateLength[i];
 
-			rate.min = rawRate.min;
-			rate.max = rawRate.max;
+			rate.min = float(rawRate.min)/1000.f;
+			rate.max = float(rawRate.max)/1000.f;
 			rate.chanceNone = rawRate.chanceNone;
-			len.min = rawLen.min;
-			len.max = rawLen.max;
+			len.min = float(rawLen.min);
+			len.max = float(rawLen.max);
 			len.chanceNone = rawLen.chanceNone;
 		}
 
@@ -1367,9 +1367,93 @@ void readSpace(Space& space, const raw::SpaceManager& raw)
 	}
 }
 
+void readResourceEvent(ResourceEvent& event, const raw::ResourceEvent& raw)
+{
+	event.missiles = raw.missiles;
+	event.fuel = raw.fuel;
+	event.droneParts = raw.drones;
+	event.traitor = raw.traitor;
+	event.cloneable = raw.cloneable;
+	event.steal = raw.steal;
+	event.intruders = raw.intruders;
+
+	if (raw.weapon)
+	{
+		event.weapon = WeaponBlueprint{};
+		readWeaponBlueprint(*event.weapon, *raw.weapon);
+	}
+
+	if (raw.drone)
+	{
+		event.drone = DroneBlueprint{};
+		readDroneBlueprint(*event.drone, *raw.drone);
+	}
+
+	if (raw.augment)
+	{
+		event.augment = Augment{};
+		readAugment(*event.augment, *raw.augment);
+	}
+
+	event.crewType = raw.crewType.str;
+	event.fleetDelay = raw.fleetDelay;
+	event.hullDamage = raw.hullDamage;
+	event.system = SystemType(raw.upgradeId);
+	event.upgradeAmount = raw.upgradeAmount;
+	event.removeAugment = raw.removeItem.str;
+}
+
 void readLocationEvent(LocationEvent& event, const raw::LocationEvent& raw)
 {
+	event.environment = EnvironmentType(raw.environment);
+	event.environmentTargetsEnemy = raw.environmentTarget == 1;
+	event.beacon = raw.beacon;
+	event.distressBeacon = raw.distressBeacon;
+	event.revealMap = raw.reveal_map;
+	event.repair = raw.repair;
+	event.unlockShip = raw.unlockShip;
 
+	event.ship = std::nullopt;
+	readResourceEvent(event.resources, raw.stuff);
+	readResourceEvent(event.reward, raw.reward);
+	event.store = std::nullopt;
+	event.damage.clear();
+
+	if (raw.ship.present)
+	{
+		event.ship = ShipEvent{};
+		event.ship->hostile = raw.ship.hostile;
+		event.ship->surrenderThreshold = {
+			raw.ship.surrenderThreshold.min,
+			raw.ship.surrenderThreshold.max,
+			raw.ship.surrenderThreshold.chanceNone
+		};
+		event.ship->escapeThreshold = {
+			raw.ship.escapeThreshold.min,
+			raw.ship.escapeThreshold.max,
+			raw.ship.escapeThreshold.chanceNone
+		};
+	}
+
+	event.boarders.crewType = raw.boarders.type.str;
+	event.boarders.min = raw.boarders.min;
+	event.boarders.max = raw.boarders.max;
+	event.boarders.amount = raw.boarders.amount;
+	event.boarders.breach = raw.boarders.breach;
+
+	if (raw.pStore)
+	{
+		event.store = Store{};
+	}
+
+	for (size_t i = 0; i < raw.damage.size(); i++)
+	{
+		event.damage.push_back({
+			.system = SystemType(raw.damage[i].system),
+			.amount = raw.damage[i].amount,
+			.effect = raw.damage[i].effect
+		});
+	}
 }
 
 void readSettings(Settings& settings, const raw::SettingValues& raw)
@@ -1501,6 +1585,7 @@ void Reader::poll()
 		if(game.pause.justUnpaused) readSettings(state.settings, *rs.settingValues);
 
 		game.gameOver = rs.app->gui->gameover;
+		game.justJumped = false;
 
 		// Space stuffs
 		readSpace(game.space, rs.app->world->space);
@@ -1546,12 +1631,19 @@ void Reader::poll()
 		{
 			if (!game.playerShip) game.playerShip = Ship{};
 
+			bool prevJumping = game.playerShip->jumping;
+
 			readPlayerShip(
 				*game.playerShip,
 				game.playerCrew,
 				game.enemyCrew,
 				*rs.app->gui,
 				rs.powerManagerContainer->powerManagers[0]);
+
+			if (prevJumping && !game.playerShip->jumping)
+			{
+				game.justJumped = true;
+			}
 		}
 		else
 		{
@@ -1580,6 +1672,12 @@ void Reader::poll()
 			{
 				game.enemyShip = std::nullopt;
 			}
+		}
+
+		// Load the event stuff
+		if (game.justJumped)
+		{
+			readLocationEvent(game.event, *rs.app->world->baseLocationEvent);
 		}
 	}
 }
@@ -2314,10 +2412,16 @@ PYBIND11_EMBEDDED_MODULE(ftl, module)
 		.def_readonly("beam", &Projectile::beam)
 		;
 
-	py::class_<RandomAmount>(module, "RandomAmount")
-		.def_readonly("min", &RandomAmount::min)
-		.def_readonly("max", &RandomAmount::max)
-		.def_readonly("chance_none", &RandomAmount::chanceNone)
+	py::class_<RandomAmount<int>>(module, "RandomAmountInt")
+		.def_readonly("min", &RandomAmount<int>::min)
+		.def_readonly("max", &RandomAmount<int>::max)
+		.def_readonly("chance_none", &RandomAmount<int>::chanceNone)
+		;
+
+	py::class_<RandomAmount<float>>(module, "RandomAmountFloat")
+		.def_readonly("min", &RandomAmount<float>::min)
+		.def_readonly("max", &RandomAmount<float>::max)
+		.def_readonly("chance_none", &RandomAmount<float>::chanceNone)
 		;
 
 	py::class_<AsteroidInfo>(module, "AsteroidInfo")
@@ -2333,23 +2437,82 @@ PYBIND11_EMBEDDED_MODULE(ftl, module)
 		.def_readonly("shield_level", &AsteroidInfo::shieldLevel)
 		;
 
+	py::enum_<EnvironmentType>(module, "EnvironmentType")
+		.value("invalid", EnvironmentType::Invalid)
+		.value("normal", EnvironmentType::Normal)
+		.value("asteroids", EnvironmentType::Asteroids)
+		.value("close_to_sun", EnvironmentType::CloseToSun)
+		.value("nebula", EnvironmentType::Nebula)
+		.value("ion_storm", EnvironmentType::IonStorm)
+		.value("pulsar", EnvironmentType::Pulsar)
+		.value("asb", EnvironmentType::ASB)
+		;
+
 	py::class_<Space>(module, "Space")
 		.def_readonly("projectiles", &Space::projectiles)
-		.def_readonly("hazard", &Space::hazard)
+		.def_readonly("environment", &Space::environment)
 		.def_readonly("asteroids", &Space::asteroids)
-		.def_readonly("close_to_sun", &Space::closeToSun)
-		.def_readonly("pulsar", &Space::pulsar)
-		.def_readonly("asb", &Space::asb)
-		.def_readonly("environment_targeting_enemy", &Space::environmentTargetingEnemy)
-		.def_readonly("nebula", &Space::nebula)
-		.def_readonly("ion_storm", &Space::ionStorm)
 		.def_readonly("hazard_timer", &Space::hazardTimer)
+		;
+
+	py::class_<ResourceEvent>(module, "ResourceEvent")
+		.def_readonly("missiles", &ResourceEvent::missiles)
+		.def_readonly("fuel", &ResourceEvent::missiles)
+		.def_readonly("drone_parts", &ResourceEvent::droneParts)
+		.def_readonly("scrap", &ResourceEvent::scrap)
+		.def_readonly("crew", &ResourceEvent::crew)
+		.def_readonly("traitor", &ResourceEvent::traitor)
+		.def_readonly("cloneable", &ResourceEvent::cloneable)
+		.def_readonly("steal", &ResourceEvent::steal)
+		.def_readonly("intruders", &ResourceEvent::intruders)
+		.def_readonly("weapon", &ResourceEvent::weapon)
+		.def_readonly("drone", &ResourceEvent::augment)
+		.def_readonly("crew_type", &ResourceEvent::crewType)
+		.def_readonly("fleet_delay", &ResourceEvent::fleetDelay)
+		.def_readonly("hull_damage", &ResourceEvent::hullDamage)
+		.def_readonly("system", &ResourceEvent::system)
+		.def_readonly("upgrade_amount", &ResourceEvent::upgradeAmount)
+		.def_readonly("remove_augment", &ResourceEvent::removeAugment)
+		;
+
+	py::class_<BoardingEvent>(module, "BoardingEvent")
+		.def_readonly("crew_type", &BoardingEvent::crewType)
+		.def_readonly("min", &BoardingEvent::min)
+		.def_readonly("max", &BoardingEvent::max)
+		.def_readonly("amount", &BoardingEvent::amount)
+		.def_readonly("breach", &BoardingEvent::breach)
+		;
+
+	py::class_<Store>(module, "Store")
+		;
+
+	py::class_<EventDamage>(module, "EventDamage")
+		.def_readonly("system", &EventDamage::system)
+		.def_readonly("amount", &EventDamage::amount)
+		.def_readonly("effect", &EventDamage::effect)
+		;
+
+	py::class_<LocationEvent>(module, "LocationEvent")
+		.def_readonly("environment", &LocationEvent::environment)
+		.def_readonly("environment_targets_enemy", &LocationEvent::environmentTargetsEnemy)
+		.def_readonly("beacon", &LocationEvent::beacon)
+		.def_readonly("distress_beacon", &LocationEvent::distressBeacon)
+		.def_readonly("reveal_map", &LocationEvent::revealMap)
+		.def_readonly("repair", &LocationEvent::repair)
+		.def_readonly("unlock_ship", &LocationEvent::unlockShip)
+		.def_readonly("ship", &LocationEvent::ship)
+		.def_readonly("resources", &LocationEvent::resources)
+		.def_readonly("reward", &LocationEvent::reward)
+		.def_readonly("boarders", &LocationEvent::boarders)
+		.def_readonly("store", &LocationEvent::store)
+		.def_readonly("damage", &LocationEvent::damage)
 		;
 
 	py::class_<Game>(module, "Game")
 		.def_readonly("game_over", &Game::gameOver)
 		.def_readonly("pause", &Game::pause)
 		.def_readonly("space", &Game::space)
+		.def_readonly("event", &Game::event)
 		.def_readonly("player_ship", &Game::playerShip)
 		.def_readonly("enemy_ship", &Game::enemyShip)
 		.def_readonly("player_crew", &Game::playerCrew)
@@ -2366,7 +2529,8 @@ PYBIND11_EMBEDDED_MODULE(ftl, module)
 	py::enum_<Settings::Difficulty>(module, "Difficulty")
 		.value("easy", Settings::Difficulty::Easy)
 		.value("normal", Settings::Difficulty::Normal)
-		.value("hard", Settings::Difficulty::Hard);
+		.value("hard", Settings::Difficulty::Hard)
+		;
 
 	py::enum_<Settings::EventChoiceSelection>(module, "EventChoiceSelection")
 		.value("disable_hotkeys", Settings::EventChoiceSelection::DisableHotkeys)

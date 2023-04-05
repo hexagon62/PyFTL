@@ -6,6 +6,7 @@
 #include <array>
 #include <optional>
 #include <map>
+#include <memory>
 
 enum class Key : int
 {
@@ -856,13 +857,13 @@ struct ResourceEvent
 {
 	int missiles = 0, fuel = 0, droneParts = 0, scrap = 0, crew = 0;
 	bool traitor = false, cloneable = false, steal = false, intruders = false;
-	std::optional<Weapon> weapon;
-	std::optional<Drone> drone;
+	std::optional<WeaponBlueprint> weapon;
+	std::optional<DroneBlueprint> drone;
 	std::optional<Augment> augment;
 	std::string crewType;
 	int fleetDelay = 0, hullDamage = 0;
 	SystemType system = SystemType::None;
-	int upgradeAmout = 0;
+	int upgradeAmount = 0;
 	std::string removeAugment;
 };
 
@@ -878,8 +879,9 @@ struct Store
 
 };
 
-class EventDamage
+struct EventDamage
 {
+	SystemType system;
 	int amount = 0, effect = 0;
 };
 
@@ -891,21 +893,24 @@ struct LocationEvent
 	bool distressBeacon = false;
 	bool revealMap = false;
 	bool repair = false;
+	int unlockShip = -1;
 
-	std::optional<Ship> ship;
-	std::optional<ResourceEvent> resources, reward;
-	std::optional<BoardingEvent> boarders;
+	std::optional<ShipEvent> ship;
+	ResourceEvent resources, reward;
+	BoardingEvent boarders;
 	std::optional<Store> store;
 
-	std::map<SystemType, EventDamage> damage;
+	std::vector<EventDamage> damage;
 };
 
 struct Game
 {
 	bool gameOver = false;
+	bool justJumped = false;
 
 	PauseState pause;
 	Space space;
+	LocationEvent event;
 	std::optional<Ship> playerShip, enemyShip;
 	std::vector<Crew> playerCrew, enemyCrew;
 };
