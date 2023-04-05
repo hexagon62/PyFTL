@@ -1514,8 +1514,14 @@ void readResourceEvent(ResourceEvent& event, const raw::ResourceEvent& raw)
 	event.removeAugment = raw.removeItem.str;
 }
 
-void readLocationEvent(LocationEvent& event, const raw::LocationEvent& raw)
+// preserveStore stops the store data from being cleared
+// This is just for the edge case where you cheat in a store event
+// and then cheat in another event that removes the store from the current event
+// but the store still exists and needs accessing somehow!
+void readLocationEvent(LocationEvent& event, const raw::LocationEvent& raw, bool preserveStore = false)
 {
+	if (!preserveStore) event._storePtr = nullptr;
+
 	event.environment = EnvironmentType(raw.environment);
 	event.environmentTargetsEnemy = raw.environmentTarget == 1;
 	event.beacon = raw.beacon;
@@ -1527,7 +1533,7 @@ void readLocationEvent(LocationEvent& event, const raw::LocationEvent& raw)
 	event.ship = std::nullopt;
 	readResourceEvent(event.resources, raw.stuff);
 	readResourceEvent(event.reward, raw.reward);
-	event.store = std::nullopt;
+	if(!event._storePtr) event.store = std::nullopt;
 	event.damage.clear();
 	event.choices.clear();
 
@@ -1555,6 +1561,7 @@ void readLocationEvent(LocationEvent& event, const raw::LocationEvent& raw)
 
 	if (raw.pStore)
 	{
+		event._storePtr = raw.pStore; // update store pointer
 		event.store = Store{};
 		readStore(*event.store, *raw.pStore);
 	}
@@ -1691,16 +1698,6 @@ void Reader::poll()
 {
 	state.running = rs.app && rs.app->Running;
 
-	if (!state.running || rs.app->menu.bOpen) // not in game
-	{
-		state.game = std::nullopt;
-	}
-	else if(state.game == std::nullopt) // create game object if it doesn't exist
-	{
-		state.game = Game{};
-		state.game->pause.justUnpaused = true;
-	}
-
 	if (!state.running) return;
 
 	if (state.game)
@@ -1722,14 +1719,12 @@ void Reader::poll()
 		game.pause.justPaused = !prevPause && game.pause.any;
 		game.pause.justUnpaused = prevPause && !game.pause.any;
 
-		// Read settings upon unpausing
-		// Definitely a bit overkill, but not worth worrying about
-		// Since really the best solution would be to check after leaving the menu
-		// Which is hyper specific, harder to implement, and not much better
-		if(game.pause.justUnpaused) readSettings(state.settings, *rs.settingValues);
+		if (game.justLoaded || rs.app->gui->optionsBox.bOpen)
+		{
+			readSettings(state.settings, *rs.settingValues);
+		}
 
 		game.gameOver = rs.app->gui->gameover;
-		game.justJumped = false;
 
 		// Space stuffs
 		readSpace(game.space, rs.app->world->space);
@@ -1784,14 +1779,12 @@ void Reader::poll()
 				*rs.app->gui,
 				rs.powerManagerContainer->powerManagers[0]);
 
-			if (prevJumping && !game.playerShip->jumping)
-			{
-				game.justJumped = true;
-			}
+			game.justJumped = prevJumping && !game.playerShip->jumping;
 		}
 		else
 		{
 			game.playerShip = std::nullopt;
+			game.justJumped = false;
 		}
 
 		// For accessing the enemy's CompleteShip instance
@@ -1819,25 +1812,43 @@ void Reader::poll()
 		}
 
 		// Read the event stuff
-		if (game.pause.event)
+		if (game.pause.event || game.pause.menu || game.justJumped || game.justLoaded)
 		{
-			auto&& base = *rs.app->world->baseLocationEvent;
 			auto&& choices = rs.app->world->choiceHistory;
-			auto* current = &base;
+			auto* current = rs.app->world->baseLocationEvent;
 
 			// Game stores only the base event
 			// so we need to traverse the event tree using the choice history
 			for (size_t i = 0; i < choices.size(); i++)
 			{
 				if (!current) break;
-				current = current->choices[i].event;
+
+				if (current->choices[i].event)
+				{
+					current = current->choices[i].event;
+				}
 			}
 
 			if (current)
 			{
-				readLocationEvent(game.event, *current);
+				// Only null store pointer when jumping
+				bool preserveStore = game.playerShip && !game.playerShip->jumping;
+				readLocationEvent(game.event, *current, preserveStore);
 			}
 		}
+
+		if (game.justLoaded) game.justLoaded = false;
+	}
+
+	if (rs.app->menu.bOpen) // not in game
+	{
+		state.game = std::nullopt;
+	}
+	else if (state.game == std::nullopt) // create game object if it doesn't exist
+	{
+		state.game = Game{};
+		state.game->pause.justUnpaused = true;
+		state.game->justLoaded = true;
 	}
 }
 
@@ -2033,6 +2044,7 @@ PYBIND11_EMBEDDED_MODULE(ftl, module)
 		.def_readonly("h", &Rect<int>::h)
 		.def("contains", py::overload_cast<const Point<int>&>(&Rect<int>::contains<int>, py::const_), "Check if the rectangle contains the point")
 		.def("contains", py::overload_cast<const Point<float>&>(&Rect<int>::contains<float>, py::const_), "Check if the rectangle contains the point")
+		.def("center", &Rect<int>::center)
 		;
 
 	py::class_<Rect<float>>(module, "RectFloat")
@@ -2045,6 +2057,7 @@ PYBIND11_EMBEDDED_MODULE(ftl, module)
 		.def_readonly("h", &Rect<float>::h)
 		.def("contains", py::overload_cast<const Point<int>&>(&Rect<float>::contains<int>, py::const_), "Check if the rectangle contains the point")
 		.def("contains", py::overload_cast<const Point<float>&>(&Rect<float>::contains<float>, py::const_), "Check if the rectangle contains the point")
+		.def("center", &Rect<float>::center)
 		;
 
 	py::class_<Ellipse<int>>(module, "EllipseInt")

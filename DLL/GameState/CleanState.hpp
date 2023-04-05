@@ -210,6 +210,11 @@ struct Rect
 			p.x >= U(this->x) && p.x <= U(this->x + this->w) &&
 			p.y >= U(this->y) && p.y <= U(this->y + this->h);
 	}
+
+	Point<T> center() const
+	{
+		return { this->x + this->w / T(2), this->y + this->h / T(2) };
+	}
 };
 
 template<typename T>
@@ -950,6 +955,13 @@ struct Choice
 	bool hiddenReward = false;
 };
 
+namespace raw
+{
+
+struct Store;
+
+}
+
 struct LocationEvent
 {
 	EnvironmentType environment = EnvironmentType::Normal;
@@ -967,10 +979,14 @@ struct LocationEvent
 
 	std::vector<EventDamage> damage;
 	std::vector<Choice> choices;
+
+	// Some implementation stuffs
+	raw::Store* _storePtr = nullptr;
 };
 
 struct Game
 {
+	bool justLoaded = false;
 	bool gameOver = false;
 	bool justJumped = false;
 
