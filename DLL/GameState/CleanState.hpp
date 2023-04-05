@@ -250,11 +250,25 @@ enum class SystemType : int
 	Hacking
 };
 
+enum class HackLevel : int
+{
+	Invalid = -1,
+	None = 0,
+	Passive = 1,
+	Active = 2
+};
+
 struct Blueprint
 {
 	std::string name;
 	int cost = 0;
 	int rarity = 0, baseRarity = 0;
+};
+
+struct SystemBlueprint : Blueprint
+{
+	int powerStart = 0, powerMax = 0;
+	std::vector<int> upgradeCosts;
 };
 
 struct Augment : Blueprint
@@ -324,7 +338,7 @@ struct Weapon
 	float entryAngle = 0.f;
 	Point<int> mount;
 	int zoltanPower = 0;
-	int hackLevel = 0;
+	HackLevel hackLevel = HackLevel::None;
 	Capped<int> boost{ 0, 0 };
 	Capped<int> charge{ 0, 0 };
 	Capped<float> shotTimer{ 0.f, 0.f };
@@ -388,7 +402,7 @@ struct Drone
 	bool powered = false;
 	bool dead = false;
 	int zoltanPower = 0;
-	int hackLevel = 0;
+	HackLevel hackLevel = HackLevel::None;
 	float hackTime = 0.f;
 	Capped<float> destroyTimer{ 0.f, 0.f };
 
@@ -402,15 +416,26 @@ struct Path
 	float distance = -1.f;
 };
 
+struct CrewBlueprint : Blueprint
+{
+	std::string name, nameLong, species;
+	bool male = false;
+	Capped<int> skillPiloting{ 0, 0 };
+	Capped<int> skillEngines{ 0, 0 };
+	Capped<int> skillShields{ 0, 0 };
+	Capped<int> skillWeapons{ 0, 0 };
+	Capped<int> skillRepair{ 0, 0 };
+	Capped<int> skillCombat{ 0, 0 };
+};
+
 struct Crew
 {
 	int uiBox = -1, selectionState = 0;
-	std::string name, nameLong, species;
+	CrewBlueprint blueprint;
 	Point<float> position, goal;
 	Capped<float> health{ 0.f, 0.f };
 	Point<float> speed;
 	Path path;
-	bool male = false;
 	bool player = false;
 	bool onPlayerShip = false;
 	bool newPath = false;
@@ -427,12 +452,6 @@ struct Crew
 	SystemType mannedSystem = SystemType::None;
 	int roomGoal = 0, slotGoal = 0;
 	int roomSaved = 0, slotSaved = 0;
-	Capped<int> pilotingSkill{ 0, 0 };
-	Capped<int> enginesSkill{ 0, 0 };
-	Capped<int> shieldsSkill{ 0, 0 };
-	Capped<int> weaponsSkill{ 0, 0 };
-	Capped<int> repairSkill{ 0, 0 };
-	Capped<int> combatSkill{ 0, 0 };
 	int cloneQueuePosition = -1; // will be set when reading clonebay status
 	int deathId = -1; // used to sort the clone queue
 	float cloneDeathProgress = 0.f;
@@ -505,7 +524,7 @@ struct Room
 	bool player = false;
 	bool stunning = false;
 	float oxygen = 0.f;
-	int hackLevel = 0;
+	HackLevel hackLevel = HackLevel::None;
 
 	std::vector<Crew*> crewMoving;
 	std::vector<Crew*> crew;
@@ -550,7 +569,7 @@ struct Door
 	std::pair<int, int> rooms{ -1, -1 };
 	int level = 0;
 	Capped<int> health{ 0, 0 };
-	int hackLevel = 0;
+	HackLevel hackLevel = HackLevel::None;
 	bool open = false, openFake = false;
 	bool ioned = false;
 	bool vertical = false;
@@ -562,6 +581,7 @@ struct Door
 struct System
 {
 	SystemType type = SystemType::None;
+	SystemBlueprint blueprint;
 	int room = -1;
 	Power power;
 	Capped<int> health{ 0, 0 }, level{ 0, 0 };
@@ -874,15 +894,60 @@ struct BoardingEvent
 	bool breach = false;
 };
 
+enum class StoreBoxType
+{
+	Invalid = -1,
+	Weapon = 0,
+	Drone = 1,
+	Augment = 2,
+	Crew = 3,
+	System = 4,
+	Item = 5
+};
+
+struct StoreBox
+{
+	StoreBoxType type = StoreBoxType::Invalid;
+	int cost = 0; // may differ from blueprint!
+	int id = 0;
+	bool page2 = false;
+
+	std::optional<WeaponBlueprint> weapon;
+	std::optional<DroneBlueprint> drone; // may be present with drone system!
+	std::optional<Augment> augment;
+	std::optional<CrewBlueprint> crew;
+	std::optional<SystemBlueprint> system;
+};
+
 struct Store
 {
+	static constexpr int HARDCODED_BOXES_PER_SECTION = 3;
 
+	std::vector<StoreBox> boxes;
+	std::vector<StoreBoxType> sections;
+	int fuel = 0, fuelCost = 0;
+	int missiles = 0, missileCost = 0;
+	int droneParts = 0, dronePartCost = 0;
+	int repairCost = 0, repairCostFull = 0;
+	bool page2 = false;
 };
 
 struct EventDamage
 {
 	SystemType system;
 	int amount = 0, effect = 0;
+};
+
+struct LocationEvent;
+
+struct Choice
+{
+	std::shared_ptr<LocationEvent> event; // would've used unique but idk how to with pybind
+	std::string requiredObject;
+	int levelMin = 0, levelMax = std::numeric_limits<int>::max();
+	int maxGroup = std::numeric_limits<int>::max();
+	bool blue = false;
+	bool hiddenReward = false;
 };
 
 struct LocationEvent
@@ -901,6 +966,7 @@ struct LocationEvent
 	std::optional<Store> store;
 
 	std::vector<EventDamage> damage;
+	std::vector<Choice> choices;
 };
 
 struct Game
@@ -959,12 +1025,12 @@ struct Blueprints
 	std::map<std::string, WeaponBlueprint> weaponBlueprints;
 	std::map<std::string, DroneBlueprint> droneBlueprints;
 	std::map<std::string, Augment> augmentBlueprints;
-	//gcc::map<gcc::string, CrewBlueprint> crewBlueprints;
+	std::map<std::string, CrewBlueprint> crewBlueprints;
 	//gcc::map<gcc::string, bool> nameList;
 	//gcc::map<gcc::string, gcc::string> shortNames;
 	//gcc::map<gcc::string, gcc::map<gcc::string, bool>> languageNameLists;
 	//gcc::map<gcc::string, ItemBlueprint> itemBlueprints;
-	//gcc::map<gcc::string, SystemBlueprint> systemBlueprints;
+	std::map<std::string, SystemBlueprint> systemBlueprints;
 	//gcc::map<gcc::string, gcc::vector<gcc::string>> blueprintLists;
 	//gcc::vector<gcc::string> currentNames;
 };

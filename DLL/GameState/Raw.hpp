@@ -962,7 +962,8 @@ struct CombatDrone : SpaceDrone
 
 struct SystemBlueprint : Blueprint
 {
-
+	int maxPower = 0, startPower = 0;
+	gcc::vector<int> upgradeCosts;
 };
 
 struct InfoBox
@@ -2732,6 +2733,49 @@ struct StoreBox
 	Pad<3> _u0;
 	float fIconScale = 0.f;
 	Point pushIcon;
+};
+
+struct WeaponStoreBox : StoreBox
+{
+	WeaponBlueprint* blueprint = nullptr;
+};
+
+struct DroneStoreBox : StoreBox
+{
+	DroneBlueprint* blueprint = nullptr;
+};
+
+struct AugmentStoreBox : StoreBox
+{
+	AugmentBlueprint* blueprint = nullptr;
+};
+
+struct CrewStoreBox : StoreBox
+{
+	gcc::string name;
+	Animation crewPortrait;
+	CrewBlueprint blueprint;
+};
+
+struct SystemStoreBox : StoreBox
+{
+	SystemBlueprint* blueprint = nullptr;
+	int type = 0;
+	bool bConfirming = false;
+	gcc::string confirmString, freeBlueprint;
+	int droneChoice = 0;
+};
+
+struct ItemStoreBox : StoreBox
+{
+	ItemBlueprint* blueprint = nullptr;
+};
+
+struct RepairStoreBox : StoreBox
+{
+	bool repairAll = false;
+	int repairCost = 0;
+	TextString buttonText;
 };
 
 struct Store : FocusWindow

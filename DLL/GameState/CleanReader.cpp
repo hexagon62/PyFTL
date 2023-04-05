@@ -81,6 +81,7 @@ void readSystem(System& system, const raw::ShipSystem& raw)
 void readShieldSystem(ShieldSystem& shields, const raw::Shields& raw)
 {
 	readSystem(shields, raw);
+	shields.blueprint = Reader::getState().blueprints.systemBlueprints.at("shields");
 
 	shields.boundary.center.x = raw.baseShield.center.x;
 	shields.boundary.center.y = raw.baseShield.center.y;
@@ -97,6 +98,7 @@ void readShieldSystem(ShieldSystem& shields, const raw::Shields& raw)
 void readEngineSystem(EngineSystem& engines, const raw::EngineSystem& raw)
 {
 	readSystem(engines, raw);
+	engines.blueprint = Reader::getState().blueprints.systemBlueprints.at("engines");
 
 	engines.boostFTL = raw.bBoostFTL;
 }
@@ -120,6 +122,7 @@ void readClonebaySystem(
 	std::vector<Crew>& crew)
 {
 	readSystem(clonebay, raw);
+	clonebay.blueprint = Reader::getState().blueprints.systemBlueprints.at("clonebay");
 
 	clonebay.cloneTimer.first = raw.fTimeToClone;
 	clonebay.cloneTimer.second = raw.fTimeGoal;
@@ -158,8 +161,9 @@ void readClonebaySystem(
 void readOxygenSystem(OxygenSystem& oxygen, const raw::OxygenSystem& raw)
 {
 	readSystem(oxygen, raw);
+	oxygen.blueprint = Reader::getState().blueprints.systemBlueprints.at("oxygen");
 
-	// TO DO
+	// nothing else interesting?
 }
 
 // Read teleporter info that is shared on both player and enemy ships
@@ -169,6 +173,7 @@ void readTeleporterSystemGeneric(
 	std::vector<Crew>& crew)
 {
 	readSystem(teleporter, raw);
+	teleporter.blueprint = Reader::getState().blueprints.systemBlueprints.at("teleporter");
 
 	teleporter.slots = raw.iNumSlots;
 	teleporter.crewPresent.clear();
@@ -280,7 +285,7 @@ void readWeapon(Weapon& weapon, const raw::ProjectileFactory& raw)
 
 	weapon.zoltanPower = raw.iBonusPower;
 
-	weapon.hackLevel = raw.iHackLevel;
+	weapon.hackLevel = HackLevel(raw.iHackLevel);
 
 	weapon.boost.first = raw.boostLevel;
 	weapon.boost.second = weapon.blueprint.boost.count;
@@ -328,7 +333,7 @@ void readDrone(Drone& drone, const raw::Drone& raw, int superShieldBubbles = 0)
 	drone.powered = raw.powered;
 	drone.dead = raw.bDead;
 	drone.zoltanPower = raw.iBonusPower;
-	drone.hackLevel = raw.iHackLevel;
+	drone.hackLevel = HackLevel(raw.iHackLevel);
 	drone.hackTime = raw.hackTime;
 	drone.destroyTimer.first = raw.destroyedTimer;
 	drone.destroyTimer.second = drone.HARDCODED_REBUILD_TIME;
@@ -429,9 +434,23 @@ void readDrone(Drone& drone, const raw::Drone& raw, int superShieldBubbles = 0)
 	}
 }
 
+void readSystemBlueprint(SystemBlueprint& blueprint, const raw::SystemBlueprint& raw)
+{
+	readBlueprint(blueprint, raw);
+	blueprint.powerStart = raw.startPower;
+	blueprint.powerMax = raw.maxPower;
+	blueprint.upgradeCosts.clear();
+
+	for (size_t i = 0; i < raw.upgradeCosts.size(); i++)
+	{
+		blueprint.upgradeCosts.emplace_back(raw.upgradeCosts[i]);
+	}
+}
+
 void readWeaponSystem(WeaponSystem& weapons, const raw::WeaponSystem& raw)
 {
 	readSystem(weapons, raw);
+	weapons.blueprint = Reader::getState().blueprints.systemBlueprints.at("weapons");
 
 	weapons.slotCount = raw.slot_count;
 	weapons.weapons.clear();
@@ -458,6 +477,7 @@ void readWeaponSystem(WeaponSystem& weapons, const raw::WeaponSystem& raw)
 void readDroneSystem(DroneSystem& drones, const raw::DroneSystem& raw, int superShieldBubbles = 0)
 {
 	readSystem(drones, raw);
+	drones.blueprint = Reader::getState().blueprints.systemBlueprints.at("drones");
 
 	drones.slotCount = raw.slot_count;
 	drones.drones.clear();
@@ -484,6 +504,7 @@ void readDroneSystem(DroneSystem& drones, const raw::DroneSystem& raw, int super
 void readCloakingSystem(CloakingSystem& cloaking, const raw::CloakingSystem& raw)
 {
 	readSystem(cloaking, raw);
+	cloaking.blueprint = Reader::getState().blueprints.systemBlueprints.at("cloaking");
 
 	cloaking.on = raw.bTurnedOn;
 	cloaking.timer.first = raw.timer.currTime;
@@ -493,6 +514,7 @@ void readCloakingSystem(CloakingSystem& cloaking, const raw::CloakingSystem& raw
 void readPilotingSystem(PilotingSystem& piloting, const raw::ShipSystem& raw)
 {
 	readSystem(piloting, raw);
+	piloting.blueprint = Reader::getState().blueprints.systemBlueprints.at("pilot");
 
 	// Probably no extra fields?
 }
@@ -500,6 +522,7 @@ void readPilotingSystem(PilotingSystem& piloting, const raw::ShipSystem& raw)
 void readSensorsSystem(SensorSystem& sensors, const raw::ShipSystem& raw)
 {
 	readSystem(sensors, raw);
+	sensors.blueprint = Reader::getState().blueprints.systemBlueprints.at("sensors");
 
 	// Probably no extra fields?
 }
@@ -507,6 +530,7 @@ void readSensorsSystem(SensorSystem& sensors, const raw::ShipSystem& raw)
 void readDoorSystem(DoorSystem& doors, const raw::ShipSystem& raw)
 {
 	readSystem(doors, raw);
+	doors.blueprint = Reader::getState().blueprints.systemBlueprints.at("doors");
 
 	// Probably no extra fields?
 }
@@ -514,6 +538,7 @@ void readDoorSystem(DoorSystem& doors, const raw::ShipSystem& raw)
 void readArtillerySystem(ArtillerySystem& artillery, const raw::ArtillerySystem& raw)
 {
 	readSystem(artillery, raw);
+	artillery.blueprint = Reader::getState().blueprints.systemBlueprints.at("artillery");
 
 	if (raw.projectileFactory)
 	{
@@ -524,6 +549,7 @@ void readArtillerySystem(ArtillerySystem& artillery, const raw::ArtillerySystem&
 void readBatterySystem(BatterySystem& battery, const raw::BatterySystem& raw)
 {
 	readSystem(battery, raw);
+	battery.blueprint = Reader::getState().blueprints.systemBlueprints.at("battery");
 
 	battery.on = raw.bTurnedOn;
 	battery.timer.first = raw.timer.currTime;
@@ -535,6 +561,7 @@ void readBatterySystem(BatterySystem& battery, const raw::BatterySystem& raw)
 void readMindControlSystem(MindControlSystem& mindControl, const raw::MindSystem& raw)
 {
 	readSystem(mindControl, raw);
+	mindControl.blueprint = Reader::getState().blueprints.systemBlueprints.at("mind");
 
 	mindControl.on = raw.controlTimer.first < raw.controlTimer.second;
 	mindControl.timer = raw.controlTimer;
@@ -545,8 +572,19 @@ void readMindControlSystem(MindControlSystem& mindControl, const raw::MindSystem
 void readHackingSystem(HackingSystem& hacking, const raw::HackingSystem& raw)
 {
 	readSystem(hacking, raw);
+	hacking.blueprint = Reader::getState().blueprints.systemBlueprints.at("hacking");
 
-	// TO DO
+	hacking.on = raw.bHacking;
+	hacking.timer = raw.effectTimer;
+	hacking.target = SystemType(raw.currentSystem ? raw.currentSystem->iSystemType : -1);
+	hacking.queued = SystemType(raw.queuedSystem ? raw.queuedSystem->iSystemType : -1);
+	hacking.drone.start = { raw.drone.startingPosition.x, raw.drone.startingPosition.y };
+	hacking.drone.goal = { raw.drone.finalDestination.x, raw.drone.finalDestination.y };
+	hacking.drone.arrived = raw.drone.arrive;
+	hacking.drone.setUp = raw.drone.finishedSetup;
+	hacking.drone.room = raw.drone.prefRoom;
+
+	readDrone(hacking.drone, raw.drone);
 }
 
 // Calculate evasion level (not conveniently stored anywhere by the game it seems)
@@ -606,7 +644,7 @@ void readRoom(Room& room, std::vector<Crew>& crew, std::vector<Crew>& enemyCrew,
 
 	room.stunning = raw.bStunning;
 	room.oxygen = raw.lastO2/100.f;
-	room.hackLevel = raw.iHackLevel;
+	room.hackLevel = HackLevel(raw.iHackLevel);
 
 	room.fireRepair = 0.f;
 	room.breachRepair = 0.f;
@@ -761,7 +799,7 @@ void readDoor(Door& door, const raw::Door& raw, bool airlock = false, int id = -
 	door.rooms = { raw.iRoom1, raw.iRoom2 };
 	door.level = raw.iBlast;
 	door.health = { raw.health, raw.baseHealth };
-	door.hackLevel = raw.iHacked;
+	door.hackLevel = HackLevel(raw.iHacked);
 	door.open = raw.bOpen;
 	door.openFake = raw.bFakeOpen;
 	door.ioned = raw.bIoned;
@@ -1063,11 +1101,25 @@ void readEnemyShip(
 	}
 }
 
+void readCrewBlueprint(CrewBlueprint& blueprint, const raw::CrewBlueprint& raw)
+{
+	readBlueprint(blueprint, raw);
+
+	blueprint.name = raw.crewName.data.str;
+	blueprint.nameLong = raw.crewNameLong.data.str;
+	blueprint.species = raw.name.str;
+	blueprint.male = raw.male;
+	blueprint.skillPiloting = raw.skillLevel[0];
+	blueprint.skillEngines = raw.skillLevel[1];
+	blueprint.skillShields = raw.skillLevel[2];
+	blueprint.skillWeapons = raw.skillLevel[3];
+	blueprint.skillRepair = raw.skillLevel[4];
+	blueprint.skillCombat = raw.skillLevel[5];
+}
+
 void readCrew(Crew& crew, const raw::CrewMember& raw)
 {
-	crew.name = raw.blueprint.crewName.data.str;
-	crew.nameLong = raw.blueprint.crewNameLong.data.str;
-	crew.species = raw.species.str;
+	readCrewBlueprint(crew.blueprint, raw.blueprint);
 
 	crew.position.x = raw.x;
 	crew.position.y = raw.y;
@@ -1092,7 +1144,6 @@ void readCrew(Crew& crew, const raw::CrewMember& raw)
 		door = raw.path.doors[i]->iDoorId; // assuming will never use airlock doors
 	}
 
-	crew.male = raw.blueprint.male;
 	crew.player = raw.iShipId == 0;
 	crew.onPlayerShip = raw.currentShipId == 0;
 	crew.newPath = raw.new_path;
@@ -1111,13 +1162,6 @@ void readCrew(Crew& crew, const raw::CrewMember& raw)
 	crew.slotGoal = raw.currentSlot.slotId;
 	crew.roomSaved = raw.savedPosition.roomId;
 	crew.slotSaved = raw.savedPosition.slotId;
-
-	crew.pilotingSkill = raw.blueprint.skillLevel[0];
-	crew.enginesSkill = raw.blueprint.skillLevel[1];
-	crew.shieldsSkill = raw.blueprint.skillLevel[2];
-	crew.weaponsSkill = raw.blueprint.skillLevel[3];
-	crew.repairSkill = raw.blueprint.skillLevel[4];
-	crew.combatSkill = raw.blueprint.skillLevel[5];
 
 	crew.deathId = raw.iDeathNumber;
 	crew.cloneDeathProgress = raw.fCloneDying;
@@ -1367,11 +1411,78 @@ void readSpace(Space& space, const raw::SpaceManager& raw)
 	}
 }
 
+void readStore(Store& store, const raw::Store& raw)
+{
+	int sections = raw.sectionCount;
+	int boxes = sections * Store::HARDCODED_BOXES_PER_SECTION;
+
+	store.boxes.clear();
+	store.sections.clear();
+
+	for (int i = 0; i < sections; i++)
+	{
+		store.sections.push_back(StoreBoxType(raw.types[i]));
+	}
+
+	for (int i = 0; i < boxes; i++)
+	{
+		int section = i / Store::HARDCODED_BOXES_PER_SECTION;
+		auto&& rawBox = *raw.vStoreBoxes[i];
+
+		auto&& box = store.boxes.emplace_back();
+		box.type = store.sections[section];
+		box.cost = rawBox.desc.cost;
+		box.id = i;
+		box.page2 = section >= 2;
+
+		switch (box.type)
+		{
+		case StoreBoxType::Weapon:
+			box.weapon = WeaponBlueprint{};
+			readWeaponBlueprint(*box.weapon, static_cast<const raw::WeaponBlueprint&>(*rawBox.pBlueprint));
+			break;
+		case StoreBoxType::Drone:
+			box.drone = DroneBlueprint{};
+			readDroneBlueprint(*box.drone, static_cast<const raw::DroneBlueprint&>(*rawBox.pBlueprint));
+			break;
+		case StoreBoxType::Augment:
+			box.augment = Augment{};
+			readAugment(*box.augment, static_cast<const raw::AugmentBlueprint&>(*rawBox.pBlueprint));
+			break;
+		case StoreBoxType::Crew:
+			box.crew = CrewBlueprint{};
+			readCrewBlueprint(*box.crew, static_cast<const raw::CrewBlueprint&>(*rawBox.pBlueprint));
+			break;
+		case StoreBoxType::System:
+			box.system = SystemBlueprint{};
+			readSystemBlueprint(*box.system, static_cast<const raw::SystemBlueprint&>(*rawBox.pBlueprint));
+			break;
+		}
+	}
+
+	store.fuel = raw.vStoreBoxes[boxes]->count;
+	store.fuelCost = raw.vStoreBoxes[boxes]->desc.cost;
+	store.missiles = raw.vStoreBoxes[boxes + 1]->count;
+	store.missileCost = raw.vStoreBoxes[boxes + 1]->desc.cost;
+	store.droneParts = raw.vStoreBoxes[boxes + 2]->count;
+	store.dronePartCost = raw.vStoreBoxes[boxes + 2]->desc.cost;
+	store.repairCost = raw.vStoreBoxes[boxes + 3]->desc.cost;
+
+	auto&& hull = Reader::getState().game->playerShip->hull;
+	int lost = hull.second - hull.first;
+
+	store.repairCostFull = store.repairCost * lost;
+
+	store.page2 = raw.bShowPage2;
+}
+
 void readResourceEvent(ResourceEvent& event, const raw::ResourceEvent& raw)
 {
 	event.missiles = raw.missiles;
 	event.fuel = raw.fuel;
 	event.droneParts = raw.drones;
+	event.scrap = raw.scrap;
+	event.crew = raw.crew;
 	event.traitor = raw.traitor;
 	event.cloneable = raw.cloneable;
 	event.steal = raw.steal;
@@ -1418,6 +1529,7 @@ void readLocationEvent(LocationEvent& event, const raw::LocationEvent& raw)
 	readResourceEvent(event.reward, raw.reward);
 	event.store = std::nullopt;
 	event.damage.clear();
+	event.choices.clear();
 
 	if (raw.ship.present)
 	{
@@ -1444,6 +1556,7 @@ void readLocationEvent(LocationEvent& event, const raw::LocationEvent& raw)
 	if (raw.pStore)
 	{
 		event.store = Store{};
+		readStore(*event.store, *raw.pStore);
 	}
 
 	for (size_t i = 0; i < raw.damage.size(); i++)
@@ -1453,6 +1566,23 @@ void readLocationEvent(LocationEvent& event, const raw::LocationEvent& raw)
 			.amount = raw.damage[i].amount,
 			.effect = raw.damage[i].effect
 		});
+	}
+	
+	for (size_t i = 0; i < raw.choices.size(); i++)
+	{
+		auto&& choice = event.choices.emplace_back();
+		auto&& rawChoice = raw.choices[i];
+	
+		// NOTE: this makes an assumption that events are not circular
+		// which I believe the game also makes,
+		// as circular events crash it upon loading
+		if (rawChoice.event)
+		{
+			choice.event = std::make_shared<LocationEvent>();
+			readLocationEvent(*choice.event, *rawChoice.event);
+		}
+	
+		choice.blue = rawChoice.requirement.blue;
 	}
 }
 
@@ -1532,6 +1662,20 @@ bool Reader::init()
 		auto&& [it, succ] = state.blueprints.augmentBlueprints.emplace(str, Augment{});
 		auto&& aug = it->second;
 		readAugment(aug, value);
+	});
+
+	rs.blueprints->crewBlueprints.dfs([](const raw::gcc::string& key, const raw::CrewBlueprint& value) {
+		std::string str = key.str;
+		auto&& [it, succ] = state.blueprints.crewBlueprints.emplace(str, CrewBlueprint{});
+		auto&& crew = it->second;
+		readCrewBlueprint(crew, value);
+	});
+
+	rs.blueprints->systemBlueprints.dfs([](const raw::gcc::string& key, const raw::SystemBlueprint& value) {
+		std::string str = key.str;
+		auto&& [it, succ] = state.blueprints.systemBlueprints.emplace(str, SystemBlueprint{});
+		auto&& system = it->second;
+		readSystemBlueprint(system, value);
 	});
 
 	readSettings(state.settings, *rs.settingValues);
@@ -1674,10 +1818,25 @@ void Reader::poll()
 			}
 		}
 
-		// Load the event stuff
-		if (game.justJumped)
+		// Read the event stuff
+		if (game.pause.event)
 		{
-			readLocationEvent(game.event, *rs.app->world->baseLocationEvent);
+			auto&& base = *rs.app->world->baseLocationEvent;
+			auto&& choices = rs.app->world->choiceHistory;
+			auto* current = &base;
+
+			// Game stores only the base event
+			// so we need to traverse the event tree using the choice history
+			for (size_t i = 0; i < choices.size(); i++)
+			{
+				if (!current) break;
+				current = current->choices[i].event;
+			}
+
+			if (current)
+			{
+				readLocationEvent(game.event, *current);
+			}
 		}
 	}
 }
@@ -1833,6 +1992,13 @@ PYBIND11_EMBEDDED_MODULE(ftl, module)
 		.value("ScrollLock", Key::ScrollLock)
 		;
 
+	py::enum_<HackLevel>(module, "HackLevel")
+		.value("Invalid", HackLevel::Invalid)
+		.value("None", HackLevel::None)
+		.value("Passive", HackLevel::Passive)
+		.value("Active", HackLevel::Active)
+		;
+
 	py::class_<Point<int>>(module, "PointInt")
 		.def(py::init<>())
 		.def(py::init<const int&, const int&>())
@@ -1904,23 +2070,23 @@ PYBIND11_EMBEDDED_MODULE(ftl, module)
 		;
 
 	py::enum_<SystemType>(module, "SystemType")
-		.value("none", SystemType::None)
-		.value("shields", SystemType::Shields)
-		.value("engines", SystemType::Engines)
-		.value("oxygen", SystemType::Oxygen)
-		.value("weapons", SystemType::Weapons)
-		.value("drones", SystemType::Drones)
-		.value("medbay", SystemType::Medbay)
-		.value("piloting", SystemType::Piloting)
-		.value("sensors", SystemType::Sensors)
-		.value("doors", SystemType::Doors)
-		.value("teleporter", SystemType::Teleporter)
-		.value("cloaking", SystemType::Cloaking)
-		.value("artillery", SystemType::Artillery)
-		.value("battery", SystemType::battery)
-		.value("clonebay", SystemType::Clonebay)
-		.value("mind_control", SystemType::MindControl)
-		.value("hacking", SystemType::Hacking)
+		.value("None", SystemType::None)
+		.value("Shields", SystemType::Shields)
+		.value("Engines", SystemType::Engines)
+		.value("Oxygen", SystemType::Oxygen)
+		.value("Weapons", SystemType::Weapons)
+		.value("Drones", SystemType::Drones)
+		.value("Medbay", SystemType::Medbay)
+		.value("Piloting", SystemType::Piloting)
+		.value("Sensors", SystemType::Sensors)
+		.value("Doors", SystemType::Doors)
+		.value("Teleporter", SystemType::Teleporter)
+		.value("Cloaking", SystemType::Cloaking)
+		.value("Artillery", SystemType::Artillery)
+		.value("Battery", SystemType::battery)
+		.value("Clonebay", SystemType::Clonebay)
+		.value("MindControl", SystemType::MindControl)
+		.value("Hacking", SystemType::Hacking)
 		;
 
 	py::class_<Blueprint>(module, "Blueprint")
@@ -1936,12 +2102,12 @@ PYBIND11_EMBEDDED_MODULE(ftl, module)
 		;
 
 	py::enum_<WeaponType>(module, "WeaponType")
-		.value("invalid", WeaponType::Invalid)
-		.value("laser", WeaponType::Laser)
-		.value("beam", WeaponType::Beam)
-		.value("burst", WeaponType::Burst)
-		.value("missiles", WeaponType::Missiles)
-		.value("bomb", WeaponType::Bomb)
+		.value("Invalid", WeaponType::Invalid)
+		.value("Laser", WeaponType::Laser)
+		.value("Beam", WeaponType::Beam)
+		.value("Burst", WeaponType::Burst)
+		.value("Missiles", WeaponType::Missiles)
+		.value("Bomb", WeaponType::Bomb)
 		;
 
 	py::class_<BoostPower>(module, "BoostPower")
@@ -2000,15 +2166,15 @@ PYBIND11_EMBEDDED_MODULE(ftl, module)
 		;
 
 	py::enum_<DroneType>(module, "DroneType")
-		.value("invalid", DroneType::Invalid)
-		.value("combat", DroneType::Combat)
-		.value("defense", DroneType::Defense)
-		.value("anti_boarder", DroneType::AntiBoarder)
-		.value("boarder", DroneType::Boarder)
-		.value("hull_repair", DroneType::HullRepair)
-		.value("system_repair", DroneType::SystemRepair)
-		.value("hacking", DroneType::Hacking)
-		.value("shield", DroneType::Shield)
+		.value("Invalid", DroneType::Invalid)
+		.value("Combat", DroneType::Combat)
+		.value("Defense", DroneType::Defense)
+		.value("AntiBoarder", DroneType::AntiBoarder)
+		.value("Boarder", DroneType::Boarder)
+		.value("HullRepair", DroneType::HullRepair)
+		.value("SystemRepair", DroneType::SystemRepair)
+		.value("Hacking", DroneType::Hacking)
+		.value("Shield", DroneType::Shield)
 		;
 
 	py::class_<DroneBlueprint, Blueprint>(module, "DroneBlueprint")
@@ -2065,18 +2231,28 @@ PYBIND11_EMBEDDED_MODULE(ftl, module)
 		.def_readonly("distance", &Path::distance)
 		;
 
+	py::class_<CrewBlueprint, Blueprint>(module, "CrewBlueprint")
+		.def_readonly("name", &CrewBlueprint::name)
+		.def_readonly("name_long", &CrewBlueprint::nameLong)
+		.def_readonly("species", &CrewBlueprint::species)
+		.def_readonly("male", &CrewBlueprint::male)
+		.def_readonly("skill_piloting", &CrewBlueprint::skillPiloting)
+		.def_readonly("skill_engines", &CrewBlueprint::skillEngines)
+		.def_readonly("skill_shields", &CrewBlueprint::skillShields)
+		.def_readonly("skill_weapons", &CrewBlueprint::skillWeapons)
+		.def_readonly("skill_repair", &CrewBlueprint::skillRepair)
+		.def_readonly("skill_combat", &CrewBlueprint::skillCombat)
+		;
+
 	py::class_<Crew>(module, "Crew")
 		.def_readonly("ui_box", &Crew::uiBox)
 		.def_readonly("selection_state", &Crew::selectionState)
-		.def_readonly("name", &Crew::name)
-		.def_readonly("name_long", &Crew::nameLong)
-		.def_readonly("species", &Crew::species)
+		.def_readonly("blueprint", &Crew::blueprint)
 		.def_readonly("position", &Crew::position)
 		.def_readonly("goal", &Crew::goal)
 		.def_readonly("health", &Crew::health)
 		.def_readonly("speed", &Crew::speed)
 		.def_readonly("path", &Crew::path)
-		.def_readonly("male", &Crew::male)
 		.def_readonly("player", &Crew::player)
 		.def_readonly("on_player_ship", &Crew::onPlayerShip)
 		.def_readonly("new_path", &Crew::newPath)
@@ -2095,12 +2271,6 @@ PYBIND11_EMBEDDED_MODULE(ftl, module)
 		.def_readonly("slot_goal", &Crew::slotGoal)
 		.def_readonly("room_saved", &Crew::roomSaved)
 		.def_readonly("slot_saved", &Crew::slotSaved)
-		.def_readonly("piloting_skill", &Crew::pilotingSkill)
-		.def_readonly("engines_skill", &Crew::enginesSkill)
-		.def_readonly("shields_skill", &Crew::shieldsSkill)
-		.def_readonly("weapons_skill", &Crew::weaponsSkill)
-		.def_readonly("repair_skill", &Crew::repairSkill)
-		.def_readonly("combat_skill", &Crew::combatSkill)
 		.def_readonly("clone_queue_position", &Crew::cloneQueuePosition)
 		.def_readonly("clone_death_progress", &Crew::cloneDeathProgress)
 		.def_readonly("ready_to_clone", &Crew::readyToClone)
@@ -2126,8 +2296,15 @@ PYBIND11_EMBEDDED_MODULE(ftl, module)
 		.def_readonly("restore_to", &Power::restoreTo)
 		;
 
+	py::class_<SystemBlueprint, Blueprint>(module, "SystemBlueprint")
+		.def_readonly("power_start", &SystemBlueprint::powerStart)
+		.def_readonly("power_max", &SystemBlueprint::powerMax)
+		.def_readonly("upgrade_costs", &SystemBlueprint::upgradeCosts)
+		;
+
 	py::class_<System>(module, "System")
 		.def_readonly("type", &System::type)
+		.def_readonly("blueprint", &System::blueprint)
 		.def_readonly("room", &System::room)
 		.def_readonly("power", &System::power)
 		.def_readonly("health", &System::health)
@@ -2368,14 +2545,14 @@ PYBIND11_EMBEDDED_MODULE(ftl, module)
 		;
 
 	py::enum_<ProjectileType>(module, "ProjectileType")
-		.value("invalid", ProjectileType::Invalid)
-		.value("miscellaneous", ProjectileType::Miscellaneous)
-		.value("laser", ProjectileType::Laser)
-		.value("asteroid", ProjectileType::Asteroid)
-		.value("missile", ProjectileType::Missile)
-		.value("bomb", ProjectileType::Bomb)
-		.value("beam", ProjectileType::Beam)
-		.value("abs", ProjectileType::ABS)
+		.value("Invalid", ProjectileType::Invalid)
+		.value("Miscellaneous", ProjectileType::Miscellaneous)
+		.value("Laser", ProjectileType::Laser)
+		.value("Asteroid", ProjectileType::Asteroid)
+		.value("Missile", ProjectileType::Missile)
+		.value("Bomb", ProjectileType::Bomb)
+		.value("Beam", ProjectileType::Beam)
+		.value("ABS", ProjectileType::ABS)
 		;
 
 	py::class_<Beam>(module, "Beam")
@@ -2438,14 +2615,14 @@ PYBIND11_EMBEDDED_MODULE(ftl, module)
 		;
 
 	py::enum_<EnvironmentType>(module, "EnvironmentType")
-		.value("invalid", EnvironmentType::Invalid)
-		.value("normal", EnvironmentType::Normal)
-		.value("asteroids", EnvironmentType::Asteroids)
-		.value("close_to_sun", EnvironmentType::CloseToSun)
-		.value("nebula", EnvironmentType::Nebula)
-		.value("ion_storm", EnvironmentType::IonStorm)
-		.value("pulsar", EnvironmentType::Pulsar)
-		.value("asb", EnvironmentType::ASB)
+		.value("Invalid", EnvironmentType::Invalid)
+		.value("Normal", EnvironmentType::Normal)
+		.value("Asteroids", EnvironmentType::Asteroids)
+		.value("CloseToSun", EnvironmentType::CloseToSun)
+		.value("Nebula", EnvironmentType::Nebula)
+		.value("IonStorm", EnvironmentType::IonStorm)
+		.value("Pulsar", EnvironmentType::Pulsar)
+		.value("ASB", EnvironmentType::ASB)
 		;
 
 	py::class_<Space>(module, "Space")
@@ -2483,13 +2660,54 @@ PYBIND11_EMBEDDED_MODULE(ftl, module)
 		.def_readonly("breach", &BoardingEvent::breach)
 		;
 
+	py::enum_<StoreBoxType>(module, "StoreBoxType")
+		.value("Invalid", StoreBoxType::Invalid)
+		.value("Weapon", StoreBoxType::Weapon)
+		.value("Drone", StoreBoxType::Drone)
+		.value("Augment", StoreBoxType::Augment)
+		.value("Crew", StoreBoxType::Crew)
+		.value("System", StoreBoxType::System)
+		.value("Item", StoreBoxType::Item)
+		;
+
+	py::class_<StoreBox>(module, "StoreBox")
+		.def_readonly("type", &StoreBox::type)
+		.def_readonly("weapon", &StoreBox::weapon)
+		.def_readonly("drone", &StoreBox::drone)
+		.def_readonly("augment", &StoreBox::augment)
+		.def_readonly("crew", &StoreBox::crew)
+		.def_readonly("system", &StoreBox::system)
+		;
+
 	py::class_<Store>(module, "Store")
+		.def_readonly_static("HARDCODED_BOXES_PER_SECTION", &Store::HARDCODED_BOXES_PER_SECTION)
+		.def_readonly("boxes", &Store::boxes)
+		.def_readonly("sections", &Store::sections)
+		.def_readonly("fuel", &Store::fuel)
+		.def_readonly("fuel_cost", &Store::fuelCost)
+		.def_readonly("missiles", &Store::missiles)
+		.def_readonly("missile_cost", &Store::missileCost)
+		.def_readonly("drone_parts", &Store::droneParts)
+		.def_readonly("drone_part_cost", &Store::dronePartCost)
+		.def_readonly("repair_cost", &Store::repairCost)
+		.def_readonly("repair_cost_full", &Store::repairCostFull)
+		.def_readonly("page2", &Store::page2)
 		;
 
 	py::class_<EventDamage>(module, "EventDamage")
 		.def_readonly("system", &EventDamage::system)
 		.def_readonly("amount", &EventDamage::amount)
 		.def_readonly("effect", &EventDamage::effect)
+		;
+
+	py::class_<Choice>(module, "Choice")
+		.def_property_readonly("event", [](const Choice& o){ return o.event.get(); })
+		.def_readonly("required_object", &Choice::requiredObject)
+		.def_readonly("level_min", &Choice::levelMin)
+		.def_readonly("level_max", &Choice::levelMax)
+		.def_readonly("max_group", &Choice::maxGroup)
+		.def_readonly("blue", &Choice::blue)
+		.def_readonly("hidden_reward", &Choice::hiddenReward)
 		;
 
 	py::class_<LocationEvent>(module, "LocationEvent")
@@ -2506,6 +2724,7 @@ PYBIND11_EMBEDDED_MODULE(ftl, module)
 		.def_readonly("boarders", &LocationEvent::boarders)
 		.def_readonly("store", &LocationEvent::store)
 		.def_readonly("damage", &LocationEvent::damage)
+		.def_readonly("choices", &LocationEvent::choices)
 		;
 
 	py::class_<Game>(module, "Game")
@@ -2520,22 +2739,22 @@ PYBIND11_EMBEDDED_MODULE(ftl, module)
 		;
 
 	py::enum_<Settings::FullscreenMode>(module, "FullscreenMode")
-		.value("off", Settings::FullscreenMode::Off)
-		.value("stretch", Settings::FullscreenMode::Stretch)
-		.value("borders", Settings::FullscreenMode::Borders)
-		.value("native", Settings::FullscreenMode::Native)
+		.value("Off", Settings::FullscreenMode::Off)
+		.value("Stretch", Settings::FullscreenMode::Stretch)
+		.value("Borders", Settings::FullscreenMode::Borders)
+		.value("Native", Settings::FullscreenMode::Native)
 		;
 
 	py::enum_<Settings::Difficulty>(module, "Difficulty")
-		.value("easy", Settings::Difficulty::Easy)
-		.value("normal", Settings::Difficulty::Normal)
-		.value("hard", Settings::Difficulty::Hard)
+		.value("Easy", Settings::Difficulty::Easy)
+		.value("Normal", Settings::Difficulty::Normal)
+		.value("Hard", Settings::Difficulty::Hard)
 		;
 
 	py::enum_<Settings::EventChoiceSelection>(module, "EventChoiceSelection")
-		.value("disable_hotkeys", Settings::EventChoiceSelection::DisableHotkeys)
-		.value("no_delay", Settings::EventChoiceSelection::NoDelay)
-		.value("brief_delay", Settings::EventChoiceSelection::BriefDelay)
+		.value("DisableHotkeys", Settings::EventChoiceSelection::DisableHotkeys)
+		.value("NoDelay", Settings::EventChoiceSelection::NoDelay)
+		.value("BriefDelay", Settings::EventChoiceSelection::BriefDelay)
 		;
 
 	py::class_<Settings>(module, "Settings")
@@ -2561,7 +2780,10 @@ PYBIND11_EMBEDDED_MODULE(ftl, module)
 
 	py::class_<Blueprints>(module, "Blueprints")
 		.def_readonly("weapons", &Blueprints::weaponBlueprints)
+		.def_readonly("drones", &Blueprints::droneBlueprints)
 		.def_readonly("augments", &Blueprints::augmentBlueprints)
+		.def_readonly("crew", &Blueprints::crewBlueprints)
+		.def_readonly("systems", &Blueprints::systemBlueprints)
 		;
 
 	py::class_<State>(module, "State")
