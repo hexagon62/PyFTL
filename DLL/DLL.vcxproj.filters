@@ -14,18 +14,6 @@
     <ClInclude Include="..\..\..\C++ Resources\include\imgui_impl_win32.h">
       <Filter>imgui</Filter>
     </ClInclude>
-    <ClInclude Include="GameState\Addresses.hpp">
-      <Filter>GameState</Filter>
-    </ClInclude>
-    <ClInclude Include="GameState\Reader.hpp">
-      <Filter>GameState</Filter>
-    </ClInclude>
-    <ClInclude Include="GameState\State.hpp">
-      <Filter>GameState</Filter>
-    </ClInclude>
-    <ClInclude Include="GameState\StatePrinting.hpp">
-      <Filter>GameState</Filter>
-    </ClInclude>
     <ClInclude Include="Player\Input.hpp">
       <Filter>Player</Filter>
     </ClInclude>
@@ -36,6 +24,18 @@
       <Filter>GUI</Filter>
     </ClInclude>
     <ClInclude Include="GameState\Raw.hpp">
+      <Filter>GameState</Filter>
+    </ClInclude>
+    <ClInclude Include="Utility\Geometry.hpp">
+      <Filter>Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="Utility\WindowsButWithoutAsMuchCancer.hpp">
+      <Filter>Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="GameState\CleanReader.hpp">
+      <Filter>GameState</Filter>
+    </ClInclude>
+    <ClInclude Include="GameState\CleanState.hpp">
       <Filter>GameState</Filter>
     </ClInclude>
   </ItemGroup>
@@ -66,17 +66,8 @@
     <ClCompile Include="..\..\..\C++ Resources\src\imgui_demo.cpp">
       <Filter>imgui</Filter>
     </ClCompile>
-    <ClCompile Include="GameState\Addresses.cpp">
+    <ClCompile Include="GameState\CleanReader.cpp">
       <Filter>GameState</Filter>
-    </ClCompile>
-    <ClCompile Include="GameState\Reader.cpp">
-      <Filter>GameState</Filter>
-    </ClCompile>
-    <ClCompile Include="Player\Input.cpp">
-      <Filter>Player</Filter>
-    </ClCompile>
-    <ClCompile Include="Player\Player.cpp">
-      <Filter>Player</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -92,5 +83,16 @@
     <Filter Include="GUI">
       <UniqueIdentifier>{2800e564-7acc-4f6b-b7ab-0354aed5a494}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Utility">
+      <UniqueIdentifier>{1ab46470-b03f-4398-ba10-fe7d5e9246be}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Player\Input.cpp">
+      <Filter>Player</Filter>
+    </None>
+    <None Include="Player\Player.cpp">
+      <Filter>Player</Filter>
+    </None>
   </ItemGroup>
 </Project>

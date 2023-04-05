@@ -4,6 +4,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <utility>
+#include <array>
 #include <stdexcept>
 
 namespace raw
@@ -26,7 +27,7 @@ struct string
 {
 	static constexpr size_t SMALL_STRING_OPTIMIZATION_LEN = 15;
 
-	char* data = nullptr;
+	char* str = nullptr;
 	size_t len = 0;
 
 	union
@@ -48,7 +49,12 @@ struct vector
 		return (reinterpret_cast<size_t>(this->end) - reinterpret_cast<size_t>(this->begin)) / sizeof(T);
 	}
 
-	T& operator[](size_t i) 
+	bool empty() const
+	{
+		return this->size() == 0;
+	}
+
+	T& operator[](size_t i)
 	{
 		return this->begin[i];
 	}
@@ -72,7 +78,12 @@ struct vector<bool>
 	{
 		size_t bytesUsed = reinterpret_cast<size_t>(this->end) - reinterpret_cast<size_t>(this->begin);
 
-		return bytesUsed*CHAR_BIT + endBit - beginBit - 1;
+		return bytesUsed * CHAR_BIT + endBit - beginBit - 1;
+	}
+
+	bool empty() const
+	{
+		return this->size() == 0;
 	}
 
 	bool operator[](size_t i)
@@ -137,6 +148,11 @@ public:
 		return count;
 	}
 
+	bool empty() const
+	{
+		return this->size() == 0;
+	}
+
 	template<typename F>
 	void dfs(F callback) const
 	{
@@ -155,7 +171,7 @@ public:
 
 private:
 	template<typename F>
-	void dfsImpl(F f, node_type* node = nullptr)
+	void dfsImpl(F f, node_type* node = nullptr) const
 	{
 		if (!node) return;
 		this->dfsImpl(f, node->left);
@@ -163,7 +179,7 @@ private:
 		this->dfsImpl(f, node->right);
 	}
 
-	Value& extract(const Key& key)
+	Value& extract(const Key& key) const
 	{
 		key_compare cmp;
 		node_type* node = this->root;
@@ -654,7 +670,14 @@ struct WeaponBlueprint : Blueprint
 
 struct DroneBlueprint : Blueprint
 {
-
+	gcc::string typeName;
+	int level = 0;
+	int targetType = 0;
+	int power = 0;
+	float cooldown = 0.f;
+	int speed = 0;
+	int dodge = 0;
+	gcc::string weaponBlueprint, droneImage, combatIcon;
 };
 
 struct AugmentBlueprint : Blueprint
@@ -687,7 +710,7 @@ struct Projectile : Collideable, Targetable
 	Animation flight_animation;
 	Pointf speed;
 	bool missed = false;
-	bool hitTaret = false;
+	bool hitTarget = false;
 	Pad<2> _u1;
 	gcc::string hitSolidSound, hitShieldSound, missSound;
 	float entryAngle = 0.f;
@@ -697,6 +720,87 @@ struct Projectile : Collideable, Targetable
 	Pad<1> _u2;
 	AnimationTracker flashTracker;
 	GL_Color color;
+
+	int getType() const
+	{
+		if (!this->Collideable::_vptr) return -1;
+
+		auto func = reinterpret_cast<int(*)(const Projectile*)>(this->Collideable::_vptr[31]);
+
+		return (*func)(this);
+	}
+};
+
+struct LaserBlast : Projectile
+{
+	Targetable* movingTarget = nullptr;
+	float spinAngle = 0.f, spinSpeed = 0.f;
+};
+
+struct Asteroid : Projectile
+{
+	GL_Texture* imageId = nullptr;
+	float angle = 0.f;
+};
+
+struct Missile : Projectile
+{
+
+};
+
+struct BombProjectile : Projectile
+{
+	bool bMissed = false;
+	Pad<3> _u0;
+	DamageMessage* missMessage = nullptr;
+	float explosiveDelay = 0.f;
+	bool bSuperShield = false;
+	bool superShieldBypass = false;
+	Pad<2> _u1;
+};
+
+struct CollisionResponse
+{
+	int collision_type = 0;
+	Pointf point;
+	int damage = 0, superDamage = 0;
+};
+
+struct BeamWeapon : Projectile
+{
+	Pointf sub_end, sub_start, shield_end, final_end, target2, target3;
+	float lifespan = 0.f;
+	float length = 0.f;
+	float dh = 0.f;
+	CollisionResponse collision;
+	int soundChannel = 0;
+	gcc::vector<Animation> contactAnimations;
+	float animationTimer = 0.f;
+	int lastDamage = 0;
+	Targetable* movingTarget = nullptr;
+	float start_heading = 0.f;
+	float timer = 0.f;
+	WeaponAnimation* weapAnimation = nullptr;
+	bool piercedShield = false;
+	bool oneSpace = false;
+	bool bDamageSuperShield = false;
+	Pad<1> _u0;
+	int movingTargetId = 1;
+	bool checkedCollision = false;
+	Pad<3> _u1;
+	gcc::vector<Animation> smokeAnims;
+	Pointf lastSmokeAnim;
+};
+
+struct PDSFire : LaserBlast
+{
+	Pointf startPoint;
+	bool passedTarget = false;
+	Pad<3> _u0;
+	float currentScale = 1.f;
+	bool missed = false;
+	Pad<3> _u0;
+	Animation explosionAnimation;
 };
 
 struct WeaponMount
@@ -844,6 +948,18 @@ struct SpaceDrone : Drone, Targetable, Collideable
 	Animation hackSparks;
 };
 
+struct CombatDrone : SpaceDrone
+{
+	Pointf lastDestination;
+	float progressToDestination;
+	float heading;
+	float oldHeading;
+	CachedImage drone_image_off;
+	CachedImage drone_image_charging;
+	CachedImage drone_image_on;
+	CachedImage engine_image;
+};
+
 struct SystemBlueprint : Blueprint
 {
 
@@ -947,6 +1063,7 @@ struct ShipSystem
 	bool bNeedsPower = false;
 	int iTempPowerCap = 0;
 	int iTempPowerLoss = 0;
+	int iTempDividePower = 0;
 	int iLockCount = 0;
 	TimerHelper lockTimer;
 	bool bExploded = false;
@@ -972,7 +1089,7 @@ struct ShipSystem
 	bool bTriggerIon = false;
 	Pad<1> _u5;
 	gcc::vector<Animation> damagingEffects;
-	int computerLevel = 1;
+	int computerLevel = -1;
 };
 
 struct OxygenSystem : ShipSystem
@@ -1156,7 +1273,6 @@ struct WeaponSystem : ShipSystem
 
 struct DroneSystem : ShipSystem
 {
-	Pointf target;
 	gcc::vector<Drone*> drones;
 	int drone_count = 0;
 	int drone_start = 0;
@@ -1283,13 +1399,18 @@ struct Door : CrewTarget, Selectable
 	int width = 0, height = 0;
 	GL_Primitive* outlinePrimitive = nullptr;
 	GL_Primitive* highlightPrimitive = nullptr;
-	Animation forcedOpen;
-	Animation gotHit;
+	Animation doorAnim;
+	Animation doorAnimLarge;
+	int iDoorId = 0;
+	int baseHealth = 0;
+	int health = 0;
+	AnimationTracker forcedOpen;
+	AnimationTracker gotHit;
 	int doorLevel = 0;
 	bool bIoned = false;
 	Pad<3> _u2;
 	float fakeOpenTimer = 0.f;
-	Animation lockedDown;
+	AnimationTracker lockedDown;
 	float lastbase = 0.f;
 	int iHacked = 0;
 	int x = 0, y = 0;
@@ -1297,7 +1418,7 @@ struct Door : CrewTarget, Selectable
 	Pad<3> _u3;
 };
 
-struct OuterHull
+struct OuterHull : Repairable
 {
 	Animation breach, heal;
 };
@@ -1422,7 +1543,7 @@ struct CrewMember
 	GL_Texture* selectionImage = nullptr;
 	CachedImage healthBox, healthBoxRed;
 	CachedRect healthBar;
-	float fMeadbay = 0.f;
+	float fMedbay = 0.f;
 	float lastDamageTimer = 0.f;
 	float lastHealthChange = 0.f;
 	int currentShipId = 0;
@@ -1462,7 +1583,7 @@ struct CrewMember
 	Animation stunIcon;
 	gcc::vector<gcc::vector<AnimationTracker>> skillUp;
 	int healthBoost = 0;
-	float fMindDamageBoost = 0.f;
+	float fMindDamageBoost = 1.f;
 	float fCloneDying = 0.f;
 	bool bResisted = false;
 	Pad<3> _u8;
@@ -1471,6 +1592,14 @@ struct CrewMember
 	CachedImage movementTarget;
 	bool bCloned = false;
 	Pad<3> _u9;
+};
+
+struct CrewDrone : CrewMember, Drone
+{
+	int droneRoom = 0;
+	Animation powerUp, powerDown;
+	GL_Texture* lightLayer = nullptr;
+	GL_Texture* baseLayer = nullptr;
 };
 
 struct ExplosionAnimation : AnimationTracker
@@ -1658,6 +1787,7 @@ struct ShipBlueprint : Blueprint
 	gcc::vector<gcc::string> drones;
 	gcc::vector<gcc::string> augments;
 	int weaponCount = 0, originalWeaponCount = 0;
+	int weaponSlots = 0;
 	gcc::string loadWeapons;
 	gcc::vector<gcc::string> weapons;
 	int missiles = 0;
@@ -1698,6 +1828,9 @@ struct Ship : ShipObject
 	ImageDesc shipImage;
 	Point glowOffset;
 	GL_Primitive* shipImagePrimitive = nullptr;
+	gcc::string cloakImageName;
+	ImageDesc shipImageCloak;
+	GL_Primitive* cloakPrimitive = nullptr;
 	GL_Primitive* gridPrimitive = nullptr;
 	GL_Primitive* wallsPrimitive = nullptr;
 	GL_Primitive* doorsPrimitive = nullptr;
@@ -1727,7 +1860,7 @@ struct ShipManager : ShipObject, Targetable, Collideable
 	OxygenSystem* oxygenSystem = nullptr;
 	TeleportSystem* teleportSystem = nullptr;
 	CloakingSystem* cloakSystem = nullptr;
-	BatterySystem* batterySystem = nullptr;
+	BatterySystem* BatterySystem = nullptr;
 	MindSystem* mindSystem = nullptr;
 	CloneSystem* cloneSystem = nullptr;
 	HackingSystem* hackingSystem = nullptr;
@@ -2010,7 +2143,7 @@ struct ShipStatus
 	AnimationTracker noMoneyTracker;
 	AnimationTracker flashTracker;
 	bool bBossFight = false;
-	bool bEnemyShip = true;
+	bool bEnemyShip = false;
 	Pad<2> _u0;
 	Point noShipShift, intruderShift;
 	Point energyShieldPos;
@@ -2835,9 +2968,9 @@ struct StarMap : FocusWindow
 	GL_Texture* dottedLine = nullptr;
 	GL_Texture* cross = nullptr;
 	GL_Texture* boss_jumps_box = nullptr;
-	std::vector<ImageDesc> smallNebula;
-	std::vector<ImageDesc> largeNebula;
-	std::vector<NebulaInfo> currentNebulas;
+	gcc::vector<ImageDesc> smallNebula;
+	gcc::vector<ImageDesc> largeNebula;
+	gcc::vector<NebulaInfo> currentNebulas;
 	ShipManager* shipManager = nullptr;
 	bool outOfFuel = false;
 	Pad<3> _u3;
@@ -2846,8 +2979,8 @@ struct StarMap : FocusWindow
 	AnimationTracker distressAnim;
 	bool bTutorialGenerated = false;
 	Pad<3> _u4;
-	std::vector<std::string> delayedQuests;
-	std::vector<Sector*> sectors;
+	gcc::vector<gcc::string> delayedQuests;
+	gcc::vector<Sector*> sectors;
 	Sector* currentSector = nullptr;
 	Sector* secretSector = nullptr;
 	bool bChoosingNewSector = false;
@@ -2926,7 +3059,7 @@ struct MenuScreen : FocusWindow
 	GL_Primitive* achBoxPrimitive = nullptr;
 	int achWidth = 0;
 	gcc::string achLabel;
-	std::vector<ShipAchievementInfo> shipAchievements;
+	gcc::vector<ShipAchievementInfo> shipAchievements;
 	int selectedAch = 0;
 	InfoBox info;
 };
@@ -2942,8 +3075,12 @@ struct CreditScreen
 	int touchesDown = 0;
 	double touchDownTime = 0.0;
 	float skipMessageTimer = 0.f;
-	Pad<4> _u0;
+	Pad<3> _u0;
+	Pad<1> _u1;
 };
+
+constexpr size_t test = sizeof(gcc::string[2]);
+constexpr size_t test2 = sizeof(CreditScreen);
 
 struct GameOver : FocusWindow
 {
@@ -3013,7 +3150,7 @@ struct CrewManifest : FocusWindow
 	ConfirmWindow deleteDialog;
 };
 
-struct LanguageChooser
+struct LanguageChooser : FocusWindow
 {
 	gcc::vector<TextButton*> buttons;
 	int iChoice = -1;
@@ -3058,6 +3195,7 @@ struct OptionsScreen : ChoiceBox
 	int choiceShowPaths = 0;
 	int choiceAchievementPopups = 0;
 	int choiceAutoPause = 0;
+	int choiceTouchAutoPause = 0;
 	int choiceControls = 0;
 	int lastFullScreen = 0;
 	bool isSoundTouch = false;
@@ -3107,10 +3245,9 @@ struct CommandGui
 	MenuScreen menuBox;
 	Pad<4> _u1;
 	GameOver gameOverScreen;
-	Pad<8> _u2;
 	OptionsScreen optionsBox;
 	bool bPaused = false, bAutoPaused = false, menu_pause = false, event_pause = false, touch_pause = false;
-	Pad<3> _u3;
+	Pad<3> _u2;
 	int touchPauseReason = 0;
 	InputBox inputBox;
 	float fShakeTimer = 0.f;
@@ -3130,19 +3267,19 @@ struct CommandGui
 	TimerHelper flickerTimer;
 	TimerHelper showtimer;
 	bool bHideUI = false;
-	Pad<3> _u4;
+	Pad<3> _u3;
 	CompleteShip* enemyShip = nullptr;
 	bool waitLocation = false;
 	bool lastLocationwait = false;
 	bool dangerLocation = false;
-	Pad<1> _u5;
+	Pad<1> _u4;
 	gcc::vector<int> commandKey;
 	bool jumpComplete = false;
-	Pad<3> _u6;
+	Pad<3> _u5;
 	int mapId = 0;
 	ConfirmWindow leaveCrewDialog;
 	bool secretSector = false;
-	Pad<3> _u7;
+	Pad<3> _u6;
 	int activeTouch = 0;
 	bool activeTouchIsButton = false;
 	bool activeTouchIsCrewBox = false;
@@ -3152,11 +3289,11 @@ struct CommandGui
 	bool bTutorialWasRunning = false;
 	bool focusAteMouse = false;
 	bool choiceBoxOpen = false;
-	Pad<1> _u8;
+	Pad<1> _u7;
 	int systemDetailsWidth = 0;
 	ChoiceBox writeErrorDialog;
 	bool suppressWriteError = false;
-	Pad<3> _u9;
+	Pad<3> _u8;
 };
 
 struct BossShip : CompleteShip
@@ -3404,6 +3541,15 @@ struct HotkeyDesc
 	int key = -1;
 };
 
+struct CrewMemberFactory
+{
+	int playerCrew = 0;
+	int enemyCrew = 0;
+	int enemyCloneCount = 0;
+	gcc::vector<CrewMember*> crewMembers;
+	gcc::vector<CrewMember*> lostMembers;
+};
+
 struct SettingValues
 {
 	int fullscreen = 0;
@@ -3459,20 +3605,42 @@ struct BlueprintManager
 	gcc::map<gcc::string, gcc::map<gcc::string,bool>> languageNameLists;
 	gcc::map<gcc::string, ItemBlueprint> itemBlueprints;
 	gcc::map<gcc::string, SystemBlueprint> systemBlueprints;
-	gcc::map<gcc::string, std::vector<std::string>> blueprintLists;
+	gcc::map<gcc::string, gcc::vector<gcc::string>> blueprintLists;
 	gcc::vector<gcc::string> currentNames;
+};
+
+struct PowerManager
+{
+	std::pair<int, int> currentPower{ 0, 0 };
+	int over_powered = 0;
+	float fFuel = 0.f;
+	bool failedPowerup = false;
+	int iTempPowerCap = 0;
+	int iTempPowerLoss = 0;
+	int iTempDividePower = 0;
+	int iHacked = 0;
+	std::pair<int, int> batteryPower{ 0, 0 };
+};
+
+struct PowerManagerContainer
+{
+	gcc::vector<PowerManager> powerManagers;
 };
 
 struct State
 {
 	CApp* app = nullptr;
+	CrewMemberFactory* crewMemberFactory = nullptr;
 	SettingValues* settingValues = nullptr;
 	BlueprintManager* blueprints = nullptr;
+	PowerManagerContainer* powerManagerContainer = nullptr;
 };
 
 constexpr size_t __SIZE_TEST = sizeof(Button);
-constexpr uintptr_t CAppBase = 0x4C5020;
+constexpr uintptr_t CAppPtr = 0x4C5020;
+constexpr uintptr_t CrewMemberFactoryPtr = 0x4C6E40;
 constexpr uintptr_t SettingValuesPtr = 0x4C8CA0;
 constexpr uintptr_t BlueprintManagerPtr = 0x4CBD60;
+constexpr uintptr_t PowerManagerContainerPtr = 0x4CCA40;
 
 }

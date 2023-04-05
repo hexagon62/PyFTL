@@ -28,7 +28,7 @@ public:
 	void returnToStations();
 	void crystalAbility(int crew);
 
-	void changePower(SystemID which, int amount, bool set = true);
+	void changePower(SystemType which, int amount, bool set = true);
 	void toggleWeapon(int which, bool on);
 	void toggleDrone(int which, bool on);
 
@@ -41,7 +41,7 @@ public:
 	{
 		int weapon = -1, roomA = -1, roomB = -1;
 		bool ownShip = false, autoFire = false;
-		Pointf offsetA = { -1.f, -1.f }, offsetB = { -1.f, -1.f };
+		Point<float> offsetA = { -1.f, -1.f }, offsetB = { -1.f, -1.f };
 	};
 
 	void fireAtRoom(const WeaponFireOptions& options);
@@ -56,7 +56,7 @@ public:
 	void mind(int room, bool ownShip);
 	void hack();
 
-	void deployHackingDrone(SystemID system, int artilleryIndex = -1);
+	void deployHackingDrone(SystemType system, int artilleryIndex = -1);
 
 	void wait(int iterations = 1);
 
@@ -96,7 +96,7 @@ private:
 
 		struct PowerChange
 		{
-			SystemID system = SystemID::Invalid;
+			SystemType system = SystemType::Invalid;
 			int amount = 0;
 			bool set = false;
 		};
@@ -131,7 +131,7 @@ private:
 
 		struct HackingDroneDeployment
 		{
-			SystemID system = SystemID::Invalid;
+			SystemType system = SystemType::Invalid;
 			int artilleryIndex = -1;
 		};
 
@@ -158,11 +158,11 @@ private:
 	class Impl;
 	std::unique_ptr<Impl> impl;
 
-	Pointi systemPos(SystemID which);
-	Pointi crewPos(int which);
-	Pointi weaponSlotPos(int which);
-	Pointi droneSlotPos(int which);
-	Pointi roomPos(int which, bool ownShip = true, const Pointf& offset = { -1.f, -1.f });
+	Point<int> systemPos(SystemType which);
+	Point<int> crewPos(int which);
+	Point<int> weaponSlotPos(int which);
+	Point<int> droneSlotPos(int which);
+	Point<int> roomPos(int which, bool ownShip = true, const Point<float>& offset = { -1.f, -1.f });
 
 	struct MouseOptions
 	{
@@ -187,7 +187,7 @@ private:
 		union
 		{
 			int wait;
-			Pointi position;
+			Point<int> position;
 			MouseClick mouseClick;
 		};
 	};

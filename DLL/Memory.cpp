@@ -1,53 +1,9 @@
 #include "Memory.hpp"
 
+#include "Utility/WindowsButWithoutAsMuchCancer.hpp"
+
 namespace mem
 {
-
-void patch(BYTE* src, BYTE* dest, size_t size)
-{
-	DWORD oldProtect;
-	VirtualProtect(dest, size, PAGE_EXECUTE_READWRITE, &oldProtect);
-	memcpy(dest, src, size);
-	VirtualProtect(dest, size, oldProtect, &oldProtect);
-}
-
-void patchEx(BYTE* src, BYTE* dest, size_t size, HANDLE hProcess)
-{
-	DWORD oldProtect;
-	VirtualProtectEx(hProcess, dest, size, PAGE_EXECUTE_READWRITE, &oldProtect);
-	WriteProcessMemory(hProcess, dest, src, size, nullptr);
-	VirtualProtectEx(hProcess, dest, size, oldProtect, &oldProtect);
-}
-
-void nop(BYTE* dest, size_t size)
-{
-	DWORD oldProtect;
-	VirtualProtect(dest, size, PAGE_EXECUTE_READWRITE, &oldProtect);
-	memset(dest, 0x90, size);
-	VirtualProtect(dest, size, oldProtect, &oldProtect);
-}
-
-void nopEx(BYTE* dest, size_t size, HANDLE hProcess)
-{
-	BYTE* nopArray = new BYTE[size];
-	memset(nopArray, 0x90, size);
-
-	patchEx(nopArray, dest, size, hProcess);
-	delete[] nopArray;
-}
-
-uintptr_t getFinalAddress(uintptr_t ptr, const std::vector<size_t>& offsets)
-{
-	uintptr_t addr = ptr;
-
-	for (auto& off : offsets)
-	{
-		addr = *reinterpret_cast<uintptr_t*>(addr);
-		addr += off;
-	}
-
-	return addr;
-}
 
 bool detour32(BYTE* src, BYTE* dest, uintptr_t size)
 {

@@ -33,7 +33,7 @@ public:
 				break;
 			case InputCommand::MouseMove:
 			{
-				Pointi p = this->gameToScreen(cmd.position.x, cmd.position.y);
+				Point<int> p = this->gameToScreen(cmd.position.x, cmd.position.y);
 				this->setCursorPos(p.x, p.y);
 				break;
 			}
@@ -47,7 +47,7 @@ public:
 		}
 	}
 
-	void mouseMove(const Pointi& pos)
+	void mouseMove(const Point<int>& pos)
 	{
 		this->queue.push({
 			.type = InputCommand::MouseMove,
@@ -89,7 +89,7 @@ public:
 		});
 	}
 
-	void clickAt(const Pointi& pos, const MouseOptions& options = {})
+	void clickAt(const Point<int>& pos, const MouseOptions& options = {})
 	{
 		this->mouseMove(pos);
 		this->mouseClick(options);
@@ -140,12 +140,12 @@ private:
 		}
 	}
 
-	Pointi gameToScreen(int x, int y)
+	Point<int> gameToScreen(int x, int y)
 	{
 		RECT rect;
 		GetClientRect(g_hGameWindow, &rect);
 
-		Pointf scale{
+		Point<float> scale{
 			float(rect.right)/float(Input::GameWidth),
 			float(rect.bottom)/float(Input::GameHeight)
 		};
@@ -153,7 +153,7 @@ private:
 		scale.x *= float(x);
 		scale.y *= float(y);
 
-		Pointi result = { int(rect.left) + int(scale.x), int(rect.top) + int(scale.y) };
+		Point<int> result = { int(rect.left) + int(scale.x), int(rect.top) + int(scale.y) };
 
 		if (result.x < rect.left) result.x = rect.left;
 		if (result.y < rect.top) result.y = rect.top;
@@ -182,40 +182,40 @@ namespace
 {
 
 // Misc buttons
-constexpr Pointi JumpButton{ 572, 49 };
-constexpr Pointi UpgradeButton{ 661, 49 };
-constexpr Pointi StoreButton{ 753, 49 };
+constexpr Point<int> JumpButton{ 572, 49 };
+constexpr Point<int> UpgradeButton{ 661, 49 };
+constexpr Point<int> StoreButton{ 753, 49 };
 
 
 // Crew stuff
-constexpr Pointi FirstCrewButton{ 53, 168 };
-constexpr Pointi CrewButtonDelta{ 0, 30 };
-constexpr Pointi CrystalAbilityDelta{ 86, 0 };
-constexpr Pointi SaveStationsButton{ -19, 33 };
-constexpr Pointi ReturnToStationsButton{ 21, 33 };
+constexpr Point<int> FirstCrewButton{ 53, 168 };
+constexpr Point<int> CrewButtonDelta{ 0, 30 };
+constexpr Point<int> CrystalAbilityDelta{ 86, 0 };
+constexpr Point<int> SaveStationsButton{ -19, 33 };
+constexpr Point<int> ReturnToStationsButton{ 21, 33 };
 
 
 // System row positioning
-constexpr Pointi FirstSystemButton{ 89, 683 };
-constexpr Pointi SystemButtonDelta{ 36, 0 };
-constexpr Pointi WideSystemButtonDelta{ 54, 0 };
+constexpr Point<int> FirstSystemButton{ 89, 683 };
+constexpr Point<int> SystemButtonDelta{ 36, 0 };
+constexpr Point<int> WideSystemButtonDelta{ 54, 0 };
 
-constexpr Pointi SystemSmallButton{ 24, -25 };
-constexpr Pointi SystemMediumButton{ 24, -32 };
-constexpr Pointi SystemBigButton{ 24, -37 };
-constexpr Pointi SystemLowerButton{ 24, -24 };
-constexpr Pointi SystemUpperButton{ 24, -48 };
+constexpr Point<int> SystemSmallButton{ 24, -25 };
+constexpr Point<int> SystemMediumButton{ 24, -32 };
+constexpr Point<int> SystemBigButton{ 24, -37 };
+constexpr Point<int> SystemLowerButton{ 24, -24 };
+constexpr Point<int> SystemUpperButton{ 24, -48 };
 
-constexpr Pointi WeaponSlotsPadding{ 24, 0 };
-constexpr Pointi WeaponSlotsFirst{ 68, -41 };
-constexpr Pointi WeaponAutoFire{ -9, -40 };
-constexpr Pointi DroneSlotsPadding{ 16, 0 };
-constexpr Pointi DroneSlotsFirst{ 64,-41 };
-constexpr Pointi SlotDelta{ 97, 0 };
+constexpr Point<int> WeaponSlotsPadding{ 24, 0 };
+constexpr Point<int> WeaponSlotsFirst{ 68, -41 };
+constexpr Point<int> WeaponAutoFire{ -9, -40 };
+constexpr Point<int> DroneSlotsPadding{ 16, 0 };
+constexpr Point<int> DroneSlotsFirst{ 64,-41 };
+constexpr Point<int> SlotDelta{ 97, 0 };
 
-constexpr Pointi CloseAllDoorsButton{ 1141, 617 };
-constexpr Pointi OpenAllDoorsButton{ 1141, 640 };
-constexpr Pointi BatteryButton{ 1192, 628 };
+constexpr Point<int> CloseAllDoorsButton{ 1141, 617 };
+constexpr Point<int> OpenAllDoorsButton{ 1141, 640 };
+constexpr Point<int> BatteryButton{ 1192, 628 };
 
 }
 
@@ -231,9 +231,9 @@ Input::~Input()
 
 }
 
-Pointi Input::systemPos(SystemID which)
+Point<int> Input::systemPos(SystemType which)
 {
-	Pointi pos = FirstSystemButton;
+	Point<int> pos = FirstSystemButton;
 	auto& curr = this->reader.getState();
 	auto& sys = curr.player.systems;
 
@@ -246,16 +246,16 @@ Pointi Input::systemPos(SystemID which)
 		{
 			switch (i)
 			{
-			case SystemID::Weapons:
+			case SystemType::Weapons:
 				pos += WeaponSlotsPadding * 2 + SlotDelta * sys.weapons.slots;
 				break;
-			case SystemID::Drones:
+			case SystemType::Drones:
 				pos += DroneSlotsPadding * 2 + SlotDelta * sys.drones.slots;
 				break;
-			case SystemID::Teleporter: [[fallthrough]];
-			case SystemID::Cloaking: [[fallthrough]];
-			case SystemID::Mind: [[fallthrough]];
-			case SystemID::Hacking:
+			case SystemType::Teleporter: [[fallthrough]];
+			case SystemType::Cloaking: [[fallthrough]];
+			case SystemType::MindControl: [[fallthrough]];
+			case SystemType::Hacking:
 				pos += WideSystemButtonDelta;
 				break;
 			default:
@@ -267,7 +267,7 @@ Pointi Input::systemPos(SystemID which)
 	return pos;
 }
 
-Pointi Input::crewPos(int which)
+Point<int> Input::crewPos(int which)
 {
 	auto& curr = this->reader.getState();
 
@@ -277,23 +277,23 @@ Pointi Input::crewPos(int which)
 	return FirstCrewButton + CrewButtonDelta * which;
 }
 
-Pointi Input::weaponSlotPos(int which)
+Point<int> Input::weaponSlotPos(int which)
 {
-	auto w = this->systemPos(SystemID::Weapons);
+	auto w = this->systemPos(SystemType::Weapons);
 	return w + WeaponSlotsFirst + SlotDelta * which;
 }
 
-Pointi Input::droneSlotPos(int which)
+Point<int> Input::droneSlotPos(int which)
 {
-	return this->systemPos(SystemID::Drones) + DroneSlotsFirst + SlotDelta * which;
+	return this->systemPos(SystemType::Drones) + DroneSlotsFirst + SlotDelta * which;
 }
 
-Pointi Input::roomPos(int which, bool ownShip, const Pointf& offset)
+Point<int> Input::roomPos(int which, bool ownShip, const Point<float>& offset)
 {
 	auto& curr = this->reader.getState();
 
-	Pointi pos, size;
-	Pointf off = offset;
+	Point<int> pos, size;
+	Point<float> off = offset;
 
 	if (ownShip)
 	{
@@ -365,7 +365,7 @@ void Input::iterate()
 		{
 			auto& [crew, shift] = cmd.crewSelection;
 
-			Pointi pos = this->crewPos(crew);
+			Point<int> pos = this->crewPos(crew);
 
 			if (pos.x > 0)
 				this->impl->clickAt(this->crewPos(crew), { .shift = shift });
@@ -392,20 +392,20 @@ void Input::iterate()
 		}
 		case FTLCommand::SaveStations:
 		{
-			Pointi pos = FirstCrewButton + CrewButtonDelta * curr.playerCrewCount + SaveStationsButton;
+			Point<int> pos = FirstCrewButton + CrewButtonDelta * curr.playerCrewCount + SaveStationsButton;
 			this->impl->clickAt(pos);
 			break;
 		}
 		case FTLCommand::ReturnToStations:
 		{
-			Pointi pos = FirstCrewButton + CrewButtonDelta * curr.playerCrewCount + ReturnToStationsButton;
+			Point<int> pos = FirstCrewButton + CrewButtonDelta * curr.playerCrewCount + ReturnToStationsButton;
 			this->impl->clickAt(pos);
 			break;
 		}
 		case FTLCommand::CrystalAbility:
 		{
 			auto& crew = cmd.crewSelection.id;
-			Pointi pos = this->crewPos(crew);
+			Point<int> pos = this->crewPos(crew);
 			this->impl->mouseMove(pos);
 			this->impl->clickAt(pos + CrystalAbilityDelta);
 			break;
@@ -423,7 +423,7 @@ void Input::iterate()
 
 			if (amount > 0)
 			{
-				if (which == SystemID::Shields)
+				if (which == SystemType::Shields)
 					amount = (amount + 1) / 2;
 
 				auto& [used, max] = curr.player.reactor;
@@ -435,7 +435,7 @@ void Input::iterate()
 			}
 			else if (amount < 0)
 			{
-				if (which == SystemID::Shields)
+				if (which == SystemType::Shields)
 					amount = (amount - 1) / 2;
 
 				for (int i = 0; i > amount; --i)
@@ -544,7 +544,7 @@ void Input::iterate()
 
 			auto& [room, retrieve] = cmd.teleportation;
 
-			Pointi pos = this->systemPos(SystemID::Teleporter);
+			Point<int> pos = this->systemPos(SystemType::Teleporter);
 			pos += retrieve ? SystemLowerButton : SystemUpperButton;
 			this->impl->clickAt(pos);
 			this->impl->clickAt(this->roomPos(room, false));
@@ -552,7 +552,7 @@ void Input::iterate()
 		}
 		case FTLCommand::Cloak:
 		{
-			this->impl->clickAt(this->systemPos(SystemID::Cloaking) + SystemSmallButton);
+			this->impl->clickAt(this->systemPos(SystemType::Cloaking) + SystemSmallButton);
 			break;
 		}
 		case FTLCommand::Battery:
@@ -567,13 +567,13 @@ void Input::iterate()
 
 			auto& [room, ownShip] = cmd.roomSelection;
 
-			this->impl->clickAt(this->systemPos(SystemID::Mind) + SystemMediumButton);
+			this->impl->clickAt(this->systemPos(SystemType::MindControl) + SystemMediumButton);
 			this->impl->clickAt(this->roomPos(room, ownShip));
 			break;
 		}
 		case FTLCommand::Hack:
 		{
-			this->impl->clickAt(this->systemPos(SystemID::Hacking) + SystemSmallButton);
+			this->impl->clickAt(this->systemPos(SystemType::Hacking) + SystemSmallButton);
 			break;
 		}
 		case FTLCommand::DeployHackingDrone:
@@ -587,7 +587,7 @@ void Input::iterate()
 			if (!sys)
 				break;
 
-			this->impl->clickAt(this->systemPos(SystemID::Hacking) + SystemSmallButton);
+			this->impl->clickAt(this->systemPos(SystemType::Hacking) + SystemSmallButton);
 			this->impl->clickAt(this->roomPos(sys->room, false));
 			break;
 		}
@@ -649,7 +649,7 @@ void Input::crystalAbility(int crew)
 	});
 }
 
-void Input::changePower(SystemID which, int amount, bool set)
+void Input::changePower(SystemType which, int amount, bool set)
 {
 	this->queue.push({
 		.type = FTLCommand::ChangePower,
@@ -774,7 +774,7 @@ void Input::mind(int room, bool ownShip)
 	});
 }
 
-void Input::deployHackingDrone(SystemID system, int artilleryIndex)
+void Input::deployHackingDrone(SystemType system, int artilleryIndex)
 {
 	this->queue.push({
 		.type = FTLCommand::DeployHackingDrone,

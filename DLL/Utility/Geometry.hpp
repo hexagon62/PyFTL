@@ -40,8 +40,8 @@ struct Point
 	}
 };
 
-using Pointf = Point<float>;
-using Pointi = Point<int>;
+using Point<float> = Point<float>;
+using Point<int> = Point<int>;
 
 template<typename T>
 struct Rect

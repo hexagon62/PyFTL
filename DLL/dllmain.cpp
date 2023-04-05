@@ -1,15 +1,19 @@
 #include "Memory.hpp"
-#include "Player/Player.hpp"
 #include "GUI/GUI.hpp"
+#include "GameState/CleanReader.hpp"
 
 #define GLEW_STATIC
 #include <gl/glew.h>
-#include <windowsx.h>
+
+#include <pybind11/embed.h>
+#include <pybind11/chrono.h>
+namespace py = pybind11;
 
 #include <iostream>
 #include <fstream>
-#include <chrono>
-#include <thread>
+#include <mutex>
+#include <condition_variable>
+#include <filesystem>
 
 using wglSwapBuffers_t = BOOL(__stdcall*) (HDC hDc);
 wglSwapBuffers_t wglSwapBuffers_orig = nullptr;
@@ -17,14 +21,23 @@ wglSwapBuffers_t wglSwapBuffers_orig = nullptr;
 HWND g_hGameWindow;
 WNDPROC g_hGameWindowProc;
 
+bool g_overlay = true;
 bool g_active = false;
+bool g_pause = false;
+bool g_imguiInit = false;
 GUIHelper g_gui;
+
+constexpr char PYTFTL_FOLDER[] = "pyftl";
+constexpr char PYTFTL_MAIN_MODULE[] = "main";
+constexpr char PYTFTL_EXTENSION[] = ".py";
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
+#define WM_FTLAI 0x800 // temporary pls remove
+
 LRESULT CALLBACK windowProc_hook(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam)
 {
-    if (~uMsg & WM_FTLAI) // not AI generated
+    if (~uMsg & WM_FTLAI && g_imguiInit) // not AI generated
     {
         auto& io = ImGui::GetIO();
 
@@ -62,11 +75,20 @@ LRESULT CALLBACK windowProc_hook(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPa
             uMsg == WM_XBUTTONDBLCLK ||
             false;
 
-        if ((g_active && g_gui.inGame()) || imguiWants)
+        bool allowedKeys = // allow pausing by human
+            wParam == VK_ESCAPE ||
+            wParam == VK_SPACE ||
+            wParam == 0x49 || // I
+            wParam == 0x4A || // J
+            wParam == 0x55; // U
+
+        if (wParam == VK_F9) g_active = !g_active; // F9 to (de)activate AI
+
+        if ((g_active && !g_pause && g_gui.inGame()) || imguiWants)
         {
             ShowCursor(true);
 
-            if (ignorable)
+            if (ignorable && !allowedKeys)
                 return true;
         }
 
@@ -81,9 +103,7 @@ LRESULT CALLBACK windowProc_hook(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPa
 
 BOOL __stdcall wglSwapBuffers_hook(HDC hDc)
 {
-    static bool init = false;
-
-    if (!init)
+    if (!g_imguiInit)
     {
         // Get the window handle
         g_hGameWindow = WindowFromDC(hDc);
@@ -96,15 +116,16 @@ BOOL __stdcall wglSwapBuffers_hook(HDC hDc)
                     reinterpret_cast<LONG_PTR>(windowProc_hook)));
 
         glewInit();
-        ImGui::CreateContext();
+        static auto* context = ImGui::CreateContext();
+        ImGui::SetCurrentContext(context);
         ImGui_ImplWin32_Init(g_hGameWindow);
         ImGui_ImplOpenGL3_Init();
         ImGui::CaptureMouseFromApp();
 
-        init = true;
+        g_imguiInit = true;
     }
 
-    if (g_overlay && init)
+    if (g_overlay && g_imguiInit && ImGui::GetCurrentContext())
     {
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplWin32_NewFrame();
@@ -118,68 +139,230 @@ BOOL __stdcall wglSwapBuffers_hook(HDC hDc)
     return wglSwapBuffers_orig(hDc);
 }
 
-class ConsoleHandler
+struct ConsoleHandler
 {
-public:
+    static constexpr int DEFAULT_FOREGROUND_COLOR = 0x7;
+    static constexpr int DEFAULT_BACKGROUND_COLOR = 0x0;
+
     ConsoleHandler()
     {
         AllocConsole();
-        this->f = new FILE();
-        freopen_s(&f, "CONOUT$", "w", stdout);
+
+        this->out = new FILE();
+        this->err = new FILE();
+        this->in = new FILE();
+
+        freopen_s(&this->out, "CONOUT$", "w", stdout);
+        freopen_s(&this->err, "CONERR$", "w", stderr);
+        freopen_s(&this->in, "CONIN$", "r", stdin);
+
+        this->hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+        this->setColor();
+    }
+
+    void setColor(int fg = DEFAULT_FOREGROUND_COLOR, int bg = DEFAULT_BACKGROUND_COLOR)
+    {
+        SetConsoleTextAttribute(this->hConsole, fg + bg*16);
+    }
+
+    template<typename F>
+    void withColor(int fg, int bg, F f)
+    {
+        setColor(fg + bg * 16);
+        f();
+        setColor();
     }
 
     ~ConsoleHandler()
     {
         FreeConsole();
-        fclose(this->f);
-        this->f = nullptr;
+
+        fclose(this->out);
+        fclose(this->err);
+        fclose(this->in);
+
+        this->out = nullptr;
+        this->err = nullptr;
+        this->in = nullptr;
+        this->hConsole = nullptr;
+    }
+
+    FILE* out = nullptr;
+    FILE* err = nullptr;
+    FILE* in = nullptr;
+    HANDLE hConsole = nullptr;
+};
+
+class PyWriter
+{
+public:
+    PyWriter(std::ostream& stream)
+        : stream(stream)
+    {}
+
+    void write(std::string str)
+    {
+        stream << str;
+    }
+
+    void flush()
+    {
+        stream << std::flush;
     }
 
 private:
-    FILE* f = nullptr;
+    std::ostream& stream;
 };
+
+class PyReader
+{
+public:
+    PyReader(std::istream& stream)
+        : stream(stream)
+    {}
+
+    std::string readline()
+    {
+        std::string str;
+        std::getline(stream, str);
+        return str;
+    }
+
+private:
+    std::istream& stream;
+};
+
+PYBIND11_EMBEDDED_MODULE(ftl_io_redirect, module)
+{
+    py::class_<PyWriter>(module, "Writer")
+        .def("write", &PyWriter::write)
+        .def("flush", &PyWriter::flush);
+
+    py::class_<PyReader>(module, "Reader")
+        .def("readline", &PyReader::readline);
+}
+
+const std::string PYFTL_PREFIX = "[PyFTL] ";
+
+template<typename... Ts>
+std::ostream& PyFTLOut(ConsoleHandler& con, Ts&&... args)
+{
+    con.setColor(0xA, 0x0);
+    ((std::cout << PYFTL_PREFIX) << ... << args);
+    con.setColor();
+
+    return std::cout;
+}
+
+template<typename... Ts>
+std::ostream& PyFTLErr(ConsoleHandler& con, Ts&&... args)
+{
+    con.setColor(0xC, 0x0);
+    ((std::cout << PYFTL_PREFIX) << ... << args);
+    con.setColor();
+
+    return std::cout;
+}
 
 DWORD WINAPI patcherThread(HMODULE hModule)
 {
-    constexpr char PointerMapFile[] = "pointermap.cfg";
-    std::ifstream map(PointerMapFile);
-
     ConsoleHandler con;
 
-    if (!map)
-    {
-        std::cout <<
-            "Couldn't open " << PointerMapFile << ".\n"
-            "Make sure it's present and make sure the application has appropriate permissions.\n";
-
-        std::system("pause");
-
-        return 1;
-    }
-
-    AddressData addresses;
+    py::scoped_interpreter pyInterpreter{};
+    py::module pyMainModule;
 
     try
     {
-        addresses.parse(map);
+        py::module::import("ftl_io_redirect");
+
+        py::module sys = py::module::import("sys");
+
+        PyWriter out{ std::cout };
+        PyWriter err{ std::cout };
+        PyReader in{ std::cin };
+
+        sys.attr("stdout") = out;
+        sys.attr("stderr") = err;
+        sys.attr("stdin") = in;
+
+        con.setColor(0xA, 0x0);
+        py::print(PYFTL_PREFIX + "Python initialized.");
+        con.setColor();
+
+        auto path = std::filesystem::current_path() / PYTFTL_FOLDER;
+        sys.attr("path").attr("insert")(0, path.string());
+        pyMainModule = py::module::import(PYTFTL_MAIN_MODULE);
+        sys.attr("path").attr("remove")(path.string());
     }
     catch (const std::exception& e)
     {
-        std::cout << "Couldn't parse " << PointerMapFile << ".\n";
-        std::cout << e.what() << '\n';
-
+        PyFTLErr(con, "Couldn't run python file: ", e.what(), '\n');
         std::system("pause");
-
         return 1;
     }
 
-    StateReader reader(addresses);
-    Player player(reader);
+    // Game has to be running before anything else can happen
+    if (!Reader::init() || !Reader::getState().running)
+    {
+        PyFTLOut(con, "Waiting for game to start...\n");
 
-    g_gui.setReader(reader);
-    g_gui.setPlayer(player);
+        while (!Reader::init());
+        while (!Reader::getState().running) Reader::poll();
 
-    // Hook OpenGL stuff
+        PyFTLOut(con, "Game has started!\n");
+    }
+
+    bool quit = false;
+
+    //pybind11::gil_scoped_release gilRelease;
+    //std::mutex mut;
+    //std::condition_variable cv;
+
+    std::jthread pollerThread([&] {
+        while (!quit)
+        {
+            Reader::poll();
+            Reader::wait();
+        }
+    });
+
+    //std::jthread pyUpdateThread([&] {
+    //    TimePoint last = Clock::now();
+    //
+    //    while (!quit)
+    //    {
+    //        Duration timeEllapsed = Clock::now() - last;
+    //        last = Clock::now();
+    //
+    //        try
+    //        {
+    //            pybind11::gil_scoped_acquire gilAcquire;
+    //            std::unique_lock<std::mutex> lock(mut);
+    //            cv.wait(lock);
+    //            pyMainModule.attr("on_update")(timeEllapsed);
+    //        }
+    //        catch (const std::exception& e)
+    //        {
+    //            PyFTLErr(con, "Python exception: ", e.what(), '\n');
+    //        }
+    //    }
+    //});
+
+    try
+    {
+        //std::unique_lock<std::mutex> lock(mut);
+        pybind11::gil_scoped_acquire gilAcquire;
+        pyMainModule.attr("on_start")();
+    }
+    catch (const std::exception& e)
+    {
+        PyFTLErr(con, "Python exception: ", e.what(), '\n');
+        PyFTLErr(con, "Since this exception happened in on_start, PyFTL will abort.\n");
+        std::system("pause");
+        return 1;
+    }
+
+    // Now that everything else worked, we can hook the OpenGL stuff!
     wglSwapBuffers_orig =
         reinterpret_cast<wglSwapBuffers_t>(
             GetProcAddress(GetModuleHandle(L"opengl32.dll"), "wglSwapBuffers"));
@@ -191,15 +374,9 @@ DWORD WINAPI patcherThread(HMODULE hModule)
                 reinterpret_cast<BYTE*>(wglSwapBuffers_hook),
                 7));
 
-    while (true)
-    {
-        constexpr int POLL_RATE = 16;
+    PyFTLOut(con, "Hooked into the game's rendering loop!\n");
 
-        reader.poll();
-        player.think(POLL_RATE);
-        std::this_thread::sleep_for(std::chrono::milliseconds(POLL_RATE));
-    }
-
+    // And then this thread will get blocked by the polling thread
     return 0;
 }
 
