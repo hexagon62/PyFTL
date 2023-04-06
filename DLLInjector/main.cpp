@@ -158,7 +158,7 @@ int main(int argc, char** argv)
         }
 
         if (arg == "-d" || arg == "-detach") detach = true;
-        if (arg == "-p" || arg == "-pauseless") silent = true;
+        if (arg == "-p" || arg == "-pauseless") pauseless = true;
     }
 
     std::cout << "Getting ID of the FTL process...\n";
@@ -245,7 +245,7 @@ int main(int argc, char** argv)
     }
     else
     {
-        std::cout << "Success! This window will close in a few seconds.\n";
+        std::cout << "Success! The launcher will terminate in a few seconds.\n";
         std::this_thread::sleep_for(std::chrono::seconds(3));
     }
 
