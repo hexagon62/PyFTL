@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../Utility/ValueScopeGuard.hpp"
-#include "CleanState.hpp"
+#include "State.hpp"
 #include "Raw.hpp"
 
 #include <chrono>

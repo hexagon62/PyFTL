@@ -1,7 +1,8 @@
-#include "CleanReader.hpp"
+#include "Reader.hpp"
 #include "../Memory.hpp"
 
 #include <algorithm>
+#include <unordered_map>
 
 Duration Reader::delay{ std::chrono::microseconds(16666) };
 TimePoint Reader::nextPoll{ Clock::now() };
@@ -1591,6 +1592,139 @@ void readLocationEvent(LocationEvent& event, const raw::LocationEvent& raw, bool
 	}
 }
 
+// id & neighbors are read in the readStarMap function
+void readLocation(Location& location, const raw::Location& raw)
+{
+	location.position = { raw.loc.x, raw.loc.y };
+	location.visits = raw.visited;
+	location.known = raw.known;
+	location.exit = raw.beacon;
+	location.hazard = raw.dangerZone;
+	location.nebula = raw.nebula;
+	location.flagshipPresent = raw.boss;
+	location.quest = raw.questLoc;
+	location.fleetOvertaking = raw.fleetChanging;
+	location.enemyShip = raw.event && raw.event->ship.present && raw.event->ship.hostile;
+	if(raw.event) readLocationEvent(location.event, *raw.event);
+}
+
+// id & neighbors are read in the readStarMap function
+void readSector(Sector& sector, const raw::Sector& raw)
+{
+	sector.type = SectorType(raw.type);
+	sector.name = raw.description.name.data.str;
+	sector.visited = raw.visited;
+	sector.reachable = raw.reachable;
+	sector.position = { raw.location.x, raw.location.y };
+	sector.level = raw.level;
+	sector.unique = raw.description.unique;
+}
+
+void readStarMap(StarMap& map, const raw::StarMap& raw)
+{
+	map.lastStand = raw.bossLevel;
+	map.flagshipJumping = raw.bossJumping;
+	map.mapRevealed = raw.bMapRevealed;
+	map.secretSector = raw.secretSector;
+	map.translation = { raw.translation.x, raw.translation.y };
+	map.dangerZone.center = { float(raw.dangerZone.x), float(raw.dangerZone.y) };
+	map.dangerZone.a = raw.dangerZoneRadius;
+	map.dangerZone.b = raw.dangerZoneRadius;
+	map.pursuitDelay = raw.pursuitDelay;
+	map.turnsLeft = raw.arrivedAtBase == 0 ? -1 : 4 - raw.arrivedAtBase;
+	map.choosingNewSector = raw.bChoosingNewSector;
+	map.infiniteMode = raw.bInfiniteMode;
+	map.nebulaSector = raw.bNebulaMap;
+	map.distressBeacon = raw.distressAnim.running;
+	map.sectorNumber = raw.worldLevel;
+
+	map.locations.clear();
+	map.flagshipPath.clear();
+	map.sectors.clear();
+
+	std::unordered_map<raw::Location*, size_t> locIndex;
+	std::unordered_map<raw::Sector*, size_t> secIndex;
+
+	// read locations
+	for (size_t i = 0; i < raw.locations.size(); i++)
+	{
+		readLocation(map.locations.emplace_back(), *raw.locations[i]);
+		map.locations.back().id = int(i);
+		locIndex[raw.locations[i]] = i;
+	}
+
+	// read location neighbors
+	for (size_t i = 0; i < raw.locations.size(); i++)
+	{
+		auto&& loc = *raw.locations[i];
+
+		for (size_t j = 0; j < loc.connectedLocations.size(); j++)
+		{
+			size_t idx = locIndex.at(loc.connectedLocations[j]);
+			map.locations[i].neighbors.push_back(&map.locations[idx]);
+		}
+	}
+
+	// read flagship path
+	for (size_t i = 0; i < raw.boss_path.size(); i++)
+	{
+		auto&& loc = *raw.boss_path[i];
+		size_t idx = locIndex.at(raw.boss_path[i]);
+		map.flagshipPath.push_back(&map.locations[idx]);
+	}
+
+	// read current location
+	{
+		auto it = locIndex.find(raw.currentLoc);
+
+		if (it == locIndex.end())
+		{
+			map.currentLocation = nullptr;
+		}
+		else
+		{
+			size_t idx = it->second;
+			map.currentLocation = &map.locations[idx];
+		}
+	}
+
+	// read sectors
+	for (size_t i = 0; i < raw.sectors.size(); i++)
+	{
+		readSector(map.sectors.emplace_back(), *raw.sectors[i]);
+		map.sectors.back().id = int(i);
+		secIndex[raw.sectors[i]] = i;
+	}
+
+	// read sector neighbors
+	for (size_t i = 0; i < raw.sectors.size(); i++)
+	{
+		auto&& sec = *raw.sectors[i];
+
+		for (size_t j = 0; j < sec.neighbors.size(); j++)
+		{
+			size_t idx = secIndex.at(sec.neighbors[j]);
+			map.sectors[i].neighbors.push_back(&map.sectors[idx]);
+		}
+	}
+
+	// read current sector
+	{
+		auto it = secIndex.find(raw.currentSector);
+
+		if (it == secIndex.end())
+		{
+			map.currentSector = nullptr;
+		}
+		else
+		{
+			size_t idx = it->second;
+			map.currentSector = &map.sectors[idx];
+		}
+
+	}
+}
+
 void readSettings(Settings& settings, const raw::SettingValues& raw)
 {
 	settings.fullscreen = Settings::FullscreenMode(raw.fullscreen);
@@ -1838,6 +1972,8 @@ void Reader::poll()
 				readLocationEvent(game.event, *current, preserveStore);
 			}
 		}
+
+		readStarMap(game.starMap, rs.app->world->starMap);
 
 		if (game.justLoaded) game.justLoaded = false;
 	}

@@ -2324,7 +2324,7 @@ struct SpaceManager
 	gcc::vector<Animation> pdsSmokeAnims;
 	bool queueScreenShake = false;
 	bool playerShipInFront = false;
-	Pad<4> _u5;
+	Pad<2> _u5;
 };
 
 struct HandAnimation

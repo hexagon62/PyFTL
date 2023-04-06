@@ -23,23 +23,26 @@
     <ClInclude Include="GUI\GUI.hpp">
       <Filter>GUI</Filter>
     </ClInclude>
-    <ClInclude Include="GameState\Raw.hpp">
-      <Filter>GameState</Filter>
-    </ClInclude>
     <ClInclude Include="Utility\Geometry.hpp">
       <Filter>Utility</Filter>
     </ClInclude>
     <ClInclude Include="Utility\WindowsButWithoutAsMuchCancer.hpp">
       <Filter>Utility</Filter>
     </ClInclude>
-    <ClInclude Include="GameState\CleanReader.hpp">
-      <Filter>GameState</Filter>
-    </ClInclude>
-    <ClInclude Include="GameState\CleanState.hpp">
-      <Filter>GameState</Filter>
-    </ClInclude>
     <ClInclude Include="Utility\ValueScopeGuard.hpp">
       <Filter>Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="Python\Bind.hpp">
+      <Filter>Python</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Raw.hpp">
+      <Filter>State</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Reader.hpp">
+      <Filter>State</Filter>
+    </ClInclude>
+    <ClInclude Include="State\State.hpp">
+      <Filter>State</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -69,17 +72,64 @@
     <ClCompile Include="..\..\..\C++ Resources\src\imgui_demo.cpp">
       <Filter>imgui</Filter>
     </ClCompile>
-    <ClCompile Include="GameState\CleanReader.cpp">
-      <Filter>GameState</Filter>
+    <ClCompile Include="Python\BindModule.cpp">
+      <Filter>Python</Filter>
     </ClCompile>
-    <ClCompile Include="PythonBindings.cpp" />
+    <ClCompile Include="Python\BindSystems.cpp">
+      <Filter>Python</Filter>
+    </ClCompile>
+    <ClCompile Include="State\Reader.cpp">
+      <Filter>State</Filter>
+    </ClCompile>
+    <ClCompile Include="Python\BindReader.cpp">
+      <Filter>Python</Filter>
+    </ClCompile>
+    <ClCompile Include="Python\BindSettings.cpp">
+      <Filter>Python</Filter>
+    </ClCompile>
+    <ClCompile Include="Python\BindGeometry.cpp">
+      <Filter>Python</Filter>
+    </ClCompile>
+    <ClCompile Include="Python\BindHacking.cpp">
+      <Filter>Python</Filter>
+    </ClCompile>
+    <ClCompile Include="Python\BindBlueprints.cpp">
+      <Filter>Python</Filter>
+    </ClCompile>
+    <ClCompile Include="Python\BindWeapons.cpp">
+      <Filter>Python</Filter>
+    </ClCompile>
+    <ClCompile Include="Python\BindDrones.cpp">
+      <Filter>Python</Filter>
+    </ClCompile>
+    <ClCompile Include="Python\BindCrew.cpp">
+      <Filter>Python</Filter>
+    </ClCompile>
+    <ClCompile Include="Python\BindShipLayout.cpp">
+      <Filter>Python</Filter>
+    </ClCompile>
+    <ClCompile Include="Python\BindShip.cpp">
+      <Filter>Python</Filter>
+    </ClCompile>
+    <ClCompile Include="Python\BindSpace.cpp">
+      <Filter>Python</Filter>
+    </ClCompile>
+    <ClCompile Include="Python\BindEvents.cpp">
+      <Filter>Python</Filter>
+    </ClCompile>
+    <ClCompile Include="Python\BindStores.cpp">
+      <Filter>Python</Filter>
+    </ClCompile>
+    <ClCompile Include="Python\BindStarMap.cpp">
+      <Filter>Python</Filter>
+    </ClCompile>
+    <ClCompile Include="Python\BindMisc.cpp">
+      <Filter>Python</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="imgui">
       <UniqueIdentifier>{0bba110c-ddc3-4c9c-96d0-746b9382f378}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="GameState">
-      <UniqueIdentifier>{e0d5c2a9-5fdf-4d3d-b051-f95c434bec7f}</UniqueIdentifier>
     </Filter>
     <Filter Include="Player">
       <UniqueIdentifier>{e0c36a00-9b81-4d26-b461-da623d7d4c53}</UniqueIdentifier>
@@ -89,6 +139,12 @@
     </Filter>
     <Filter Include="Utility">
       <UniqueIdentifier>{1ab46470-b03f-4398-ba10-fe7d5e9246be}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Python">
+      <UniqueIdentifier>{c69c55eb-8252-496a-ac89-a8114a15c69f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="State">
+      <UniqueIdentifier>{efe13e32-89e9-4619-87f7-03cacbd947d4}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>

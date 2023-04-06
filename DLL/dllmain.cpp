@@ -1,13 +1,10 @@
 #include "Memory.hpp"
 #include "GUI/GUI.hpp"
-#include "GameState/CleanReader.hpp"
+#include "State/Reader.hpp"
+#include "Python/Bind.hpp"
 
 #define GLEW_STATIC
 #include <gl/glew.h>
-
-#include <pybind11/embed.h>
-#include <pybind11/chrono.h>
-namespace py = pybind11;
 
 #include <iostream>
 #include <fstream>
