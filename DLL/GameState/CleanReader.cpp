@@ -1925,7 +1925,7 @@ PYBIND11_EMBEDDED_MODULE(ftl, module)
 		.def("state", &Reader::getState, py::return_value_policy::reference)
 		.def("get_poll_delay", &Reader::getPollDelay, py::return_value_policy::reference)
 		.def("set_poll_delay", &Reader::setPollDelay, py::return_value_policy::reference)
-		.def("set_seperate_polling_thread", &Reader::setSeperateThread)
+		.def("use_seperate_polling_thread", &Reader::setSeperateThread, py::arg("on") = true)
 		.def("is_polling_thread_separated", &Reader::usingSeperateThread)
 		.def("reload", &Reader::reload)
 		;
