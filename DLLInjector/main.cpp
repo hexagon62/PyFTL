@@ -18,7 +18,7 @@ struct DLL
 };
 
 constexpr std::array DLL_LIST{
-    DLL{ L"python311.dll", false },
+    DLL{ L"python311.dll" },
     DLL{ L"pyftl.dll" }
 };
 
@@ -183,21 +183,10 @@ int main(int argc, char** argv)
     auto pwd = std::filesystem::current_path();
     bool workDone = false;
 
-    for (size_t i = 0; i < DLL_LIST.size(); i++)
+    // Detach DLLs
+    for (int i = DLL_LIST.size()-1; i >= 0; i--)
     {
         auto& dll = DLL_LIST[i];
-
-        auto path = pwd / dll.name;
-        std::string pathStr = path.string();
-
-        if (!std::filesystem::exists(path))
-        {
-            std::cout << "Couldn't find " << pathStr << "." << std::endl;
-            std::cout << "Please ensure that the file exists and that your working directory is set correctly." << std::endl;
-            if (pause) std::system("pause");
-            return 1;
-        }
-
         if (info.injected[i])
         {
             if (dll.reload || detach)
@@ -223,9 +212,26 @@ int main(int argc, char** argv)
                 continue;
             }
         }
+    }
 
-        if (!detach)
+    // Attach DLLs
+    if (!detach)
+    {
+        for (size_t i = 0; i < DLL_LIST.size(); i++)
         {
+            auto& dll = DLL_LIST[i];
+
+            auto path = pwd / dll.name;
+            std::string pathStr = path.string();
+
+            if (!std::filesystem::exists(path))
+            {
+                std::cout << "Couldn't find " << pathStr << "." << std::endl;
+                std::cout << "Please ensure that the file exists and that your working directory is set correctly." << std::endl;
+                if (pause) std::system("pause");
+                return 1;
+            }
+
             std::wcout << L"Injecting " << dll.name << L" into ";
             std::wcout << FTLExecutable;
             std::cout << "..." << std::endl;
@@ -235,7 +241,7 @@ int main(int argc, char** argv)
             if (!success)
             {
                 std::cout << "Couldn't inject the dll!" << std::endl;
-                if(pause) std::system("pause");
+                if (pause) std::system("pause");
                 return 1;
             }
 
