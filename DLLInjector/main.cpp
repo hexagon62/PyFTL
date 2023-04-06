@@ -151,9 +151,9 @@ int main(int argc, char** argv)
     {
         if (arg == "?" || arg == "help")
         {
-            std::cout << "Specify -d or -detach to detach all dlls\n";
-            std::cout << "Specify -p or -pauseless to immediately close the program after it's done\n";
-            std::cout << "Specify ? or help to print this message and quit\n";
+            std::cout << "Specify -d or -detach to detach all dlls." << std::endl;
+            std::cout << "Specify -p or -pauseless to immediately close the program after it's done." << std::endl;
+            std::cout << "Specify ? or help to print this message and quit." << std::endl;
             return 0;
         }
 
@@ -161,22 +161,22 @@ int main(int argc, char** argv)
         if (arg == "-p" || arg == "-pauseless") pauseless = true;
     }
 
-    std::cout << "Getting ID of the FTL process...\n";
+    std::cout << "Getting ID of the FTL process..." << std::endl;
     ProcessInfo info = getProcessInfo();
 
     if (!info.pid)
     {
-        std::cout << "Couldn't find FTL! Make sure it's open.\n";
+        std::cout << "Couldn't find FTL! Make sure it's open." << std::endl;
         std::system("pause");
         return 1;
     }
 
-    std::cout << "Opening FTL process...\n";
+    std::cout << "Opening FTL process..." << std::endl;
     HANDLE hProc = OpenProcess(PROCESS_ALL_ACCESS, FALSE, info.pid);
 
     if (!hProc)
     {
-        std::cout << "Couldn't open the process!\n";
+        std::cout << "Couldn't open the process!" << std::endl;
         std::system("pause");
         return 1;
     }
@@ -193,8 +193,8 @@ int main(int argc, char** argv)
 
         if (!std::filesystem::exists(path))
         {
-            std::cout << "Couldn't find " << pathStr << ".\n";
-            std::cout << "Please ensure that the file exists and that your working directory is set correctly.\n";
+            std::cout << "Couldn't find " << pathStr << "." << std::endl;
+            std::cout << "Please ensure that the file exists and that your working directory is set correctly." << std::endl;
             std::system("pause");
             return 1;
         }
@@ -205,13 +205,13 @@ int main(int argc, char** argv)
             {
                 std::wcout << L"Unloading " << dll.name << L" from ";
                 std::wcout << FTLExecutable;
-                std::cout << "...\n";
+                std::cout << "..." << std::endl;
 
                 bool success = unload(info.injected[i], hProc);
 
                 if (!success)
                 {
-                    std::cout << "Couldn't unload the dll!\n";
+                    std::cout << "Couldn't unload the dll!" << std::endl;
                     std::system("pause");
                     return 1;
                 }
@@ -220,7 +220,7 @@ int main(int argc, char** argv)
             }
             else
             {
-                std::wcout << L"Skipping " << dll.name << L", it's loaded and doesn't need reloading.\n";
+                std::wcout << L"Skipping " << dll.name << L", it's loaded and doesn't need reloading." << std::endl;
                 continue;
             }
         }
@@ -229,13 +229,13 @@ int main(int argc, char** argv)
         {
             std::wcout << L"Injecting " << dll.name << L" into ";
             std::wcout << FTLExecutable;
-            std::cout << "...\n";
+            std::cout << "..." << std::endl;
 
             bool success = inject(pathStr.c_str(), hProc);
 
             if (!success)
             {
-                std::cout << "Couldn't inject the dll!\n";
+                std::cout << "Couldn't inject the dll!" << std::endl;
                 std::system("pause");
                 return 1;
             }
@@ -246,14 +246,14 @@ int main(int argc, char** argv)
 
     if (pauseless)
     {
-        if (workDone) std::cout << "Success!\n";
-        else std::cout << "Nothing to be done. No DLLs need loading/unloading.\n";
+        if (workDone) std::cout << "Success!" << std::endl;
+        else std::cout << "Nothing to be done. No DLLs need loading/unloading." << std::endl;
     }
     else
     {
         if (workDone) std::cout << "Success! ";
-        else std::cout << "Nothing to be done. No DLLs need loading/unloading.\n";
-        std::cout << "The launcher will terminate in a few seconds.\n";
+        else std::cout << "Nothing to be done. No DLLs need loading/unloading." << std::endl;
+        std::cout << "The launcher will terminate in a few seconds." << std::endl;
         std::this_thread::sleep_for(std::chrono::seconds(3));
     }
 

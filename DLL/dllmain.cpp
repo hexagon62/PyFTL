@@ -137,6 +137,7 @@ std::ostream& PyFTLOut(Ts&&... args)
     console().setColor(0xA, 0x0);
     ((std::cout << PYFTL_PREFIX) << ... << args);
     console().setColor();
+    std::cout << std::flush;
 
     return std::cout;
 }
@@ -147,6 +148,7 @@ std::ostream& PyFTLErr(Ts&&... args)
     console().setColor(0xC, 0x0);
     ((std::cout << PYFTL_PREFIX) << ... << args);
     console().setColor();
+    std::cout << std::flush;
 
     return std::cout;
 }
