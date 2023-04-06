@@ -1649,9 +1649,9 @@ bool Reader::init()
 	rs.blueprints = &mem::get<raw::BlueprintManager>(base + raw::BlueprintManagerPtr);
 	rs.powerManagerContainer = &mem::get<raw::PowerManagerContainer>(base + raw::PowerManagerContainerPtr);
 
-	state.blueprints.augmentBlueprints.clear();
 
 	// Read blueprints...
+	state.blueprints.weaponBlueprints.clear();
 	rs.blueprints->weaponBlueprints.dfs([](const raw::gcc::string& key, const raw::WeaponBlueprint& value) {
 		std::string str = key.str;
 		auto&& [it, succ] = state.blueprints.weaponBlueprints.emplace(str, WeaponBlueprint{});
@@ -1659,6 +1659,7 @@ bool Reader::init()
 		readWeaponBlueprint(weapon, value);
 	});
 
+	state.blueprints.droneBlueprints.clear();
 	rs.blueprints->droneBlueprints.dfs([](const raw::gcc::string& key, const raw::DroneBlueprint& value) {
 		std::string str = key.str;
 		auto&& [it, succ] = state.blueprints.droneBlueprints.emplace(str, DroneBlueprint{});
@@ -1666,6 +1667,7 @@ bool Reader::init()
 		readDroneBlueprint(drone, value);
 	});
 
+	state.blueprints.augmentBlueprints.clear();
 	rs.blueprints->augmentBlueprints.dfs([](const raw::gcc::string& key, const raw::AugmentBlueprint& value) {
 		std::string str = key.str;
 		auto&& [it, succ] = state.blueprints.augmentBlueprints.emplace(str, Augment{});
@@ -1673,6 +1675,7 @@ bool Reader::init()
 		readAugment(aug, value);
 	});
 
+	state.blueprints.crewBlueprints.clear();
 	rs.blueprints->crewBlueprints.dfs([](const raw::gcc::string& key, const raw::CrewBlueprint& value) {
 		std::string str = key.str;
 		auto&& [it, succ] = state.blueprints.crewBlueprints.emplace(str, CrewBlueprint{});
@@ -1680,6 +1683,7 @@ bool Reader::init()
 		readCrewBlueprint(crew, value);
 	});
 
+	state.blueprints.systemBlueprints.clear();
 	rs.blueprints->systemBlueprints.dfs([](const raw::gcc::string& key, const raw::SystemBlueprint& value) {
 		std::string str = key.str;
 		auto&& [it, succ] = state.blueprints.systemBlueprints.emplace(str, SystemBlueprint{});
