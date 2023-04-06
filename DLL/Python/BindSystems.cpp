@@ -1,5 +1,5 @@
 #include "Bind.hpp"
-#include "../State/State.hpp"
+#include "../State/Data/Systems.hpp"
 
 namespace python_bindings
 {
@@ -93,6 +93,13 @@ void bindSystems(py::module_& module)
 		.def_readonly("timer", &MindControlSystem::timer, "The time left before mind control deactivates")
 		.def_readonly("target_room", &MindControlSystem::targetRoom, "The targeted room")
 		.def_readonly("targeting_player_ship", &MindControlSystem::targetingPlayerShip, "If targeting the player ship")
+		;
+
+	py::enum_<HackLevel>(module, "HackLevel", "Used to store the state of something being hacked")
+		.value("Invalid", HackLevel::Invalid, "An invalid state")
+		.value("None", HackLevel::None, "Hacking drone is depowered or not attached")
+		.value("Passive", HackLevel::Passive, "Hacking drone is attached, but hacking is not activated")
+		.value("Active", HackLevel::Active, "Hacking drone is attached and hacking is activated")
 		;
 
 	py::class_<HackingSystem, System>(module, "HackingSystem", "The hacking system")

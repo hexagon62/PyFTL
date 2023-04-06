@@ -1,5 +1,5 @@
 #include "Bind.hpp"
-#include "../State/State.hpp"
+#include "../State/Data/Drone.hpp"
 
 namespace python_bindings
 {
@@ -55,6 +55,14 @@ void bindDrones(py::module_& module)
 		.def_readonly("hack_time", &Drone::hackTime, "The time hacked/ioned")
 		.def_readonly("destroy_timer", &Drone::destroyTimer, "The amount of time left after destruction before the drone can be redeployed")
 		.def_readonly("space", &Drone::space, "Info for if the drone is in space")
+		;
+
+	py::class_<HackingDrone, Drone>(module, "HackingDrone", "A hacking drone")
+		.def_readonly("start", &HackingDrone::start, "The drone's starting position")
+		.def_readonly("goal", &HackingDrone::goal, "The drone's starting goal")
+		.def_readonly("arrived", &HackingDrone::arrived, "If the drone has arrived")
+		.def_readonly("set_up", &HackingDrone::setUp, "If the drone is set up")
+		.def_readonly("room", &HackingDrone::room, "The drone's targeted room")
 		;
 }
 

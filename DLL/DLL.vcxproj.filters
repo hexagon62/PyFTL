@@ -14,17 +14,14 @@
     <ClInclude Include="..\..\..\C++ Resources\include\imgui_impl_win32.h">
       <Filter>imgui</Filter>
     </ClInclude>
-    <ClInclude Include="Player\Input.hpp">
+    <ClInclude Include="Player\OldInput.hpp">
       <Filter>Player</Filter>
     </ClInclude>
-    <ClInclude Include="Player\Player.hpp">
+    <ClInclude Include="Player\OldPlayer.hpp">
       <Filter>Player</Filter>
     </ClInclude>
     <ClInclude Include="GUI\GUI.hpp">
       <Filter>GUI</Filter>
-    </ClInclude>
-    <ClInclude Include="Utility\Geometry.hpp">
-      <Filter>Utility</Filter>
     </ClInclude>
     <ClInclude Include="Utility\WindowsButWithoutAsMuchCancer.hpp">
       <Filter>Utility</Filter>
@@ -43,6 +40,108 @@
     </ClInclude>
     <ClInclude Include="State\State.hpp">
       <Filter>State</Filter>
+    </ClInclude>
+    <ClInclude Include="Player\Input.hpp">
+      <Filter>Player</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\Blueprints.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\Key.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\Systems.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\Ellipse.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\Drone.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\Crew.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\Ship.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\Space.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\Event.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\StarMap.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\Settings.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\System.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\SystemBlueprint.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\Power.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\SystemType.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\Blueprint.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\CrewBlueprint.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\HackLevel.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\Augment.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\WeaponType.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\Damage.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\BoostPower.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\WeaponBlueprint.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\DroneType.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\DroneBlueprint.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\Point.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\Rect.hpp">
+      <Filter>State</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\Repairable.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\Slot.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\Room.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\Door.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\RandomAmount.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\EnvironmentType.hpp">
+      <Filter>State\Data</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -90,9 +189,6 @@
     <ClCompile Include="Python\BindGeometry.cpp">
       <Filter>Python</Filter>
     </ClCompile>
-    <ClCompile Include="Python\BindHacking.cpp">
-      <Filter>Python</Filter>
-    </ClCompile>
     <ClCompile Include="Python\BindBlueprints.cpp">
       <Filter>Python</Filter>
     </ClCompile>
@@ -126,6 +222,12 @@
     <ClCompile Include="Python\BindMisc.cpp">
       <Filter>Python</Filter>
     </ClCompile>
+    <ClCompile Include="Player\Input.cpp">
+      <Filter>Player</Filter>
+    </ClCompile>
+    <ClCompile Include="Python\BindInput.cpp">
+      <Filter>Python</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="imgui">
@@ -146,12 +248,15 @@
     <Filter Include="State">
       <UniqueIdentifier>{efe13e32-89e9-4619-87f7-03cacbd947d4}</UniqueIdentifier>
     </Filter>
+    <Filter Include="State\Data">
+      <UniqueIdentifier>{42572081-aa4c-425d-8e3a-b8971f719830}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Player\Input.cpp">
+    <None Include="Player\OldInput.cpp">
       <Filter>Player</Filter>
     </None>
-    <None Include="Player\Player.cpp">
+    <None Include="Player\OldPlayer.cpp">
       <Filter>Player</Filter>
     </None>
   </ItemGroup>

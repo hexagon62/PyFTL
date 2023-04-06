@@ -1,6 +1,6 @@
 #include "Memory.hpp"
 #include "GUI/GUI.hpp"
-#include "State/Reader.hpp"
+#include "Player/Input.hpp"
 #include "Python/Bind.hpp"
 
 #define GLEW_STATIC
@@ -166,9 +166,7 @@ void unrecoverable()
     throw std::runtime_error("see above; PyFTL will be quitting now.\n");
 }
 
-bool g_overlay = true;
-bool g_active = false;
-bool g_pause = false;
+bool g_overlay = false;
 bool g_imguiInit = false;
 bool g_quit = false, g_done = false;
 GUIHelper g_gui;
@@ -186,6 +184,7 @@ LRESULT CALLBACK windowProc_hook(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPa
     if (~uMsg & WM_FTLAI && g_imguiInit) // not AI generated
     {
         auto& io = ImGui::GetIO();
+        auto&& state = Reader::getState();
 
         if (uMsg == WM_KEYDOWN && wParam == VK_OEM_3) // ~ key
         {
@@ -203,9 +202,7 @@ LRESULT CALLBACK windowProc_hook(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPa
         bool imguiWants =
             g_overlay && (io.WantCaptureMouse || io.WantCaptureKeyboard);
 
-        bool ignorable =
-            uMsg == WM_KEYUP ||
-            uMsg == WM_KEYDOWN ||
+        bool mouse =
             uMsg == WM_MOUSEMOVE ||
             uMsg == WM_LBUTTONDOWN ||
             uMsg == WM_LBUTTONUP ||
@@ -221,21 +218,26 @@ LRESULT CALLBACK windowProc_hook(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPa
             uMsg == WM_XBUTTONDBLCLK ||
             false;
 
-        bool allowedKeys = // allow pausing by human
-            wParam == VK_ESCAPE ||
-            wParam == VK_SPACE ||
-            wParam == 0x49 || // I
-            wParam == 0x4A || // J
-            wParam == 0x55; // U
+        bool keyboard =
+            uMsg == WM_KEYUP ||
+            uMsg == WM_KEYDOWN ||
+            false;
 
-        if (wParam == VK_F9) g_active = !g_active; // F9 to (de)activate AI
-
-        if ((g_active && !g_pause && g_gui.inGame()) || imguiWants)
+        if (imguiWants)
         {
             ShowCursor(true);
+            return true;
+        }
 
-            if (ignorable && !allowedKeys)
-                return true;
+        if (!Input::humanMouseAllowed() && mouse)
+        {
+            ShowCursor(true);
+            return true;
+        }
+
+        if (!Input::humanKeyboardAllowed() && keyboard)
+        {
+            return true;
         }
 
     }
@@ -264,6 +266,8 @@ BOOL __stdcall wglSwapBuffers_hook(HDC hDc)
                 SetWindowLongPtr(
                     g_hGameWindow, GWLP_WNDPROC,
                     reinterpret_cast<LONG_PTR>(windowProc_hook)));
+
+        Input::setReady();
 
         glewInit();
         static auto* context = ImGui::CreateContext();
@@ -307,6 +311,9 @@ bool hookRenderer(ConsoleHandler& con)
         reinterpret_cast<wglSwapBuffers_t>(
             GetProcAddress(GetModuleHandle(L"opengl32.dll"), "wglSwapBuffers"));
 
+    if (!g_glHookHandle.orig)
+        return false;
+
     g_glHookHandle.gateway = wglSwapBuffers_orig =
         reinterpret_cast<wglSwapBuffers_t>(
             mem::trampHook32(
@@ -330,6 +337,8 @@ bool unhookRenderer()
     g_glHookHandle.orig = nullptr;
     g_glHookHandle.gateway = nullptr;
     g_glHookHandle.size = 0;
+
+    Input::setReady(false);
 
     // Return the old wndProc function
     g_hGameWindowProc =
@@ -406,8 +415,7 @@ bool mainLoop(ConsoleHandler& con, py::module& pyMain)
 
     if (!Reader::usingSeperateThread())
     {
-        Reader::wait();
-        Reader::poll();
+        Reader::fullPoll();
 
         Duration timeEllapsed = Clock::now() - last;
         last = Clock::now();

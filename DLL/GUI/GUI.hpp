@@ -9,7 +9,6 @@
 #include <imgui_stl.h>
 
 extern bool g_overlay;
-extern bool g_active;
 
 static void HelpMarker(const char* desc)
 {
@@ -63,20 +62,20 @@ public:
         if (!g_overlay)
             return;
 
-        //if (ImGui::BeginMainMenuBar())
-        //{
-        //    if (ImGui::BeginMenu("View"))
-        //    {
-        //        ImGui::Checkbox("Overlay", &g_overlay);
-        //        ImGui::Checkbox("Game state", &this->gameStateGui);
-        //        ImGui::Checkbox("AI Panel", &this->playerGui);
-        //        ImGui::Checkbox("imgui Demo", &this->demoGui);
-        //
-        //        ImGui::EndMenu();
-        //    }
-        //
-        //    ImGui::EndMainMenuBar();
-        //}
+        if (ImGui::BeginMainMenuBar())
+        {
+            if (ImGui::BeginMenu("View"))
+            {
+                ImGui::Checkbox("Overlay", &g_overlay);
+                ImGui::Checkbox("Game state", &this->gameStateGui);
+                ImGui::Checkbox("AI Panel", &this->playerGui);
+                ImGui::Checkbox("imgui Demo", &this->demoGui);
+        
+                ImGui::EndMenu();
+            }
+        
+            ImGui::EndMainMenuBar();
+        }
 
         //this->gameStateWindow();
         //this->playerWindow();

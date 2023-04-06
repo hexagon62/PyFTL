@@ -17,7 +17,8 @@ public:
 	Reader() = delete;
 
 	static bool init(); // returns true if successful, false otherwise
-	static void poll();
+	static void fullPoll(); // handles waiting, polling, and input (if ready)
+	static void poll(); // process polling
 	static void wait(); // process waiting
 
 	// How long to block the thread for before allowing another poll
@@ -25,6 +26,7 @@ public:
 	static const Duration& getPollDelay();
 
 	static const State& getState();
+	static const raw::State& getRawState();
 
 	// When using a separate thread for the reader
 	// the reader will poll in its own thread

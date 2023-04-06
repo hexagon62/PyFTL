@@ -1,4 +1,5 @@
 #include "Reader.hpp"
+#include "../Player/Input.hpp"
 #include "../Memory.hpp"
 
 #include <algorithm>
@@ -1997,6 +1998,13 @@ void Reader::wait()
 	nextPoll = Clock::now() + delay;
 }
 
+void Reader::fullPoll()
+{
+	Reader::wait();
+	Reader::poll();
+	if(Input::ready()) Input::iterate();
+}
+
 void Reader::setPollDelay(const Duration& d)
 {
 	if (d < std::chrono::milliseconds(1))
@@ -2015,6 +2023,11 @@ const State& Reader::getState()
 	return state;
 }
 
+const raw::State& Reader::getRawState()
+{
+	return rs;
+}
+
 void Reader::setSeperateThread(bool on)
 {
 	if (!on && thread.joinable()) // already running
@@ -2027,8 +2040,7 @@ void Reader::setSeperateThread(bool on)
 		std::jthread newThread([](std::stop_token stop_token) {
 			while (!stop_token.stop_requested())
 			{
-				Reader::wait();
-				Reader::poll();
+				Reader::fullPoll();
 			}
 		});
 
