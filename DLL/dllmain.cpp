@@ -11,8 +11,6 @@ namespace py = pybind11;
 
 #include <iostream>
 #include <fstream>
-#include <mutex>
-#include <condition_variable>
 #include <filesystem>
 
 using wglSwapBuffers_t = BOOL(__stdcall*) (HDC hDc);
@@ -21,10 +19,147 @@ wglSwapBuffers_t wglSwapBuffers_orig = nullptr;
 HWND g_hGameWindow;
 WNDPROC g_hGameWindowProc;
 
+struct ConsoleHandler
+{
+    static constexpr int DEFAULT_FOREGROUND_COLOR = 0x7;
+    static constexpr int DEFAULT_BACKGROUND_COLOR = 0x0;
+
+    ConsoleHandler()
+    {
+        AllocConsole();
+
+        this->out = new FILE();
+        this->err = new FILE();
+        this->in = new FILE();
+
+        freopen_s(&this->out, "CONOUT$", "w", stdout);
+        freopen_s(&this->err, "CONERR$", "w", stderr);
+        freopen_s(&this->in, "CONIN$", "r", stdin);
+
+        this->hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
+        this->setColor();
+    }
+
+    void setColor(int fg = DEFAULT_FOREGROUND_COLOR, int bg = DEFAULT_BACKGROUND_COLOR)
+    {
+        SetConsoleTextAttribute(this->hConsole, fg + bg * 16);
+    }
+
+    template<typename F>
+    void withColor(int fg, int bg, F f)
+    {
+        setColor(fg + bg * 16);
+        f();
+        setColor();
+    }
+
+    ~ConsoleHandler()
+    {
+        FreeConsole();
+
+        fclose(this->out);
+        fclose(this->err);
+        fclose(this->in);
+
+        this->out = nullptr;
+        this->err = nullptr;
+        this->in = nullptr;
+        this->hConsole = nullptr;
+    }
+
+    FILE* out = nullptr;
+    FILE* err = nullptr;
+    FILE* in = nullptr;
+    HANDLE hConsole = nullptr;
+};
+
+ConsoleHandler& console()
+{
+    static ConsoleHandler con;
+    return con;
+}
+
+class PyWriter
+{
+public:
+    PyWriter(std::ostream& stream)
+        : stream(stream)
+    {}
+
+    void write(std::string str)
+    {
+        stream << str;
+    }
+
+    void flush()
+    {
+        stream << std::flush;
+    }
+
+private:
+    std::ostream& stream;
+};
+
+class PyReader
+{
+public:
+    PyReader(std::istream& stream)
+        : stream(stream)
+    {}
+
+    std::string readline()
+    {
+        std::string str;
+        std::getline(stream, str);
+        return str;
+    }
+
+private:
+    std::istream& stream;
+};
+
+PYBIND11_EMBEDDED_MODULE(ftl_io_redirect, module)
+{
+    py::class_<PyWriter>(module, "Writer")
+        .def("write", &PyWriter::write)
+        .def("flush", &PyWriter::flush);
+
+    py::class_<PyReader>(module, "Reader")
+        .def("readline", &PyReader::readline);
+}
+
+const std::string PYFTL_PREFIX = "[PyFTL] ";
+
+template<typename... Ts>
+std::ostream& PyFTLOut(Ts&&... args)
+{
+    console().setColor(0xA, 0x0);
+    ((std::cout << PYFTL_PREFIX) << ... << args);
+    console().setColor();
+
+    return std::cout;
+}
+
+template<typename... Ts>
+std::ostream& PyFTLErr(Ts&&... args)
+{
+    console().setColor(0xC, 0x0);
+    ((std::cout << PYFTL_PREFIX) << ... << args);
+    console().setColor();
+
+    return std::cout;
+}
+
+void unrecoverable()
+{
+    throw std::runtime_error("see above; PyFTL will be quitting now.\n");
+}
+
 bool g_overlay = true;
 bool g_active = false;
 bool g_pause = false;
 bool g_imguiInit = false;
+bool g_quit = false;
 GUIHelper g_gui;
 
 constexpr char PYTFTL_FOLDER[] = "pyftl";
@@ -139,137 +274,26 @@ BOOL __stdcall wglSwapBuffers_hook(HDC hDc)
     return wglSwapBuffers_orig(hDc);
 }
 
-struct ConsoleHandler
+bool hookRenderer(ConsoleHandler& con)
 {
-    static constexpr int DEFAULT_FOREGROUND_COLOR = 0x7;
-    static constexpr int DEFAULT_BACKGROUND_COLOR = 0x0;
+    wglSwapBuffers_orig =
+        reinterpret_cast<wglSwapBuffers_t>(
+            GetProcAddress(GetModuleHandle(L"opengl32.dll"), "wglSwapBuffers"));
 
-    ConsoleHandler()
-    {
-        AllocConsole();
+    wglSwapBuffers_orig =
+        reinterpret_cast<wglSwapBuffers_t>(
+            mem::trampHook32(
+                reinterpret_cast<BYTE*>(wglSwapBuffers_orig),
+                reinterpret_cast<BYTE*>(wglSwapBuffers_hook),
+                7));
 
-        this->out = new FILE();
-        this->err = new FILE();
-        this->in = new FILE();
-
-        freopen_s(&this->out, "CONOUT$", "w", stdout);
-        freopen_s(&this->err, "CONERR$", "w", stderr);
-        freopen_s(&this->in, "CONIN$", "r", stdin);
-
-        this->hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
-        this->setColor();
-    }
-
-    void setColor(int fg = DEFAULT_FOREGROUND_COLOR, int bg = DEFAULT_BACKGROUND_COLOR)
-    {
-        SetConsoleTextAttribute(this->hConsole, fg + bg*16);
-    }
-
-    template<typename F>
-    void withColor(int fg, int bg, F f)
-    {
-        setColor(fg + bg * 16);
-        f();
-        setColor();
-    }
-
-    ~ConsoleHandler()
-    {
-        FreeConsole();
-
-        fclose(this->out);
-        fclose(this->err);
-        fclose(this->in);
-
-        this->out = nullptr;
-        this->err = nullptr;
-        this->in = nullptr;
-        this->hConsole = nullptr;
-    }
-
-    FILE* out = nullptr;
-    FILE* err = nullptr;
-    FILE* in = nullptr;
-    HANDLE hConsole = nullptr;
-};
-
-class PyWriter
-{
-public:
-    PyWriter(std::ostream& stream)
-        : stream(stream)
-    {}
-
-    void write(std::string str)
-    {
-        stream << str;
-    }
-
-    void flush()
-    {
-        stream << std::flush;
-    }
-
-private:
-    std::ostream& stream;
-};
-
-class PyReader
-{
-public:
-    PyReader(std::istream& stream)
-        : stream(stream)
-    {}
-
-    std::string readline()
-    {
-        std::string str;
-        std::getline(stream, str);
-        return str;
-    }
-
-private:
-    std::istream& stream;
-};
-
-PYBIND11_EMBEDDED_MODULE(ftl_io_redirect, module)
-{
-    py::class_<PyWriter>(module, "Writer")
-        .def("write", &PyWriter::write)
-        .def("flush", &PyWriter::flush);
-
-    py::class_<PyReader>(module, "Reader")
-        .def("readline", &PyReader::readline);
+    PyFTLOut("Hooked into the game's rendering loop!\n");
+    return true;
 }
 
-const std::string PYFTL_PREFIX = "[PyFTL] ";
-
-template<typename... Ts>
-std::ostream& PyFTLOut(ConsoleHandler& con, Ts&&... args)
+py::module initPython()
 {
-    con.setColor(0xA, 0x0);
-    ((std::cout << PYFTL_PREFIX) << ... << args);
-    con.setColor();
-
-    return std::cout;
-}
-
-template<typename... Ts>
-std::ostream& PyFTLErr(ConsoleHandler& con, Ts&&... args)
-{
-    con.setColor(0xC, 0x0);
-    ((std::cout << PYFTL_PREFIX) << ... << args);
-    con.setColor();
-
-    return std::cout;
-}
-
-DWORD WINAPI patcherThread(HMODULE hModule)
-{
-    ConsoleHandler con;
-
-    py::scoped_interpreter pyInterpreter{};
-    py::module pyMainModule;
+    py::module result;
 
     try
     {
@@ -285,98 +309,94 @@ DWORD WINAPI patcherThread(HMODULE hModule)
         sys.attr("stderr") = err;
         sys.attr("stdin") = in;
 
-        con.setColor(0xA, 0x0);
-        py::print(PYFTL_PREFIX + "Python initialized.");
-        con.setColor();
+        console().withColor(0xA, 0x0, [&] {
+            py::print(PYFTL_PREFIX + "Python initialized.");
+        });
 
         auto path = std::filesystem::current_path() / PYTFTL_FOLDER;
         sys.attr("path").attr("insert")(0, path.string());
-        pyMainModule = py::module::import(PYTFTL_MAIN_MODULE);
+        result = py::module::import(PYTFTL_MAIN_MODULE);
         sys.attr("path").attr("remove")(path.string());
     }
     catch (const std::exception& e)
     {
-        PyFTLErr(con, "Couldn't run python file: ", e.what(), '\n');
-        std::system("pause");
-        return 1;
+        PyFTLErr("Couldn't run python file: ", e.what(), '\n');
+        unrecoverable();
     }
 
     // Game has to be running before anything else can happen
     if (!Reader::init() || !Reader::getState().running)
     {
-        PyFTLOut(con, "Waiting for game to start...\n");
+        PyFTLOut("Waiting for game to start...\n");
 
         while (!Reader::init());
         while (!Reader::getState().running) Reader::poll();
 
-        PyFTLOut(con, "Game has started!\n");
+        PyFTLOut("Game has started!\n");
     }
-
-    bool quit = false;
-
-    //pybind11::gil_scoped_release gilRelease;
-    //std::mutex mut;
-    //std::condition_variable cv;
-
-    std::jthread pollerThread([&] {
-        while (!quit)
-        {
-            Reader::poll();
-            Reader::wait();
-        }
-    });
-
-    //std::jthread pyUpdateThread([&] {
-    //    TimePoint last = Clock::now();
-    //
-    //    while (!quit)
-    //    {
-    //        Duration timeEllapsed = Clock::now() - last;
-    //        last = Clock::now();
-    //
-    //        try
-    //        {
-    //            pybind11::gil_scoped_acquire gilAcquire;
-    //            std::unique_lock<std::mutex> lock(mut);
-    //            cv.wait(lock);
-    //            pyMainModule.attr("on_update")(timeEllapsed);
-    //        }
-    //        catch (const std::exception& e)
-    //        {
-    //            PyFTLErr(con, "Python exception: ", e.what(), '\n');
-    //        }
-    //    }
-    //});
 
     try
     {
-        //std::unique_lock<std::mutex> lock(mut);
-        pybind11::gil_scoped_acquire gilAcquire;
-        pyMainModule.attr("on_start")();
+        result.attr("on_start")();
     }
     catch (const std::exception& e)
     {
-        PyFTLErr(con, "Python exception: ", e.what(), '\n');
-        PyFTLErr(con, "Since this exception happened in on_start, PyFTL will abort.\n");
+        PyFTLErr("Python exception: ", e.what(), '\n');
+        PyFTLErr("Since this exception happened in on_start, PyFTL will abort.\n");
+        unrecoverable();
+    }
+
+    return result;
+}
+
+bool mainLoop(py::module& pyMain)
+{
+    TimePoint last = Clock::now();
+
+    if (!Reader::usingSeperateThread())
+    {
+        Reader::wait();
+        Reader::poll();
+
+        Duration timeEllapsed = Clock::now() - last;
+        last = Clock::now();
+
+        try
+        {
+            pyMain.attr("on_update")(timeEllapsed);
+        }
+        catch (const std::exception& e)
+        {
+            PyFTLErr("Python exception: ", e.what(), '\n');
+        }
+    }
+
+    if (Reader::reloadRequested())
+    {
+        PyFTLOut("Reloading Python...\n");
+        pyMain = initPython();
+        Reader::finishReload();
+    }
+
+    return true;
+}
+
+DWORD WINAPI patcherThread(HMODULE hModule)
+{
+    try
+    {
+        py::scoped_interpreter pyInterpreter{};
+        py::module pyMain = initPython();
+
+        while (!g_quit && mainLoop(pyMain));
+    }
+    catch (const std::exception& e)
+    {
+        PyFTLErr("Unrecoverable error: ", e.what());
         std::system("pause");
         return 1;
     }
 
-    // Now that everything else worked, we can hook the OpenGL stuff!
-    wglSwapBuffers_orig =
-        reinterpret_cast<wglSwapBuffers_t>(
-            GetProcAddress(GetModuleHandle(L"opengl32.dll"), "wglSwapBuffers"));
-
-    wglSwapBuffers_orig =
-        reinterpret_cast<wglSwapBuffers_t>(
-            mem::trampHook32(
-                reinterpret_cast<BYTE*>(wglSwapBuffers_orig),
-                reinterpret_cast<BYTE*>(wglSwapBuffers_hook),
-                7));
-
-    PyFTLOut(con, "Hooked into the game's rendering loop!\n");
-
-    // And then this thread will get blocked by the polling thread
     return 0;
 }
 
@@ -401,6 +421,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
     case DLL_THREAD_ATTACH:
     case DLL_THREAD_DETACH:
     case DLL_PROCESS_DETACH:
+        g_quit = true;
         break;
     }
     return TRUE;

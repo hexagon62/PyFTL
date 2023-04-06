@@ -1,6 +1,7 @@
 #include <iostream>
 #include <string>
 #include <thread>
+#include <array>
 #include <filesystem>
 
 // Oh no...
@@ -9,6 +10,17 @@
 #include <TlHelp32.h>
 
 constexpr wchar_t FTLExecutable[] = L"FTLGame.exe";
+
+struct DLL
+{
+    wchar_t name[128] = L"\0";
+    bool reload = true;
+};
+
+constexpr std::array DLL_LIST{
+    DLL{ L"python311.dll", false },
+    DLL{ L"pyftl.dll" }
+};
 
 bool inject(const char* dll, HANDLE hProc)
 {
@@ -34,14 +46,42 @@ bool inject(const char* dll, HANDLE hProc)
     return true;
 }
 
-DWORD getPid()
+bool unload(const HMODULE& dll, HANDLE hProc)
 {
-    DWORD pid = 0;
+    HANDLE hRemoteThread = CreateRemoteThread(
+        hProc, nullptr, 0,
+        (LPTHREAD_START_ROUTINE)FreeLibrary,
+        dll,
+        0, nullptr);
 
-    HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
+    if (hRemoteThread && hRemoteThread != INVALID_HANDLE_VALUE)
+        CloseHandle(hRemoteThread);
+    else
+        return false;
+
+    return true;
+}
+
+struct ProcessInfo
+{
+    ProcessInfo()
+    {
+        std::fill(this->injected.begin(), this->injected.end(), (HMODULE)nullptr);
+    }
+
+    DWORD pid = 0;
+    std::array<HMODULE, DLL_LIST.size()> injected;
+};
+
+ProcessInfo getProcessInfo()
+{
+    ProcessInfo info;
+
+    constexpr DWORD FLAGS = TH32CS_SNAPPROCESS | TH32CS_SNAPMODULE;
+    HANDLE snapshot = CreateToolhelp32Snapshot(FLAGS, NULL);
 
     if (snapshot == INVALID_HANDLE_VALUE)
-        return 0;
+        return info;
 
     PROCESSENTRY32 entry;
     entry.dwSize = sizeof(PROCESSENTRY32);
@@ -50,31 +90,47 @@ DWORD getPid()
     {
         do
         {
+            // Found process
             if (_wcsicmp(entry.szExeFile, FTLExecutable) == 0)
             {
-                pid = entry.th32ProcessID;
+                info.pid = entry.th32ProcessID;
                 break;
             }
+
         } while (Process32Next(snapshot, &entry));
+    }
+
+    MODULEENTRY32 moduleEntry;
+    moduleEntry.dwSize = sizeof(MODULEENTRY32);
+    if (Module32First(snapshot, &moduleEntry))
+    {
+        do
+        {
+            for (size_t i = 0; i < DLL_LIST.size(); i++)
+            {
+                auto&& dll = DLL_LIST[i];
+
+                // Found dll
+                if (_wcsicmp(moduleEntry.szModule, dll.name))
+                {
+                    info.injected[i] = moduleEntry.hModule;
+                }
+            }
+
+        } while (Module32Next(snapshot, &moduleEntry));
     }
 
     CloseHandle(snapshot);
 
-    return pid;
+    return info;
 }
 
 int main(int argc, char** argv)
 {
-    //if (argc != 1)
-    //{
-    //    std::cout << "Don't launch with any parameters!\n";
-    //    return 1;
-    //}
-
     std::cout << "Getting ID of the FTL process...\n";
-    DWORD pid = getPid();
+    ProcessInfo info = getProcessInfo();
 
-    if (!pid)
+    if (!info.pid)
     {
         std::cout << "Couldn't find FTL! Make sure it's open.\n";
         std::system("pause");
@@ -82,7 +138,7 @@ int main(int argc, char** argv)
     }
 
     std::cout << "Opening FTL process...\n";
-    HANDLE hProc = OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+    HANDLE hProc = OpenProcess(PROCESS_ALL_ACCESS, FALSE, info.pid);
 
     if (!hProc)
     {
@@ -91,20 +147,13 @@ int main(int argc, char** argv)
         return 1;
     }
 
-    constexpr size_t DLL_COUNT = 2;
-    constexpr size_t DLL_NAME_BUF = 50;
-
-    constexpr char DLL_LIST[DLL_COUNT][DLL_NAME_BUF]
-    {
-        "python311.dll",
-        "pyftl.dll"
-    };
-
     auto pwd = std::filesystem::current_path();
 
-    for (size_t i = 0; i < DLL_COUNT; i++)
+    for (size_t i = 0; i < DLL_LIST.size(); i++)
     {
-        auto path = pwd / DLL_LIST[i];
+        auto& dll = DLL_LIST[i];
+
+        auto path = pwd / dll.name;
         std::string pathStr = path.string();
 
         if (!std::filesystem::exists(path))
@@ -115,7 +164,31 @@ int main(int argc, char** argv)
             return 1;
         }
 
-        std::cout << "Injecting " << DLL_LIST[i] << " into ";
+        if (info.injected[i])
+        {
+            if (dll.reload)
+            {
+                std::wcout << L"Unloading " << dll.name << L" from ";
+                std::wcout << FTLExecutable;
+                std::cout << "...\n";
+
+                bool success = unload(info.injected[i], hProc);
+
+                if (!success)
+                {
+                    std::cout << "Couldn't unload the dll!\n";
+                    std::system("pause");
+                    return 1;
+                }
+            }
+            else
+            {
+                std::wcout << L"Skipping " << dll.name << L", it's loaded and doesn't need reloading.\n";
+                continue;
+            }
+        }
+
+        std::wcout << L"Injecting " << dll.name << L" into ";
         std::wcout << FTLExecutable;
         std::cout << "...\n";
 

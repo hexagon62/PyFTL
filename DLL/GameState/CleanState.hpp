@@ -966,8 +966,8 @@ struct LocationEvent
 {
 	EnvironmentType environment = EnvironmentType::Normal;
 	bool environmentTargetsEnemy = false;
-	bool beacon = false;
-	bool distressBeacon = false;
+	bool exit = false;
+	bool distress = false;
 	bool revealMap = false;
 	bool repair = false;
 	int unlockShip = -1;
@@ -982,6 +982,28 @@ struct LocationEvent
 
 	// Some implementation stuffs
 	raw::Store* _storePtr = nullptr;
+};
+
+struct Location
+{
+	int id = -1;
+	Point<float> position;
+	std::vector<Location*> neighbors;
+	bool known = false, visited = false;
+	bool exit = false;
+	bool hazard = false;
+	bool nebula = false;
+	bool boss = false;
+	bool quest = false;
+	bool fleetOvertaking = false;
+};
+
+struct StarMap
+{
+	std::vector<Location> locations;
+	bool lastStand = false;
+	bool flagshipJumping = false;
+	std::vector<Location*> flagshipPath;
 };
 
 struct Game

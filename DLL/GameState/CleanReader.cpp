@@ -8,11 +8,13 @@
 #include <pybind11/chrono.h>
 namespace py = pybind11;
 
-Duration Reader::delay{ std::chrono::microseconds(15000) };
+Duration Reader::delay{ std::chrono::microseconds(16666) };
 TimePoint Reader::nextPoll{ Clock::now() };
 raw::State Reader::rs;
 State Reader::state;
 uintptr_t Reader::base = 0;
+std::jthread Reader::thread;
+bool Reader::reloading;
 
 namespace
 {
@@ -1524,8 +1526,8 @@ void readLocationEvent(LocationEvent& event, const raw::LocationEvent& raw, bool
 
 	event.environment = EnvironmentType(raw.environment);
 	event.environmentTargetsEnemy = raw.environmentTarget == 1;
-	event.beacon = raw.beacon;
-	event.distressBeacon = raw.distressBeacon;
+	event.exit = raw.beacon;
+	event.distress = raw.distressBeacon;
 	event.revealMap = raw.reveal_map;
 	event.repair = raw.repair;
 	event.unlockShip = raw.unlockShip;
@@ -1877,12 +1879,55 @@ const State& Reader::getState()
 	return state;
 }
 
+void Reader::setSeperateThread(bool on)
+{
+	if (!on && thread.joinable()) // already running
+	{
+		thread.request_stop();
+	}
+	else if(on && !thread.joinable()) // not running
+	{
+		std::jthread newThread([](std::stop_token stop_token) {
+			while (!stop_token.stop_requested())
+			{
+				Reader::wait();
+				Reader::poll();
+			}
+		});
+
+		thread = std::move(newThread);
+	}
+}
+
+bool Reader::usingSeperateThread()
+{
+	return thread.joinable();
+}
+
+void Reader::reload()
+{
+	reloading = true;
+}
+
+void Reader::finishReload()
+{
+	reloading = false;
+}
+
+bool Reader::reloadRequested()
+{
+	return reloading;
+}
+
 PYBIND11_EMBEDDED_MODULE(ftl, module)
 {
 	module
 		.def("state", &Reader::getState, py::return_value_policy::reference)
 		.def("get_poll_delay", &Reader::getPollDelay, py::return_value_policy::reference)
 		.def("set_poll_delay", &Reader::setPollDelay, py::return_value_policy::reference)
+		.def("set_seperate_polling_thread", &Reader::setSeperateThread)
+		.def("is_polling_thread_separated", &Reader::usingSeperateThread)
+		.def("reload", &Reader::reload)
 		;
 
 	py::enum_<Key>(module, "Key")
@@ -2476,7 +2521,7 @@ PYBIND11_EMBEDDED_MODULE(ftl, module)
 		.def_readonly("breach_repair", &Room::breachRepair)
 		.def_readonly("slots_occupiable", &Room::slotsOccupiable)
 		.def_readonly("slots", &Room::slots)
-		.def("slot_at", py::overload_cast<const Point<int>&>(&Room::slotAt, py::const_), "Gets the slot at the specified point")
+		.def("slot_at", py::overload_cast<const Point<int>&>(&Room::slotAt, py::const_), "Gets the slot at the specified point", py::return_value_policy::reference)
 		.def("slot_id_at", py::overload_cast<const Point<int>&>(&Room::slotIdAt, py::const_), "Gets id of the slot at the specified point")
 		;
 
@@ -2729,8 +2774,8 @@ PYBIND11_EMBEDDED_MODULE(ftl, module)
 	py::class_<LocationEvent>(module, "LocationEvent")
 		.def_readonly("environment", &LocationEvent::environment)
 		.def_readonly("environment_targets_enemy", &LocationEvent::environmentTargetsEnemy)
-		.def_readonly("beacon", &LocationEvent::beacon)
-		.def_readonly("distress_beacon", &LocationEvent::distressBeacon)
+		.def_readonly("exit", &LocationEvent::exit)
+		.def_readonly("distress", &LocationEvent::distress)
 		.def_readonly("reveal_map", &LocationEvent::revealMap)
 		.def_readonly("repair", &LocationEvent::repair)
 		.def_readonly("unlock_ship", &LocationEvent::unlockShip)
@@ -2744,7 +2789,9 @@ PYBIND11_EMBEDDED_MODULE(ftl, module)
 		;
 
 	py::class_<Game>(module, "Game")
+		.def_readonly("just_loaded", &Game::justLoaded)
 		.def_readonly("game_over", &Game::gameOver)
+		.def_readonly("just_jumped", &Game::justJumped)
 		.def_readonly("pause", &Game::pause)
 		.def_readonly("space", &Game::space)
 		.def_readonly("event", &Game::event)
