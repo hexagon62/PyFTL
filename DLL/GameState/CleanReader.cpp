@@ -1884,6 +1884,7 @@ void Reader::setSeperateThread(bool on)
 	if (!on && thread.joinable()) // already running
 	{
 		thread.request_stop();
+		thread.join();
 	}
 	else if(on && !thread.joinable()) // not running
 	{
