@@ -182,6 +182,7 @@ int main(int argc, char** argv)
     }
 
     auto pwd = std::filesystem::current_path();
+    bool workDone = false;
 
     for (size_t i = 0; i < DLL_LIST.size(); i++)
     {
@@ -214,6 +215,8 @@ int main(int argc, char** argv)
                     std::system("pause");
                     return 1;
                 }
+
+                workDone = true;
             }
             else
             {
@@ -236,16 +239,21 @@ int main(int argc, char** argv)
                 std::system("pause");
                 return 1;
             }
+
+            workDone = true;
         }
     }
 
     if (pauseless)
     {
-        std::cout << "Success!\n";
+        if (workDone) std::cout << "Success!\n";
+        else std::cout << "Nothing to be done. No DLLs need loading/unloading.\n";
     }
     else
     {
-        std::cout << "Success! The launcher will terminate in a few seconds.\n";
+        if (workDone) std::cout << "Success! ";
+        else std::cout << "Nothing to be done. No DLLs need loading/unloading.\n";
+        std::cout << "The launcher will terminate in a few seconds.\n";
         std::this_thread::sleep_for(std::chrono::seconds(3));
     }
 
