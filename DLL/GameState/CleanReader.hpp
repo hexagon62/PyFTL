@@ -38,6 +38,9 @@ public:
 	static void finishReload(); // for use by main loop ONLY, not in the Python scripts!
 	static bool reloadRequested(); // for use by main loop ONLY, not in the Python scripts!
 
+	// Used to request a quit
+	static void quit();
+
 private:
 	static Duration delay;
 	static TimePoint nextPoll;

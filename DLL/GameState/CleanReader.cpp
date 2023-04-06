@@ -15,6 +15,7 @@ State Reader::state;
 uintptr_t Reader::base = 0;
 std::jthread Reader::thread;
 bool Reader::reloading;
+extern bool g_quit;
 
 namespace
 {
@@ -1924,6 +1925,11 @@ bool Reader::reloadRequested()
 	return reloading;
 }
 
+void Reader::quit()
+{
+	g_quit = true;
+}
+
 PYBIND11_EMBEDDED_MODULE(ftl, module)
 {
 	module
@@ -1933,6 +1939,7 @@ PYBIND11_EMBEDDED_MODULE(ftl, module)
 		.def("use_seperate_polling_thread", &Reader::setSeperateThread, py::arg("on") = true)
 		.def("is_polling_thread_separated", &Reader::usingSeperateThread)
 		.def("reload", &Reader::reload)
+		.def("quit", &Reader::quit)
 		;
 
 	py::enum_<Key>(module, "Key")

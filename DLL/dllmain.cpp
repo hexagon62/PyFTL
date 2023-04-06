@@ -456,6 +456,7 @@ DWORD WINAPI patcherThread(HMODULE hModule)
         return 1;
     }
 
+    PyFTLOut(con, "Quitting. Goodbye!");
     g_done = true;
     return 0;
 }
