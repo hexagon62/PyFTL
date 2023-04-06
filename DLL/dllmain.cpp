@@ -27,6 +27,21 @@ struct ConsoleHandler
 
     ConsoleHandler()
     {
+        init();
+    }
+
+    ~ConsoleHandler()
+    {
+        release();
+    }
+
+    operator bool()
+    {
+        return this->out && this->err && this->in && this->hConsole;
+    }
+
+    void init()
+    {
         AllocConsole();
 
         this->out = new FILE();
@@ -39,6 +54,22 @@ struct ConsoleHandler
 
         this->hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
         this->setColor();
+    }
+
+    void release()
+    {
+        if (!*this) return;
+
+        FreeConsole();
+
+        fclose(this->out);
+        fclose(this->err);
+        fclose(this->in);
+
+        this->out = nullptr;
+        this->err = nullptr;
+        this->in = nullptr;
+        this->hConsole = nullptr;
     }
 
     void setColor(int fg = DEFAULT_FOREGROUND_COLOR, int bg = DEFAULT_BACKGROUND_COLOR)
@@ -54,31 +85,11 @@ struct ConsoleHandler
         setColor();
     }
 
-    ~ConsoleHandler()
-    {
-        FreeConsole();
-
-        fclose(this->out);
-        fclose(this->err);
-        fclose(this->in);
-
-        this->out = nullptr;
-        this->err = nullptr;
-        this->in = nullptr;
-        this->hConsole = nullptr;
-    }
-
     FILE* out = nullptr;
     FILE* err = nullptr;
     FILE* in = nullptr;
     HANDLE hConsole = nullptr;
 };
-
-ConsoleHandler& console()
-{
-    static ConsoleHandler con;
-    return con;
-}
 
 class PyWriter
 {
@@ -132,22 +143,22 @@ PYBIND11_EMBEDDED_MODULE(ftl_io_redirect, module)
 const std::string PYFTL_PREFIX = "[PyFTL] ";
 
 template<typename... Ts>
-std::ostream& PyFTLOut(Ts&&... args)
+std::ostream& PyFTLOut(ConsoleHandler& con, Ts&&... args)
 {
-    console().setColor(0xA, 0x0);
+    con.setColor(0xA, 0x0);
     ((std::cout << PYFTL_PREFIX) << ... << args);
-    console().setColor();
+    con.setColor();
     std::cout << std::flush;
 
     return std::cout;
 }
 
 template<typename... Ts>
-std::ostream& PyFTLErr(Ts&&... args)
+std::ostream& PyFTLErr(ConsoleHandler& con, Ts&&... args)
 {
-    console().setColor(0xC, 0x0);
+    con.setColor(0xC, 0x0);
     ((std::cout << PYFTL_PREFIX) << ... << args);
-    console().setColor();
+    con.setColor();
     std::cout << std::flush;
 
     return std::cout;
@@ -291,7 +302,7 @@ struct GLHookHandle
 
 GLHookHandle g_glHookHandle;
 
-bool hookRenderer()
+bool hookRenderer(ConsoleHandler& con)
 {
     g_glHookHandle.size = 7;
 
@@ -307,7 +318,7 @@ bool hookRenderer()
                 g_glHookHandle.size));
 
     g_glHookHandle.hooked = true;
-    PyFTLOut("Hooked into OpenGL!\n");
+    PyFTLOut(con, "Hooked into OpenGL!\n");
     return true;
 }
 
@@ -331,11 +342,10 @@ bool unhookRenderer()
                 reinterpret_cast<LONG_PTR>(g_hGameWindowProcOld)));
 
     g_glHookHandle.hooked = false;
-    PyFTLOut("Unhooked from OpenGL!\n");
     return true;
 }
 
-py::module initPython()
+py::module initPython(ConsoleHandler& con)
 {
     py::module result;
 
@@ -353,7 +363,7 @@ py::module initPython()
         sys.attr("stderr") = err;
         sys.attr("stdin") = in;
 
-        console().withColor(0xA, 0x0, [&] {
+        con.withColor(0xA, 0x0, [&] {
             py::print(PYFTL_PREFIX + "Python initialized.");
         });
 
@@ -364,19 +374,19 @@ py::module initPython()
     }
     catch (const std::exception& e)
     {
-        PyFTLErr("Couldn't run python file: ", e.what(), '\n');
+        PyFTLErr(con, "Couldn't run python file: ", e.what(), '\n');
         unrecoverable();
     }
 
     // Game has to be running before anything else can happen
     if (!Reader::init() || !Reader::getState().running)
     {
-        PyFTLOut("Waiting for game to start...\n");
+        PyFTLOut(con, "Waiting for game to start...\n");
 
         while (!Reader::init());
         while (!Reader::getState().running) Reader::poll();
 
-        PyFTLOut("Game has started!\n");
+        PyFTLOut(con, "Game has started!\n");
     }
 
     try
@@ -385,15 +395,15 @@ py::module initPython()
     }
     catch (const std::exception& e)
     {
-        PyFTLErr("Python exception: ", e.what(), '\n');
-        PyFTLErr("Since this exception happened in on_start, PyFTL will abort.\n");
+        PyFTLErr(con, "Python exception: ", e.what(), '\n');
+        PyFTLErr(con, "Since this exception happened in on_start, PyFTL will abort.\n");
         unrecoverable();
     }
 
     return result;
 }
 
-bool mainLoop(py::module& pyMain)
+bool mainLoop(ConsoleHandler& con, py::module& pyMain)
 {
     TimePoint last = Clock::now();
 
@@ -411,14 +421,14 @@ bool mainLoop(py::module& pyMain)
         }
         catch (const std::exception& e)
         {
-            PyFTLErr("Python exception: ", e.what(), '\n');
+            PyFTLErr(con, "Python exception: ", e.what(), '\n');
         }
     }
 
     if (Reader::reloadRequested())
     {
-        PyFTLOut("Reloading Python...\n");
-        pyMain = initPython();
+        PyFTLOut(con, "Reloading Python...\n");
+        pyMain = initPython(con);
         Reader::finishReload();
     }
 
@@ -427,19 +437,20 @@ bool mainLoop(py::module& pyMain)
 
 DWORD WINAPI patcherThread(HMODULE hModule)
 {
+    ConsoleHandler con;
+
     try
     {
-        throw std::exception("lmao");
-        hookRenderer();
+        hookRenderer(con);
 
         py::scoped_interpreter pyInterpreter{};
-        py::module pyMain = initPython();
+        py::module pyMain = initPython(con);
 
-        while (!g_quit && mainLoop(pyMain));
+        while (!g_quit && mainLoop(con, pyMain));
     }
     catch (const std::exception& e)
     {
-        PyFTLErr("Unrecoverable error: ", e.what());
+        PyFTLErr(con, "Unrecoverable error: ", e.what(), "\n");
         std::system("pause");
         g_done = true;
         return 1;
@@ -473,10 +484,8 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         break;
     case DLL_PROCESS_DETACH:
         g_quit = true;
-        PyFTLOut("Quit requested, waiting for everything to finish...\n");
         if (g_glHookHandle.hooked) unhookRenderer();
         while (!g_done && Reader::getState().running); // wait for everything to finish
-        PyFTLOut("Goodbye!\n");
         break;
     }
     return TRUE;
