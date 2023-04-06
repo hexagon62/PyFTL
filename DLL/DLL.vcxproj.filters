@@ -38,6 +38,9 @@
     <ClInclude Include="GameState\CleanState.hpp">
       <Filter>GameState</Filter>
     </ClInclude>
+    <ClInclude Include="Utility\ValueScopeGuard.hpp">
+      <Filter>Utility</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp" />
@@ -69,6 +72,7 @@
     <ClCompile Include="GameState\CleanReader.cpp">
       <Filter>GameState</Filter>
     </ClCompile>
+    <ClCompile Include="PythonBindings.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="imgui">

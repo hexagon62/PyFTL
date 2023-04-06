@@ -1,5 +1,6 @@
 #pragma once
 
+#include "../Utility/ValueScopeGuard.hpp"
 #include "CleanState.hpp"
 #include "Raw.hpp"
 

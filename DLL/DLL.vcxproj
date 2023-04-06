@@ -110,6 +110,7 @@
     <ClInclude Include="Player\Input.hpp" />
     <ClInclude Include="Player\Player.hpp" />
     <ClInclude Include="Utility\Geometry.hpp" />
+    <ClInclude Include="Utility\ValueScopeGuard.hpp" />
     <ClInclude Include="Utility\WindowsButWithoutAsMuchCancer.hpp" />
   </ItemGroup>
   <ItemGroup>
@@ -124,6 +125,7 @@
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="GameState\CleanReader.cpp" />
     <ClCompile Include="Memory.cpp" />
+    <ClCompile Include="PythonBindings.cpp" />
     <None Include="Player\Input.cpp" />
     <None Include="Player\Player.cpp" />
   </ItemGroup>

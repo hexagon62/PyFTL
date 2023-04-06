@@ -291,6 +291,8 @@ struct BoostPower
 
 struct Damage
 {
+	static constexpr int HARDCODED_CREW_DAMAGE_FACTOR = 15;
+
 	int normal = 0;
 	int ion = 0;
 	int system = 0;
@@ -666,7 +668,8 @@ struct MindControlSystem : System
 {
 	bool on = false;
 	Capped<float> timer{ 0.f, 0.f };
-	int targetRoom = -1, targetShip = -1;
+	int targetRoom = -1;
+	bool targetingPlayerShip = false;
 };
 
 struct HackingDrone : Drone
