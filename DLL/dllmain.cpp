@@ -427,6 +427,7 @@ DWORD WINAPI patcherThread(HMODULE hModule)
 {
     try
     {
+        throw std::exception("lmao");
         hookRenderer();
 
         py::scoped_interpreter pyInterpreter{};
