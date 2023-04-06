@@ -26,12 +26,6 @@ void bindSystems(py::module_& module)
 		.value("Hacking", SystemType::Hacking)
 		;
 
-	py::class_<SystemBlueprint, Blueprint>(module, "SystemBlueprint", "Blueprint with general info on a system")
-		.def_readonly("power_start", &SystemBlueprint::powerStart, "The amount of power the system starts with")
-		.def_readonly("power_max", &SystemBlueprint::powerMax, "The maximum power the system can have")
-		.def_readonly("upgrade_costs", &SystemBlueprint::upgradeCosts, "The cost to upgrade the system at each level")
-		;
-
 	py::class_<System>(module, "System", "Generic system")
 		.def_readonly("type", &System::type, "The type of the system")
 		.def_readonly("blueprint", &System::blueprint, "The blueprint of the system")

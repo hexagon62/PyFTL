@@ -13,6 +13,12 @@ void bindBlueprints(py::module_& module)
 		.def_readonly("base_rarity", &Blueprint::baseRarity, "Base rarity of the item")
 		;
 
+	py::class_<SystemBlueprint, Blueprint>(module, "SystemBlueprint", "Blueprint with general info on a system")
+		.def_readonly("power_start", &SystemBlueprint::powerStart, "The amount of power the system starts with")
+		.def_readonly("power_max", &SystemBlueprint::powerMax, "The maximum power the system can have")
+		.def_readonly("upgrade_costs", &SystemBlueprint::upgradeCosts, "The cost to upgrade the system at each level")
+		;
+
 	py::class_<Augment, Blueprint>(module, "Augment", "An augmentation")
 		.def_readonly("value", &Augment::value, "The value the game uses to determine the intensity of the effect")
 		.def_readonly("stacking", &Augment::stacking, "Whether or not having duplicates of the augmenet does anything")
