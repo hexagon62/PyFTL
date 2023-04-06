@@ -77,50 +77,61 @@ ProcessInfo getProcessInfo()
 {
     ProcessInfo info;
 
-    constexpr DWORD FLAGS = TH32CS_SNAPPROCESS | TH32CS_SNAPMODULE;
-    HANDLE snapshot = CreateToolhelp32Snapshot(FLAGS, NULL);
-
-    if (snapshot == INVALID_HANDLE_VALUE)
-        return info;
-
-    PROCESSENTRY32 entry;
-    entry.dwSize = sizeof(PROCESSENTRY32);
-
-    if (Process32First(snapshot, &entry))
+    // Process part
     {
-        do
+        HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, NULL);
+
+        if (snapshot == INVALID_HANDLE_VALUE) return {};
+
+        PROCESSENTRY32 entry;
+        entry.dwSize = sizeof(PROCESSENTRY32);
+
+        if (Process32First(snapshot, &entry))
         {
-            // Found process
-            if (_wcsicmp(entry.szExeFile, FTLExecutable) == 0)
+            do
             {
-                info.pid = entry.th32ProcessID;
-                break;
-            }
-
-        } while (Process32Next(snapshot, &entry));
-    }
-
-    MODULEENTRY32 moduleEntry;
-    moduleEntry.dwSize = sizeof(MODULEENTRY32);
-    if (Module32First(snapshot, &moduleEntry))
-    {
-        do
-        {
-            for (size_t i = 0; i < DLL_LIST.size(); i++)
-            {
-                auto&& dll = DLL_LIST[i];
-
-                // Found dll
-                if (_wcsicmp(moduleEntry.szModule, dll.name))
+                // Found process
+                if (_wcsicmp(entry.szExeFile, FTLExecutable) == 0)
                 {
-                    info.injected[i] = moduleEntry.hModule;
+                    info.pid = entry.th32ProcessID;
+                    break;
                 }
-            }
 
-        } while (Module32Next(snapshot, &moduleEntry));
+            } while (Process32Next(snapshot, &entry));
+        }
+
+        CloseHandle(snapshot);
     }
 
-    CloseHandle(snapshot);
+    // Modules part
+    if (info.pid > 0)
+    {
+        HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPMODULE, info.pid);
+
+        if (snapshot == INVALID_HANDLE_VALUE) return {};
+
+        MODULEENTRY32 entry;
+        entry.dwSize = sizeof(MODULEENTRY32);
+        if (Module32First(snapshot, &entry))
+        {
+            do
+            {
+                for (size_t i = 0; i < DLL_LIST.size(); i++)
+                {
+                    auto&& dll = DLL_LIST[i];
+
+                    // Found dll
+                    if (_wcsicmp(entry.szModule, dll.name) == 0)
+                    {
+                        info.injected[i] = entry.hModule;
+                    }
+                }
+
+            } while (Module32Next(snapshot, &entry));
+        }
+
+        CloseHandle(snapshot);
+    }
 
     return info;
 }
