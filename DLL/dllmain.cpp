@@ -18,6 +18,7 @@ wglSwapBuffers_t wglSwapBuffers_orig = nullptr;
 
 HWND g_hGameWindow;
 WNDPROC g_hGameWindowProc;
+WNDPROC g_hGameWindowProcOld;
 
 struct ConsoleHandler
 {
@@ -159,7 +160,7 @@ bool g_overlay = true;
 bool g_active = false;
 bool g_pause = false;
 bool g_imguiInit = false;
-bool g_quit = false;
+bool g_quit = false, g_done = false;
 GUIHelper g_gui;
 
 constexpr char PYTFTL_FOLDER[] = "pyftl";
@@ -243,6 +244,10 @@ BOOL __stdcall wglSwapBuffers_hook(HDC hDc)
         // Get the window handle
         g_hGameWindow = WindowFromDC(hDc);
 
+        // Save old wndProc function
+        g_hGameWindowProcOld =
+            reinterpret_cast<WNDPROC>(GetWindowLongPtr(g_hGameWindow, GWLP_WNDPROC));
+
         // Overwrite the wndProc function
         g_hGameWindowProc =
             reinterpret_cast<WNDPROC>(
@@ -274,20 +279,57 @@ BOOL __stdcall wglSwapBuffers_hook(HDC hDc)
     return wglSwapBuffers_orig(hDc);
 }
 
-bool hookRenderer(ConsoleHandler& con)
+struct GLHookHandle
 {
-    wglSwapBuffers_orig =
+    bool hooked = false;
+    wglSwapBuffers_t orig = nullptr;
+    wglSwapBuffers_t gateway = nullptr;
+    uintptr_t size = 0;
+};
+
+GLHookHandle g_glHookHandle;
+
+bool hookRenderer()
+{
+    g_glHookHandle.size = 7;
+
+    g_glHookHandle.orig = wglSwapBuffers_orig =
         reinterpret_cast<wglSwapBuffers_t>(
             GetProcAddress(GetModuleHandle(L"opengl32.dll"), "wglSwapBuffers"));
 
-    wglSwapBuffers_orig =
+    g_glHookHandle.gateway = wglSwapBuffers_orig =
         reinterpret_cast<wglSwapBuffers_t>(
             mem::trampHook32(
                 reinterpret_cast<BYTE*>(wglSwapBuffers_orig),
                 reinterpret_cast<BYTE*>(wglSwapBuffers_hook),
-                7));
+                g_glHookHandle.size));
 
-    PyFTLOut("Hooked into the game's rendering loop!\n");
+    g_glHookHandle.hooked = true;
+    PyFTLOut("Hooked into OpenGL!\n");
+    return true;
+}
+
+bool unhookRenderer()
+{
+    mem::removeHook32(
+        reinterpret_cast<BYTE*>(g_glHookHandle.orig),
+        reinterpret_cast<BYTE*>(g_glHookHandle.gateway),
+        g_glHookHandle.size);
+
+    wglSwapBuffers_orig = g_glHookHandle.orig;
+    g_glHookHandle.orig = nullptr;
+    g_glHookHandle.gateway = nullptr;
+    g_glHookHandle.size = 0;
+
+    // Return the old wndProc function
+    g_hGameWindowProc =
+        reinterpret_cast<WNDPROC>(
+            SetWindowLongPtr(
+                g_hGameWindow, GWLP_WNDPROC,
+                reinterpret_cast<LONG_PTR>(g_hGameWindowProcOld)));
+
+    g_glHookHandle.hooked = false;
+    PyFTLOut("Unhooked from OpenGL!\n");
     return true;
 }
 
@@ -385,6 +427,8 @@ DWORD WINAPI patcherThread(HMODULE hModule)
 {
     try
     {
+        hookRenderer();
+
         py::scoped_interpreter pyInterpreter{};
         py::module pyMain = initPython();
 
@@ -394,9 +438,11 @@ DWORD WINAPI patcherThread(HMODULE hModule)
     {
         PyFTLErr("Unrecoverable error: ", e.what());
         std::system("pause");
+        g_done = true;
         return 1;
     }
 
+    g_done = true;
     return 0;
 }
 
@@ -419,9 +465,15 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         break;
     }
     case DLL_THREAD_ATTACH:
+        break;
     case DLL_THREAD_DETACH:
+        break;
     case DLL_PROCESS_DETACH:
         g_quit = true;
+        PyFTLOut("Quit requested, waiting for everything to finish...\n");
+        if (g_glHookHandle.hooked) unhookRenderer();
+        while (!g_done && Reader::getState().running); // wait for everything to finish
+        PyFTLOut("Goodbye!\n");
         break;
     }
     return TRUE;

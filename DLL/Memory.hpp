@@ -16,5 +16,6 @@ T& get(uintptr_t addr)
 
 bool detour32(BYTE* src, BYTE* dest, uintptr_t size);
 BYTE* trampHook32(BYTE* src, BYTE* dest, uintptr_t size);
+bool removeHook32(BYTE* src, BYTE* gateway, uintptr_t size);
 
 }

@@ -1,5 +1,6 @@
 #include <iostream>
 #include <string>
+#include <vector>
 #include <thread>
 #include <array>
 #include <filesystem>
@@ -138,6 +139,28 @@ ProcessInfo getProcessInfo()
 
 int main(int argc, char** argv)
 {
+    std::vector<std::string> args;
+
+    for (int i = 0; i < argc; i++)
+        args.push_back(argv[i]);
+
+    bool detach = false;
+    bool pauseless = false;
+
+    for (auto&& arg : args)
+    {
+        if (arg == "?" || arg == "help")
+        {
+            std::cout << "Specify -d or -detach to detach all dlls\n";
+            std::cout << "Specify -p or -pauseless to immediately close the program after it's done\n";
+            std::cout << "Specify ? or help to print this message and quit\n";
+            return 0;
+        }
+
+        if (arg == "-d" || arg == "-detach") detach = true;
+        if (arg == "-p" || arg == "-pauseless") silent = true;
+    }
+
     std::cout << "Getting ID of the FTL process...\n";
     ProcessInfo info = getProcessInfo();
 
@@ -177,7 +200,7 @@ int main(int argc, char** argv)
 
         if (info.injected[i])
         {
-            if (dll.reload)
+            if (dll.reload || detach)
             {
                 std::wcout << L"Unloading " << dll.name << L" from ";
                 std::wcout << FTLExecutable;
@@ -199,23 +222,32 @@ int main(int argc, char** argv)
             }
         }
 
-        std::wcout << L"Injecting " << dll.name << L" into ";
-        std::wcout << FTLExecutable;
-        std::cout << "...\n";
-
-        bool success = inject(pathStr.c_str(), hProc);
-
-        if (!success)
+        if (!detach)
         {
-            std::cout << "Couldn't inject the dll!\n";
-            std::system("pause");
-            return 1;
+            std::wcout << L"Injecting " << dll.name << L" into ";
+            std::wcout << FTLExecutable;
+            std::cout << "...\n";
+
+            bool success = inject(pathStr.c_str(), hProc);
+
+            if (!success)
+            {
+                std::cout << "Couldn't inject the dll!\n";
+                std::system("pause");
+                return 1;
+            }
         }
     }
 
-    std::cout << "Success! This window will close in a few seconds.\n";
-
-    std::this_thread::sleep_for(std::chrono::seconds(3));
+    if (pauseless)
+    {
+        std::cout << "Success!\n";
+    }
+    else
+    {
+        std::cout << "Success! This window will close in a few seconds.\n";
+        std::this_thread::sleep_for(std::chrono::seconds(3));
+    }
 
     CloseHandle(hProc);
 }

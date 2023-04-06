@@ -30,7 +30,9 @@ BYTE* trampHook32(BYTE* src, BYTE* dest, uintptr_t size)
 	if (size < MIN_JUMP) return nullptr;
 
 	// Create gateway
-	BYTE* gateway = static_cast<BYTE*>(VirtualAlloc(nullptr, size, MEM_COMMIT | MEM_RESERVE, PAGE_EXECUTE_READWRITE));
+	constexpr DWORD flags = MEM_COMMIT | MEM_RESERVE;
+	constexpr DWORD protect = PAGE_EXECUTE_READWRITE;
+	BYTE* gateway = static_cast<BYTE*>(VirtualAlloc(nullptr, size + MIN_JUMP, flags, protect));
 
 	// Write stolen bytes to gateway
 	memcpy_s(gateway, size, src, size);
@@ -48,6 +50,26 @@ BYTE* trampHook32(BYTE* src, BYTE* dest, uintptr_t size)
 	detour32(src, dest, size);
 
 	return gateway;
+}
+
+bool removeHook32(BYTE* src, BYTE* gateway, uintptr_t size)
+{
+	// Size must be below minimum for jump instruction
+	if (size < MIN_JUMP)
+		return false;
+
+	DWORD oldProtect;
+	VirtualProtect(src, size, PAGE_EXECUTE_READWRITE, &oldProtect);
+
+	// Write stolen bytes back to source
+	memcpy_s(src, size, gateway, size);
+
+	VirtualProtect(src, size, oldProtect, &oldProtect);
+
+	// Free memory at gateway
+	bool freed = bool(VirtualFree(gateway, 0, MEM_RELEASE));
+
+	return true;
 }
 
 }
