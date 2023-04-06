@@ -1,7 +1,6 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include <thread>
 #include <array>
 #include <filesystem>
 
@@ -145,20 +144,20 @@ int main(int argc, char** argv)
         args.push_back(argv[i]);
 
     bool detach = false;
-    bool pauseless = false;
+    bool pause = false;
 
     for (auto&& arg : args)
     {
         if (arg == "?" || arg == "help")
         {
             std::cout << "Specify -d or -detach to detach all dlls." << std::endl;
-            std::cout << "Specify -p or -pauseless to immediately close the program after it's done." << std::endl;
+            std::cout << "Specify -p or -pause to wait for a keypress before terminating." << std::endl;
             std::cout << "Specify ? or help to print this message and quit." << std::endl;
             return 0;
         }
 
         if (arg == "-d" || arg == "-detach") detach = true;
-        if (arg == "-p" || arg == "-pauseless") pauseless = true;
+        if (arg == "-p" || arg == "-pause") pause = true;
     }
 
     std::cout << "Getting ID of the FTL process..." << std::endl;
@@ -167,7 +166,7 @@ int main(int argc, char** argv)
     if (!info.pid)
     {
         std::cout << "Couldn't find FTL! Make sure it's open." << std::endl;
-        std::system("pause");
+        if (pause) std::system("pause");
         return 1;
     }
 
@@ -177,7 +176,7 @@ int main(int argc, char** argv)
     if (!hProc)
     {
         std::cout << "Couldn't open the process!" << std::endl;
-        std::system("pause");
+        if (pause) std::system("pause");
         return 1;
     }
 
@@ -195,7 +194,7 @@ int main(int argc, char** argv)
         {
             std::cout << "Couldn't find " << pathStr << "." << std::endl;
             std::cout << "Please ensure that the file exists and that your working directory is set correctly." << std::endl;
-            std::system("pause");
+            if (pause) std::system("pause");
             return 1;
         }
 
@@ -212,7 +211,7 @@ int main(int argc, char** argv)
                 if (!success)
                 {
                     std::cout << "Couldn't unload the dll!" << std::endl;
-                    std::system("pause");
+                    if (pause) std::system("pause");
                     return 1;
                 }
 
@@ -236,7 +235,7 @@ int main(int argc, char** argv)
             if (!success)
             {
                 std::cout << "Couldn't inject the dll!" << std::endl;
-                std::system("pause");
+                if(pause) std::system("pause");
                 return 1;
             }
 
@@ -244,18 +243,18 @@ int main(int argc, char** argv)
         }
     }
 
-    if (pauseless)
-    {
-        if (workDone) std::cout << "Success!" << std::endl;
-        else std::cout << "Nothing to be done. No DLLs need loading/unloading." << std::endl;
-    }
-    else
+    CloseHandle(hProc);
+
+    if (pause)
     {
         if (workDone) std::cout << "Success! ";
         else std::cout << "Nothing to be done. No DLLs need loading/unloading." << std::endl;
         std::cout << "The launcher will terminate in a few seconds." << std::endl;
-        std::this_thread::sleep_for(std::chrono::seconds(3));
+        std::system("pause");
     }
-
-    CloseHandle(hProc);
+    else
+    {
+        if (workDone) std::cout << "Success!" << std::endl;
+        else std::cout << "Nothing to be done. No DLLs need loading/unloading." << std::endl;
+    }
 }
