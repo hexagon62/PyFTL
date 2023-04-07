@@ -5,7 +5,7 @@
 #include <algorithm>
 #include <unordered_map>
 
-Duration Reader::delay{ std::chrono::microseconds(16666) };
+Duration Reader::delay{ std::chrono::microseconds(5000) };
 TimePoint Reader::nextPoll{ Clock::now() };
 raw::State Reader::rs;
 State Reader::state;
@@ -78,13 +78,12 @@ void readSystem(System& system, const raw::ShipSystem& raw)
 	//system.manningLevel = manned ? raw.iActiveManned : 0;
 }
 
-void readShieldSystem(ShieldSystem& shields, const raw::Shields& raw)
+void readShieldSystem(ShieldSystem& shields, const raw::Shields& raw, const Point<int>& offset)
 {
 	readSystem(shields, raw);
 	shields.blueprint = Reader::getState().blueprints.systemBlueprints.at("shields");
 
-	shields.boundary.center.x = raw.baseShield.center.x;
-	shields.boundary.center.y = raw.baseShield.center.y;
+	shields.boundary.center = offset + Point<int>{ raw.baseShield.center.x, raw.baseShield.center.y };
 	shields.boundary.a = int(raw.baseShield.a);
 	shields.boundary.b = int(raw.baseShield.b);
 
@@ -265,7 +264,7 @@ void readWeaponBlueprint(WeaponBlueprint& blueprint, const raw::WeaponBlueprint&
 	blueprint.projectilesTotal = blueprint.projectiles * blueprint.shots;
 }
 
-void readWeapon(Weapon& weapon, const raw::ProjectileFactory& raw)
+void readWeapon(Weapon& weapon, const raw::ProjectileFactory& raw, const Point<int>& offset)
 {
 	readWeaponBlueprint(weapon.blueprint, *raw.blueprint);
 
@@ -325,7 +324,12 @@ void readDroneBlueprint(DroneBlueprint& blueprint, const raw::DroneBlueprint& ra
 	blueprint.speed = raw.speed;
 }
 
-void readDrone(Drone& drone, const raw::Drone& raw, int superShieldBubbles = 0)
+void readDrone(
+	Drone& drone,
+	const raw::Drone& raw,
+	const Point<int>& playerShipPos,
+	const Point<int>& enemyShipPos,
+	int superShieldBubbles = 0)
 {
 	readDroneBlueprint(drone.blueprint, *raw.blueprint);
 
@@ -356,13 +360,21 @@ void readDrone(Drone& drone, const raw::Drone& raw, int superShieldBubbles = 0)
 		info.playerSpace = casted.currentSpace == 0;
 		info.playerSpaceIsDestination = casted.destinationSpace == 0;
 		info.moving = casted.pause > 0.f;
+
+		Point<int> position = info.playerSpace
+			? playerShipPos
+			: enemyShipPos;
+
+		Point<int> destination = info.playerSpaceIsDestination
+			? playerShipPos
+			: enemyShipPos;
 		
-		info.position.x = casted.currentLocation.x;
-		info.position.y = casted.currentLocation.y;
-		info.positionLast.x = casted.lastLocation.x;
-		info.positionLast.y = casted.lastLocation.y;
-		info.destination.x = casted.destinationLocation.x;
-		info.destination.y = casted.destinationLocation.y;
+		info.position.x = casted.currentLocation.x + position.x;
+		info.position.y = casted.currentLocation.y + position.y;
+		info.positionLast.x = casted.lastLocation.x + position.x;
+		info.positionLast.y = casted.lastLocation.y + position.y;
+		info.destination.x = casted.destinationLocation.x + destination.x;
+		info.destination.y = casted.destinationLocation.y + destination.y;
 		info.speed.x = casted.speedVector.x;
 		info.speed.y = casted.speedVector.y;
 
@@ -417,8 +429,8 @@ void readDrone(Drone& drone, const raw::Drone& raw, int superShieldBubbles = 0)
 			info.extraMovement = SpaceDroneMovementExtra{};
 			auto&& movement = *info.extraMovement;
 			
-			movement.destinationLast.x = casted2.lastDestination.x;
-			movement.destinationLast.y = casted2.lastDestination.y;
+			movement.destinationLast.x = casted2.lastDestination.x + destination.x;
+			movement.destinationLast.y = casted2.lastDestination.y + destination.y;
 			movement.progress = casted2.progressToDestination;
 			movement.heading = casted2.heading;
 			movement.headingLast = casted2.oldHeading;
@@ -447,7 +459,7 @@ void readSystemBlueprint(SystemBlueprint& blueprint, const raw::SystemBlueprint&
 	}
 }
 
-void readWeaponSystem(WeaponSystem& weapons, const raw::WeaponSystem& raw)
+void readWeaponSystem(WeaponSystem& weapons, const raw::WeaponSystem& raw, const Point<int>& offset)
 {
 	readSystem(weapons, raw);
 	weapons.blueprint = Reader::getState().blueprints.systemBlueprints.at("weapons");
@@ -460,7 +472,7 @@ void readWeaponSystem(WeaponSystem& weapons, const raw::WeaponSystem& raw)
 	for (size_t i = 0; i < raw.weapons.size(); i++)
 	{
 		auto& weapon = weapons.weapons.emplace_back();
-		readWeapon(weapon, *raw.weapons[i]);
+		readWeapon(weapon, *raw.weapons[i], offset);
 	}
 
 	for (size_t i = 0; i < raw.userPowered.size(); i++)
@@ -474,7 +486,12 @@ void readWeaponSystem(WeaponSystem& weapons, const raw::WeaponSystem& raw)
 	}
 }
 
-void readDroneSystem(DroneSystem& drones, const raw::DroneSystem& raw, int superShieldBubbles = 0)
+void readDroneSystem(
+	DroneSystem& drones,
+	const raw::DroneSystem& raw,
+	const Point<int>& playerShipPos,
+	const Point<int>& enemyShipPos,
+	int superShieldBubbles = 0)
 {
 	readSystem(drones, raw);
 	drones.blueprint = Reader::getState().blueprints.systemBlueprints.at("drones");
@@ -487,7 +504,7 @@ void readDroneSystem(DroneSystem& drones, const raw::DroneSystem& raw, int super
 	for (size_t i = 0; i < raw.drones.size(); i++)
 	{
 		auto& drone = drones.drones.emplace_back();
-		readDrone(drone, *raw.drones[i], superShieldBubbles);
+		readDrone(drone, *raw.drones[i], playerShipPos, enemyShipPos, superShieldBubbles);
 	}
 
 	for (size_t i = 0; i < raw.userPowered.size(); i++)
@@ -535,14 +552,14 @@ void readDoorSystem(DoorSystem& doors, const raw::ShipSystem& raw)
 	// Probably no extra fields?
 }
 
-void readArtillerySystem(ArtillerySystem& artillery, const raw::ArtillerySystem& raw)
+void readArtillerySystem(ArtillerySystem& artillery, const raw::ArtillerySystem& raw, const Point<int>& offset)
 {
 	readSystem(artillery, raw);
 	artillery.blueprint = Reader::getState().blueprints.systemBlueprints.at("artillery");
 
 	if (raw.projectileFactory)
 	{
-		readWeapon(artillery.weapon, *raw.projectileFactory);
+		readWeapon(artillery.weapon, *raw.projectileFactory, offset);
 	}
 }
 
@@ -569,10 +586,16 @@ void readMindControlSystem(MindControlSystem& mindControl, const raw::MindSystem
 	mindControl.targetingPlayerShip = raw.iQueuedShip == 0;
 }
 
-void readHackingSystem(HackingSystem& hacking, const raw::HackingSystem& raw)
+void readHackingSystem(
+	HackingSystem& hacking,
+	const raw::HackingSystem& raw,
+	const Point<int>& playerShipPos,
+	const Point<int>& enemyShipPos)
 {
 	readSystem(hacking, raw);
 	hacking.blueprint = Reader::getState().blueprints.systemBlueprints.at("hacking");
+
+	readDrone(hacking.drone, raw.drone, playerShipPos, enemyShipPos);
 
 	hacking.on = raw.bHacking;
 	hacking.timer = raw.effectTimer;
@@ -584,7 +607,7 @@ void readHackingSystem(HackingSystem& hacking, const raw::HackingSystem& raw)
 	hacking.drone.setUp = raw.drone.finishedSetup;
 	hacking.drone.room = raw.drone.prefRoom;
 
-	readDrone(hacking.drone, raw.drone);
+	hacking.drone.start += hacking.drone.player ? enemyShipPos : playerShipPos;
 }
 
 // Calculate evasion level (not conveniently stored anywhere by the game it seems)
@@ -627,15 +650,20 @@ int calculateEvasion(
 	return result;
 }
 
-void readRoom(Room& room, std::vector<Crew>& crew, std::vector<Crew>& enemyCrew, const raw::Room& raw)
+void readRoom(
+	Room& room,
+	std::vector<Crew>& crew,
+	std::vector<Crew>& enemyCrew,
+	const raw::Room& raw,
+	const Point<int>& offset)
 {
 	room.player = raw.iShipId == 0;
 	room.id = raw.iRoomId;
 	room.primarySlot = raw.primarySlot;
 	room.primaryDirection = raw.primaryDirection;
 	
-	room.rect.x = raw.rect.x;
-	room.rect.y = raw.rect.y;
+	room.rect.x = raw.rect.x + offset.x;
+	room.rect.y = raw.rect.y + offset.y;
 	room.rect.w = raw.rect.w;
 	room.rect.h = raw.rect.h;
 
@@ -685,7 +713,8 @@ void readRoomSlots(
 	Room& room,
 	const raw::Room& raw,
 	const raw::Spreader<raw::Fire>& fires,
-	const raw::gcc::vector<raw::OuterHull*>& hull)
+	const raw::gcc::vector<raw::OuterHull*>& hull,
+	const Point<int>& offset)
 {
 	int slotCount = room.tiles.x * room.tiles.y;
 	room.slots.resize(slotCount, Slot{});
@@ -768,8 +797,7 @@ void readRoomSlots(
 
 			slot.fire = Fire{};
 			slot.fire->repairProgress = (100.f - cell.fDamage) / 100.f;
-			slot.fire->position.x = cell.pLoc.x;
-			slot.fire->position.y = cell.pLoc.y;
+			slot.fire->position = offset + Point<int>{cell.pLoc.x, cell.pLoc.y};
 			slot.fire->room = cell.roomId;
 			slot.fire->slot = slot.id;
 			slot.fire->deathTimer = cell.fDeathTimer;
@@ -781,19 +809,24 @@ void readRoomSlots(
 	{
 		auto&& cell = *hull[i];
 		if (cell.fDamage <= 0.f || cell.roomId != room.id) continue;
-		auto&& slot = room.slotAt({ cell.pLoc.x, cell.pLoc.y });
+		auto&& slot = room.slotAt(offset + Point<int>{ cell.pLoc.x, cell.pLoc.y });
 
 		room.breachRepair += cell.fDamage / 100.f;
 
 		slot.breach = Breach{};
 		slot.breach->repairProgress = (100.f - cell.fDamage) / 100.f;
-		slot.breach->position = { cell.pLoc.x, cell.pLoc.y };
+		slot.breach->position = offset + Point<int>{ cell.pLoc.x, cell.pLoc.y };
 		slot.breach->room = cell.roomId;
 		slot.breach->slot = slot.id;
 	}
 }
 
-void readDoor(Door& door, const raw::Door& raw, bool airlock = false, int id = -1)
+void readDoor(
+	Door& door,
+	const raw::Door& raw,
+	const Point<int>& offset,
+	bool airlock = false,
+	int id = -1)
 {
 	door.id = airlock ? id : raw.iDoorId; // iDoorId is set to -1 for airlocks, which is weird and useless for us
 	door.rooms = { raw.iRoom1, raw.iRoom2 };
@@ -805,7 +838,7 @@ void readDoor(Door& door, const raw::Door& raw, bool airlock = false, int id = -
 	door.ioned = raw.bIoned;
 	door.vertical = raw.bVertical;
 	door.airlock = airlock; // game stores airlocks in different array rather than flagging doors
-	door.position = { raw.x, raw.y };
+	door.position = offset + Point<int>{ raw.x, raw.y };
 	door.dimensions = { raw.width, raw.height };
 }
 
@@ -814,7 +847,9 @@ void readGenericShipStuff(
 	std::vector<Crew>& crew,
 	std::vector<Crew>& enemyCrew,
 	const raw::ShipManager& raw,
-	const raw::PowerManager& power)
+	const raw::PowerManager& power,
+	const Point<int>& playerShipPos,
+	const Point<int>& enemyShipPos)
 {
 	ship.player = raw.iShipId == 0;
 	ship.destroyed = raw.bDestroyed;
@@ -822,6 +857,10 @@ void readGenericShipStuff(
 	ship.jumping = raw.bJumping;
 	ship.canJump = raw.lastJumpReady;
 	ship.canInventory = false; // TO DO
+
+	Point<int> position = ship.player
+		? playerShipPos
+		: enemyShipPos;
 
 	ship.jumpTimer = raw.jump_timer;
 
@@ -873,8 +912,8 @@ void readGenericShipStuff(
 		auto&& room = ship.rooms.emplace_back();
 		auto&& rawRoom = *raw.ship.vRoomList[i];
 
-		readRoom(room, crew, enemyCrew, rawRoom);
-		readRoomSlots(room, rawRoom, raw.fireSpreader, raw.ship.vOuterWalls);
+		readRoom(room, crew, enemyCrew, rawRoom, position);
+		readRoomSlots(room, rawRoom, raw.fireSpreader, raw.ship.vOuterWalls, position);
 	}
 
 	// Doors
@@ -882,14 +921,14 @@ void readGenericShipStuff(
 
 	for (size_t i = 0; i < raw.ship.vDoorList.size(); i++)
 	{
-		readDoor(ship.doors.emplace_back(), *raw.ship.vDoorList[i]);
+		readDoor(ship.doors.emplace_back(), *raw.ship.vDoorList[i], position);
 	}
 
 	for (size_t i = 0; i < raw.ship.vOuterAirlocks.size(); i++)
 	{
 		// airlocks are special and need to have an id assigned to them from here
 		size_t begin = raw.ship.vDoorList.size();
-		readDoor(ship.doors.emplace_back(), *raw.ship.vOuterAirlocks[i], true, begin+i);
+		readDoor(ship.doors.emplace_back(), *raw.ship.vOuterAirlocks[i], position, true, begin+i);
 	}
 
 	// Read systems
@@ -903,7 +942,7 @@ void readGenericShipStuff(
 		{
 		case SystemType::Shields:
 			ship.shields = ShieldSystem{};
-			readShieldSystem(*ship.shields, *static_cast<raw::Shields*>(current));
+			readShieldSystem(*ship.shields, *static_cast<raw::Shields*>(current), position);
 			break;
 		case SystemType::Engines:
 			ship.engines = EngineSystem{};
@@ -919,11 +958,15 @@ void readGenericShipStuff(
 		}
 		case SystemType::Weapons:
 			ship.weapons = WeaponSystem{};
-			readWeaponSystem(*ship.weapons, *static_cast<raw::WeaponSystem*>(current));
+			readWeaponSystem(*ship.weapons, *static_cast<raw::WeaponSystem*>(current), position);
 			break;
 		case SystemType::Drones:
 			ship.drones = DroneSystem{};
-			readDroneSystem(*ship.drones, *static_cast<raw::DroneSystem*>(current), ship.superShields.first);
+			readDroneSystem(
+				*ship.drones,
+				*static_cast<raw::DroneSystem*>(current),
+				playerShipPos, enemyShipPos,
+				ship.superShields.first);
 			break;
 		case SystemType::Medbay:
 			ship.medbay = MedbaySystem{};
@@ -958,7 +1001,7 @@ void readGenericShipStuff(
 		case SystemType::Artillery:
 		{
 			auto& newArtillery = ship.artillery.emplace_back();
-			readArtillerySystem(newArtillery, *static_cast<raw::ArtillerySystem*>(current));
+			readArtillerySystem(newArtillery, *static_cast<raw::ArtillerySystem*>(current), position);
 			break;
 		}
 		case SystemType::battery:
@@ -978,7 +1021,10 @@ void readGenericShipStuff(
 			break;
 		case SystemType::Hacking:
 			ship.hacking = HackingSystem{};
-			readHackingSystem(*ship.hacking, *static_cast<raw::HackingSystem*>(current));
+			readHackingSystem(
+				*ship.hacking,
+				*static_cast<raw::HackingSystem*>(current),
+				playerShipPos, enemyShipPos);
 			break;
 		}
 	}
@@ -992,7 +1038,9 @@ void readPlayerShip(
 	std::vector<Crew>& crew,
 	std::vector<Crew>& enemyCrew,
 	const raw::CommandGui& gui,
-	const raw::PowerManager& power)
+	const raw::PowerManager& power,
+	const Point<int>& playerShipPos,
+	const Point<int>& enemyShipPos)
 {
 	if (!gui.shipStatus.ship) return;
 
@@ -1021,14 +1069,14 @@ void readPlayerShip(
 		{
 			auto&& weapon = ship.cargo.weapons.emplace_back();
 
-			readWeapon(weapon, *equipment.pWeapon);
+			readWeapon(weapon, *equipment.pWeapon, { 0, 0 });
 		}
 
 		if (equipment.pDrone) // drone
 		{
 			auto&& drone = ship.cargo.drones.emplace_back();
 
-			readDrone(drone, *equipment.pDrone);
+			readDrone(drone, *equipment.pDrone, { 0, 0 }, { 0, 0 });
 		}
 
 		if (equipment.augment) // augment
@@ -1039,7 +1087,7 @@ void readPlayerShip(
 		}
 	}
 
-	readGenericShipStuff(ship, crew, enemyCrew, *gui.shipStatus.ship, power);
+	readGenericShipStuff(ship, crew, enemyCrew, *gui.shipStatus.ship, power, playerShipPos, enemyShipPos);
 
 	// Read player teleporter stuff
 	if (ship.teleporter)
@@ -1057,7 +1105,9 @@ void readEnemyShip(
 	std::vector<Crew>& crew,
 	std::vector<Crew>& enemyCrew,
 	const raw::CompleteShip& raw,
-	const raw::PowerManager& power)
+	const raw::PowerManager& power,
+	const Point<int>& playerShipPos,
+	const Point<int>& enemyShipPos)
 {
 	// Don't care about these values for enemies
 	ship.cargo.scrap = 0;
@@ -1089,7 +1139,7 @@ void readEnemyShip(
 		ship.cargo.augments.emplace_back(augMap.at(augName));
 	}
 
-	readGenericShipStuff(ship, crew, enemyCrew, *raw.shipManager, power);
+	readGenericShipStuff(ship, crew, enemyCrew, *raw.shipManager, power, playerShipPos, enemyShipPos);
 
 	if (ship.teleporter)
 	{
@@ -1117,23 +1167,18 @@ void readCrewBlueprint(CrewBlueprint& blueprint, const raw::CrewBlueprint& raw)
 	blueprint.skillCombat = raw.skillLevel[5];
 }
 
-void readCrew(Crew& crew, const raw::CrewMember& raw)
+void readCrew(Crew& crew, const raw::CrewMember& raw, const Point<int>& offset)
 {
 	readCrewBlueprint(crew.blueprint, raw.blueprint);
 
-	crew.position.x = raw.x;
-	crew.position.y = raw.y;
-	crew.goal.x = raw.goal_x;
-	crew.goal.y = raw.goal_y;
-	crew.speed.x = raw.speed_x;
-	crew.speed.y = raw.speed_y;
+	crew.position = offset + Point<int>{raw.x, raw.y};
+	crew.goal = offset + Point<int>{raw.goal_x, raw.goal_y};
+	crew.speed = Point<int>{raw.speed_x, raw.speed_y};
 
 	crew.health = raw.health;
 
-	crew.path.start.x = raw.path.start.x;
-	crew.path.start.y = raw.path.start.y;
-	crew.path.finish.x = raw.path.finish.x;
-	crew.path.finish.y = raw.path.finish.y;
+	crew.path.start = offset + Point<int>{ raw.path.start.x, raw.path.start.y };
+	crew.path.finish = offset + Point<int>{ raw.path.finish.x, raw.path.finish.y };
 	crew.path.distance = raw.path.distance;
 	crew.path.doors.clear();
 
@@ -1227,6 +1272,7 @@ void readPlayerCrewList(
 	std::vector<Crew>& crew,
 	const raw::gcc::vector<raw::CrewMember*>& list,
 	const raw::gcc::vector<raw::CrewBox*>* crewBoxes,
+	const Point<int>& playerShipPos, const Point<int>& enemyShipPos,
 	const raw::gcc::vector<raw::CrewMember*>* arriving = nullptr,
 	const raw::gcc::vector<raw::CrewMember*>* leaving = nullptr)
 {
@@ -1239,7 +1285,11 @@ void readPlayerCrewList(
 
 		if (list[i]->iShipId == 0) // must belong to player
 		{
-			readCrew(crew.emplace_back(), *list[i]);
+			Point<int> offset = list[i]->currentShipId == 0 // on player ship
+				? playerShipPos
+				: enemyShipPos;
+
+			readCrew(crew.emplace_back(), *list[i], offset);
 
 			// Search UI boxes for this crew member
 			for (size_t j = 0; j < crewBoxes->size(); j++)
@@ -1266,6 +1316,7 @@ void readPlayerCrewList(
 void readEnemyCrewList(
 	std::vector<Crew>& crew,
 	const raw::gcc::vector<raw::CrewMember*>& list,
+	const Point<int>& playerShipPos, const Point<int>& enemyShipPos,
 	const raw::gcc::vector<raw::CrewMember*>* arriving = nullptr,
 	const raw::gcc::vector<raw::CrewMember*>* leaving = nullptr)
 {
@@ -1278,7 +1329,11 @@ void readEnemyCrewList(
 
 		if (list[i]->iShipId == 1) // must belong to enemy
 		{
-			readCrew(crew.emplace_back(), *list[i]);
+			Point<int> offset = list[i]->currentShipId == 0 // on player ship
+				? playerShipPos
+				: enemyShipPos;
+
+			readCrew(crew.emplace_back(), *list[i], offset);
 
 			if (arriving && leaving)
 			{
@@ -1292,7 +1347,11 @@ void readEnemyCrewList(
 	}
 }
 
-void readProjectile(Projectile& projectile, const raw::Projectile& raw)
+void readProjectile(
+	Projectile& projectile,
+	const raw::Projectile& raw,
+	const Point<int>& playerShipPos,
+	const Point<int>& enemyShipPos)
 {
 	projectile.type = ProjectileType(raw.getType());
 	projectile.position = { raw.position.x, raw.position.y };
@@ -1311,6 +1370,26 @@ void readProjectile(Projectile& projectile, const raw::Projectile& raw)
 	projectile.missed = raw.missed;
 	projectile.hit = raw.hitTarget;
 	projectile.passed = raw.passedTarget;
+
+	if (projectile.playerSpace)
+	{
+		projectile.position += playerShipPos;
+		projectile.positionLast += playerShipPos;
+	}
+	else
+	{
+		projectile.position += enemyShipPos;
+		projectile.positionLast += enemyShipPos;
+	}
+
+	if (projectile.playerSpaceIsDestination)
+	{
+		projectile.target += playerShipPos;
+	}
+	else
+	{
+		projectile.target += enemyShipPos;
+	}
 
 	// FTL fragments its data in weird ways yet again!
 	// Checking misses is so hard for some reason...
@@ -1358,14 +1437,22 @@ void readProjectile(Projectile& projectile, const raw::Projectile& raw)
 	}
 }
 
-void readSpace(Space& space, const raw::SpaceManager& raw)
+void readSpace(
+	Space& space,
+	const raw::SpaceManager& raw,
+	const Point<int>& playerShipPos,
+	const Point<int>& enemyShipPos)
 {
 	// Projectile are hard
 	space.projectiles.clear();
 
 	for (size_t i = 0; i < raw.projectiles.size(); i++)
 	{
-		readProjectile(space.projectiles.emplace_back(), *raw.projectiles[i]);
+		readProjectile(
+			space.projectiles.emplace_back(),
+			*raw.projectiles[i],
+			playerShipPos,
+			enemyShipPos);
 	}
 
 	// Hazard stuffs
@@ -1869,8 +1956,18 @@ void Reader::poll()
 
 		game.gameOver = rs.app->gui->gameover;
 
+		Point<int> playerShipPos, enemyShipPos;
+		{
+			auto& playerPos = rs.app->gui->combatControl.playerShipPosition;
+			playerShipPos = { playerPos.x, playerPos.y };
+
+			auto base = rs.app->gui->combatControl.position;
+			auto offset = rs.app->gui->combatControl.targetPosition;
+			enemyShipPos = { base.x + offset.x, base.y + offset.y };
+		}
+
 		// Space stuffs
-		readSpace(game.space, rs.app->world->space);
+		readSpace(game.space, rs.app->world->space, playerShipPos, enemyShipPos);
 
 		// Crew stuffs
 		{
@@ -1899,11 +1996,13 @@ void Reader::poll()
 				game.playerCrew,
 				rs.crewMemberFactory->crewMembers,
 				& rs.app->gui->crewControl.crewBoxes,
+				playerShipPos, enemyShipPos,
 				playerArriving, playerLeaving);
 
 			readEnemyCrewList(
 				game.enemyCrew,
 				rs.crewMemberFactory->crewMembers,
+				enemyShipPos, enemyShipPos,
 				enemyArriving, enemyLeaving);
 		}
 
@@ -1920,7 +2019,9 @@ void Reader::poll()
 				game.playerCrew,
 				game.enemyCrew,
 				*rs.app->gui,
-				rs.powerManagerContainer->powerManagers[0]);
+				rs.powerManagerContainer->powerManagers[0],
+				playerShipPos, enemyShipPos
+			);
 
 			game.justJumped = prevJumping && !game.playerShip->jumping;
 		}
@@ -1946,7 +2047,9 @@ void Reader::poll()
 					game.enemyCrew,
 					game.playerCrew,
 					*enemy,
-					rs.powerManagerContainer->powerManagers[1]);
+					rs.powerManagerContainer->powerManagers[1],
+					playerShipPos, enemyShipPos
+				);
 			}
 			else
 			{
@@ -1955,7 +2058,7 @@ void Reader::poll()
 		}
 
 		// Read the event stuff
-		if (game.pause.event || game.pause.menu || game.justJumped || game.justLoaded)
+		if (game.pause.event || game.justJumped || game.justLoaded)
 		{
 			auto&& choices = rs.app->world->choiceHistory;
 			auto* current = rs.app->world->baseLocationEvent;
@@ -1966,9 +2069,17 @@ void Reader::poll()
 			{
 				if (!current) break;
 
-				if (current->choices[i].event)
+				auto next = size_t(choices[i]);
+
+				if (next >= current->choices.size())
 				{
-					current = current->choices[i].event;
+					current = nullptr;
+					break;
+				}
+
+				if (current->choices[next].event)
+				{
+					current = current->choices[next].event;
 				}
 			}
 
@@ -1976,7 +2087,7 @@ void Reader::poll()
 			{
 				// Only null store pointer when jumping
 				bool preserveStore = game.playerShip && !game.playerShip->jumping;
-				readLocationEvent(game.event, *current, preserveStore);
+				readLocationEvent(game.event, *current);
 			}
 		}
 
