@@ -113,6 +113,7 @@ struct WeaponSystem : System
 	int slotCount = 0;
 	std::vector<Weapon> weapons;
 	std::vector<bool> userPowered, repower;
+	bool autoFire = false;
 };
 
 struct DroneSystem : System

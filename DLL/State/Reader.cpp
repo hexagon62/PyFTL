@@ -468,6 +468,7 @@ void readWeaponSystem(WeaponSystem& weapons, const raw::WeaponSystem& raw, const
 	weapons.weapons.clear();
 	weapons.userPowered.clear();
 	weapons.repower.clear();
+	weapons.autoFiring = false; // set when reading player ship
 
 	for (size_t i = 0; i < raw.weapons.size(); i++)
 	{
@@ -1097,6 +1098,12 @@ void readPlayerShip(
 		teleporter.targetRoom = gui.combatControl.teleportCommand.first;
 		teleporter.sending = gui.combatControl.teleportCommand.second == 1;
 		teleporter.receiving = gui.combatControl.teleportCommand.second == 2;
+	}
+
+	// Read player weapon stuff
+	if (ship.weapons)
+	{
+		ship.weapons->autoFire = gui.combatControl.weapControl.autoFiring;
 	}
 }
 
@@ -1939,7 +1946,7 @@ void Reader::poll()
 		game.pause.normal = rs.app->gui->bPaused;
 		game.pause.automatic = rs.app->gui->bAutoPaused;
 		game.pause.menu = rs.app->gui->menu_pause;
-		game.pause.event = rs.app->gui->event_pause;
+		game.pause.event = rs.app->gui->choiceBoxOpen; // more accurate for gauging if the event window's open
 		game.pause.touch = rs.app->gui->touch_pause;
 
 		game.pause.any = game.pause.normal
@@ -2058,7 +2065,7 @@ void Reader::poll()
 		}
 
 		// Read the event stuff
-		if (game.pause.event || game.justJumped || game.justLoaded)
+		if (game.pause.event || game.pause.menu || game.justJumped || game.justLoaded)
 		{
 			auto&& choices = rs.app->world->choiceHistory;
 			auto* current = rs.app->world->baseLocationEvent;
@@ -2086,9 +2093,11 @@ void Reader::poll()
 			if (current)
 			{
 				// Only null store pointer when jumping
-				bool preserveStore = game.playerShip && !game.playerShip->jumping;
-				readLocationEvent(game.event, *current);
+				bool preserveStore = game.event && game.playerShip && !game.playerShip->jumping;
+				if (!preserveStore) game.event = LocationEvent{};
+				readLocationEvent(*game.event, *current, preserveStore);
 			}
+			else game.event = std::nullopt;
 		}
 
 		readStarMap(game.starMap, rs.app->world->starMap);

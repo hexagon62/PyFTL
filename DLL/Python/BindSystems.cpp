@@ -115,6 +115,7 @@ void bindSystems(py::module_& module)
 		.def_readonly("weapons", &WeaponSystem::weapons, "The weapons installed")
 		.def_readonly("user_powered", &WeaponSystem::userPowered, "Which weapons are powered by the user")
 		.def_readonly("repower", &WeaponSystem::repower, "Which weapons will need repowering upon repair/deionization")
+		.def_readonly("auto_fire", &WeaponSystem::autoFire, "If auto-fire is toggled to on (player only)")
 		;
 
 	py::class_<DroneSystem, System>(module, "DroneSystem")
