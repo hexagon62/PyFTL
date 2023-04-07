@@ -43,6 +43,8 @@ void bindGeometry(py::module_& module)
 		;
 
 	py::implicitly_convertible<std::pair<float, float>, Point<float>>();
+	py::implicitly_convertible<Point<float>, Point<int>>();
+	py::implicitly_convertible<Point<int>, Point<float>>();
 
 	py::class_<Rect<int>>(module, "RectInt", "A rectangle encoded in integers")
 		.def(py::init<>())
