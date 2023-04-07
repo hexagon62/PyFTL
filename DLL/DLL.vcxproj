@@ -104,8 +104,6 @@
     <ClInclude Include="..\..\..\C++ Resources\include\imgui_impl_win32.h" />
     <ClInclude Include="GUI\GUI.hpp" />
     <ClInclude Include="Player\Input.hpp" />
-    <ClInclude Include="Player\OldInput.hpp" />
-    <ClInclude Include="Player\OldPlayer.hpp" />
     <ClInclude Include="Python\Bind.hpp" />
     <ClInclude Include="State\Data\Augment.hpp" />
     <ClInclude Include="State\Data\Blueprint.hpp" />
@@ -138,6 +136,7 @@
     <ClInclude Include="State\Data\SystemBlueprint.hpp" />
     <ClInclude Include="State\Data\Systems.hpp" />
     <ClInclude Include="State\Data\SystemType.hpp" />
+    <ClInclude Include="State\Data\UI.hpp" />
     <ClInclude Include="State\Data\WeaponBlueprint.hpp" />
     <ClInclude Include="State\Data\WeaponType.hpp" />
     <ClInclude Include="State\Raw.hpp" />
@@ -177,8 +176,6 @@
     <ClCompile Include="Python\BindWeapons.cpp" />
     <ClCompile Include="State\Reader.cpp" />
     <ClCompile Include="Utility\Memory.cpp" />
-    <None Include="Player\OldInput.cpp" />
-    <None Include="Player\OldPlayer.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

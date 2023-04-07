@@ -13,12 +13,6 @@
     <ClInclude Include="..\..\..\C++ Resources\include\imgui_impl_win32.h">
       <Filter>imgui</Filter>
     </ClInclude>
-    <ClInclude Include="Player\OldInput.hpp">
-      <Filter>Player</Filter>
-    </ClInclude>
-    <ClInclude Include="Player\OldPlayer.hpp">
-      <Filter>Player</Filter>
-    </ClInclude>
     <ClInclude Include="GUI\GUI.hpp">
       <Filter>GUI</Filter>
     </ClInclude>
@@ -118,9 +112,6 @@
     <ClInclude Include="State\Data\Point.hpp">
       <Filter>State\Data</Filter>
     </ClInclude>
-    <ClInclude Include="State\Data\Rect.hpp">
-      <Filter>State</Filter>
-    </ClInclude>
     <ClInclude Include="State\Data\Repairable.hpp">
       <Filter>State\Data</Filter>
     </ClInclude>
@@ -144,6 +135,12 @@
     </ClInclude>
     <ClInclude Include="State\Raw.hpp">
       <Filter>State</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\Rect.hpp">
+      <Filter>State\Data</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Data\UI.hpp">
+      <Filter>State\Data</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -255,13 +252,5 @@
     <Filter Include="State\Data">
       <UniqueIdentifier>{42572081-aa4c-425d-8e3a-b8971f719830}</UniqueIdentifier>
     </Filter>
-  </ItemGroup>
-  <ItemGroup>
-    <None Include="Player\OldInput.cpp">
-      <Filter>Player</Filter>
-    </None>
-    <None Include="Player\OldPlayer.cpp">
-      <Filter>Player</Filter>
-    </None>
   </ItemGroup>
 </Project>
