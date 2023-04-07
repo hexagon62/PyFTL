@@ -128,6 +128,7 @@ void bindInput(py::module_& module)
 		;
 
 	py::enum_<MouseButton>(sub, "MouseButton", "A mouse button")
+		.value("None", MouseButton::None)
 		.value("Left", MouseButton::Left)
 		.value("Middle", MouseButton::Middle)
 		.value("Right", MouseButton::Right)
@@ -146,84 +147,46 @@ void bindInput(py::module_& module)
 		
 	sub.def(
 		"mouse_move",
-		py::overload_cast<const Point<int>&, Duration>(& Input::mouseMove),
+		&Input::mouseMove,
 		py::arg("position"),
 		py::arg("delay") = ZERO_DURATION,
-		"Send a command to move the mouse"
-	);
-
-	sub.def(
-		"mouse_move",
-		py::overload_cast<int, int, Duration>(&Input::mouseMove),
-		py::arg("x"), py::arg("y"),
-		py::arg("delay") = ZERO_DURATION,
-		"Send a command to move the mouse"
+		"Send a command to move the mouse; mouse will not move if position is out of bounds"
 	);
 
 	sub.def(
 		"mouse_down",
-		py::overload_cast<const Point<int>&, MouseButton, bool, bool, Duration>(&Input::mouseDown),
-		py::arg("position"),
+		&Input::mouseDown,
 		py::arg("button") = MouseButton::Left,
+		py::kw_only(),
+		py::arg("position") = Point<int>(-1, -1),
 		py::arg("shift") = false,
 		py::arg("ctrl") = false,
 		py::arg("delay") = ZERO_DURATION,
-		"Send a command to hold the mouse button down"
-	);
-
-	sub.def(
-		"mouse_down",
-		py::overload_cast<int, int, MouseButton, bool, bool, Duration>(&Input::mouseDown),
-		py::arg("x"), py::arg("y"),
-		py::arg("button") = MouseButton::Left,
-		py::arg("shift") = false,
-		py::arg("ctrl") = false,
-		py::arg("delay") = ZERO_DURATION,
-		"Send a command to hold the mouse button down"
+		"Send a command to hold the mouse button down; mouse will not move if position is out of bounds"
 	);
 
 	sub.def(
 		"mouse_up",
-		py::overload_cast<const Point<int>&, MouseButton, bool, bool, Duration>(&Input::mouseUp),
-		py::arg("position"),
+		&Input::mouseUp,
 		py::arg("button") = MouseButton::Left,
+		py::kw_only(),
+		py::arg("position") = Point<int>(-1, -1),
 		py::arg("shift") = false,
 		py::arg("ctrl") = false,
 		py::arg("delay") = ZERO_DURATION,
-		"Send a command to release the mouse button"
-	);
-
-	sub.def(
-		"mouse_up",
-		py::overload_cast<int, int, MouseButton, bool, bool, Duration>(&Input::mouseUp),
-		py::arg("x"), py::arg("y"),
-		py::arg("button") = MouseButton::Left,
-		py::arg("shift") = false,
-		py::arg("ctrl") = false,
-		py::arg("delay") = ZERO_DURATION,
-		"Send a command to release the mouse button"
+		"Send a command to release the mouse button; mouse will not move if position is out of bounds"
 	);
 
 	sub.def(
 		"mouse_click",
-		py::overload_cast<const Point<int>&, MouseButton, bool, bool, Duration>(&Input::mouseClick),
-		py::arg("position"),
+		&Input::mouseClick,
 		py::arg("button") = MouseButton::Left,
+		py::kw_only(),
+		py::arg("position") = Point<int>(-1, -1),
 		py::arg("shift") = false,
 		py::arg("ctrl") = false,
 		py::arg("delay") = ZERO_DURATION,
-		"Send a command to click with the mouse button"
-	);
-
-	sub.def(
-		"mouse_click",
-		py::overload_cast<int, int, MouseButton, bool, bool, Duration>(&Input::mouseClick),
-		py::arg("x"), py::arg("y"),
-		py::arg("button") = MouseButton::Left,
-		py::arg("shift") = false,
-		py::arg("ctrl") = false,
-		py::arg("delay") = ZERO_DURATION,
-		"Send a command to click with the mouse button"
+		"Send a command to click the mouse button; mouse will not move if position is out of bounds"
 	);
 }
 

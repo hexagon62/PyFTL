@@ -1,4 +1,4 @@
-#include "Memory.hpp"
+#include "Utility/Memory.hpp"
 #include "GUI/GUI.hpp"
 #include "Player/Input.hpp"
 #include "Python/Bind.hpp"
@@ -249,6 +249,8 @@ LRESULT CALLBACK windowProc_hook(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lPa
     return CallWindowProc(g_hGameWindowProc, hWnd, uMsg, wParam, lParam);
 }
 
+mem::Hook g_glHook;
+
 BOOL __stdcall wglSwapBuffers_hook(HDC hDc)
 {
     if (!g_imguiInit)
@@ -290,54 +292,22 @@ BOOL __stdcall wglSwapBuffers_hook(HDC hDc)
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     }
 
-    return wglSwapBuffers_orig(hDc);
+    return reinterpret_cast<wglSwapBuffers_t>(g_glHook.original())(hDc);
 }
-
-struct GLHookHandle
-{
-    bool hooked = false;
-    wglSwapBuffers_t orig = nullptr;
-    wglSwapBuffers_t gateway = nullptr;
-    uintptr_t size = 0;
-};
-
-GLHookHandle g_glHookHandle;
 
 bool hookRenderer(ConsoleHandler& con)
 {
-    g_glHookHandle.size = 7;
+    void* addr = GetProcAddress(GetModuleHandle(L"opengl32.dll"), "wglSwapBuffers");
 
-    g_glHookHandle.orig = wglSwapBuffers_orig =
-        reinterpret_cast<wglSwapBuffers_t>(
-            GetProcAddress(GetModuleHandle(L"opengl32.dll"), "wglSwapBuffers"));
+    g_glHook.hook((BYTE*)addr, (BYTE*)wglSwapBuffers_hook, 7);
 
-    if (!g_glHookHandle.orig)
-        return false;
-
-    g_glHookHandle.gateway = wglSwapBuffers_orig =
-        reinterpret_cast<wglSwapBuffers_t>(
-            mem::trampHook32(
-                reinterpret_cast<BYTE*>(wglSwapBuffers_orig),
-                reinterpret_cast<BYTE*>(wglSwapBuffers_hook),
-                g_glHookHandle.size));
-
-    g_glHookHandle.hooked = true;
     PyFTLOut(con, "Hooked into OpenGL!\n");
     return true;
 }
 
 bool unhookRenderer()
 {
-    mem::removeHook32(
-        reinterpret_cast<BYTE*>(g_glHookHandle.orig),
-        reinterpret_cast<BYTE*>(g_glHookHandle.gateway),
-        g_glHookHandle.size);
-
-    wglSwapBuffers_orig = g_glHookHandle.orig;
-    g_glHookHandle.orig = nullptr;
-    g_glHookHandle.gateway = nullptr;
-    g_glHookHandle.size = 0;
-
+    g_glHook.unhook();
     Input::setReady(false);
 
     // Return the old wndProc function
@@ -347,7 +317,6 @@ bool unhookRenderer()
                 g_hGameWindow, GWLP_WNDPROC,
                 reinterpret_cast<LONG_PTR>(g_hGameWindowProcOld)));
 
-    g_glHookHandle.hooked = false;
     return true;
 }
 
@@ -490,7 +459,7 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         break;
     case DLL_PROCESS_DETACH:
         g_quit = true;
-        if (g_glHookHandle.hooked) unhookRenderer();
+        if (g_glHook.hooked()) unhookRenderer();
         while (!g_done && Reader::getState().running); // wait for everything to finish
         break;
     }

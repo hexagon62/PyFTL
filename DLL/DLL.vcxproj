@@ -103,7 +103,6 @@
     <ClInclude Include="..\..\..\C++ Resources\include\imgui_impl_opengl3_loader.h" />
     <ClInclude Include="..\..\..\C++ Resources\include\imgui_impl_win32.h" />
     <ClInclude Include="GUI\GUI.hpp" />
-    <ClInclude Include="Memory.hpp" />
     <ClInclude Include="Player\Input.hpp" />
     <ClInclude Include="Player\OldInput.hpp" />
     <ClInclude Include="Player\OldPlayer.hpp" />
@@ -144,6 +143,7 @@
     <ClInclude Include="State\Raw.hpp" />
     <ClInclude Include="State\Reader.hpp" />
     <ClInclude Include="State\State.hpp" />
+    <ClInclude Include="Utility\Memory.hpp" />
     <ClInclude Include="Utility\ValueScopeGuard.hpp" />
     <ClInclude Include="Utility\WindowsButWithoutAsMuchCancer.hpp" />
   </ItemGroup>
@@ -157,7 +157,6 @@
     <ClCompile Include="..\..\..\C++ Resources\src\imgui_tables.cpp" />
     <ClCompile Include="..\..\..\C++ Resources\src\imgui_widgets.cpp" />
     <ClCompile Include="dllmain.cpp" />
-    <ClCompile Include="Memory.cpp" />
     <ClCompile Include="Player\Input.cpp" />
     <ClCompile Include="Python\BindBlueprints.cpp" />
     <ClCompile Include="Python\BindCrew.cpp" />
@@ -177,6 +176,7 @@
     <ClCompile Include="Python\BindSystems.cpp" />
     <ClCompile Include="Python\BindWeapons.cpp" />
     <ClCompile Include="State\Reader.cpp" />
+    <ClCompile Include="Utility\Memory.cpp" />
     <None Include="Player\OldInput.cpp" />
     <None Include="Player\OldPlayer.cpp" />
   </ItemGroup>

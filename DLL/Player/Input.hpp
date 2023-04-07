@@ -10,7 +10,14 @@
 
 enum class MouseButton
 {
+	None = -1,
 	Left, Middle, Right
+};
+
+enum class MouseWillBe
+{
+	Unchanged = -1,
+	Up = 0, Down = 1
 };
 
 constexpr Duration ZERO_DURATION = Duration(0);
@@ -40,54 +47,25 @@ public:
 		Duration delay = ZERO_DURATION
 	);
 
-	static void mouseMove(
-		int x, int y,
-		Duration delay = ZERO_DURATION
-	);
-
 	static void mouseDown(
-		const Point<int>& pos,
 		MouseButton button = MouseButton::Left,
-		bool shift = false,
-		bool ctrl = false,
-		Duration delay = ZERO_DURATION
-	);
-
-	static void mouseDown(
-		int x, int y,
-		MouseButton button = MouseButton::Left,
+		const Point<int>& position = { -1, -1 },
 		bool shift = false,
 		bool ctrl = false,
 		Duration delay = ZERO_DURATION
 	);
 
 	static void mouseUp(
-		const Point<int>& pos,
 		MouseButton button = MouseButton::Left,
-		bool shift = false,
-		bool ctrl = false,
-		Duration delay = ZERO_DURATION
-	);
-
-	static void mouseUp(
-		int x, int y,
-		MouseButton button = MouseButton::Left,
+		const Point<int>& position = { -1, -1 },
 		bool shift = false,
 		bool ctrl = false,
 		Duration delay = ZERO_DURATION
 	);
 
 	static void mouseClick(
-		const Point<int>& pos,
 		MouseButton button = MouseButton::Left,
-		bool shift = false,
-		bool ctrl = false,
-		Duration delay = ZERO_DURATION
-	);
-
-	static void mouseClick(
-		int x, int y,
-		MouseButton button = MouseButton::Left,
+		const Point<int>& position = { -1, -1 },
 		bool shift = false,
 		bool ctrl = false,
 		Duration delay = ZERO_DURATION

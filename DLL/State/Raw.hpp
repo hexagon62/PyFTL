@@ -358,9 +358,104 @@ struct Animation
 	GL_Primitive* mirroredPrimitive = nullptr;
 };
 
+enum TextEvent : int
+{
+	TEXT_CONFIRM,
+	TEXT_CANCEL,
+	TEXT_CLEAR,
+	TEXT_BACKSPACE,
+	TEXT_DELETE,
+	TEXT_LEFT,
+	TEXT_RIGHT,
+	TEXT_HOME,
+	TEXT_END
+};
+
+// Looks like this is where input is handled?
 struct CEvent
 {
 	vptr _vptr = nullptr;
+
+	void OnInputFocus()
+	{
+		reinterpret_cast<void(__thiscall*)(CEvent*)>(this->_vptr[3])(this);
+	}
+
+	void OnInputBlur()
+	{
+		reinterpret_cast<void(__thiscall*)(CEvent*)>(this->_vptr[4])(this);
+	}
+
+	void OnKeyDown(int key)
+	{
+		reinterpret_cast<void(__thiscall*)(CEvent*, int)>(this->_vptr[5])(this, key);
+	}
+
+	void OnKeyUp(int key)
+	{
+		reinterpret_cast<void(__thiscall*)(CEvent*, int)>(this->_vptr[6])(this, key);
+	}
+
+	void OnTextInput(char c)
+	{
+		reinterpret_cast<void(__thiscall*)(CEvent*, char)>(this->_vptr[7])(this, c);
+	}
+
+	void OnTextEvent(TextEvent event)
+	{
+		reinterpret_cast<void(__thiscall*)(CEvent*, TextEvent)>(this->_vptr[8])(this, event);
+	}
+
+	void OnMouseMove(int mX, int mY, int relX, int relY, bool left, bool right, bool middle)
+	{
+		auto func = reinterpret_cast<void(__thiscall*)(CEvent*, int, int, int, int, bool, bool, bool)>(this->_vptr[9]);
+		func(this, mX, mY, relX, relY, left, right, middle);
+	}
+
+	void OnMouseWheel(bool up, bool down)
+	{
+		reinterpret_cast<void(__thiscall*)(CEvent*, bool, bool)>(this->_vptr[10])(this, up, down);
+	}
+
+	void OnLButtonDown(int mX, int mY)
+	{
+		reinterpret_cast<void(__thiscall*)(CEvent*, int, int)>(this->_vptr[11])(this, mX, mY);
+	}
+
+	void OnLButtonUp(int mX, int mY)
+	{
+		reinterpret_cast<void(__thiscall*)(CEvent*, int, int)>(this->_vptr[12])(this, mX, mY);
+	}
+
+	void OnRButtonDown(int mX, int mY)
+	{
+		reinterpret_cast<void(__thiscall*)(CEvent*, int, int)>(this->_vptr[13])(this, mX, mY);
+	}
+
+	void OnRButtonUp(int mX, int mY)
+	{
+		reinterpret_cast<void(__thiscall*)(CEvent*, int, int)>(this->_vptr[14])(this, mX, mY);
+	}
+
+	void OnMButtonDown(int mX, int mY)
+	{
+		reinterpret_cast<void(__thiscall*)(CEvent*, int, int)>(this->_vptr[15])(this, mX, mY);
+	}
+
+	void OnMButtonUp(int mX, int mY)
+	{
+		reinterpret_cast<void(__thiscall*)(CEvent*, int, int)>(this->_vptr[16])(this, mX, mY);
+	}
+
+	void OnRequestExit()
+	{
+		reinterpret_cast<void(__thiscall*)(CEvent*)>(this->_vptr[21])(this);
+	}
+
+	void OnExit()
+	{
+		reinterpret_cast<void(__thiscall*)(CEvent*)>(this->_vptr[22])(this);
+	}
 };
 
 struct GenericButton
@@ -772,11 +867,7 @@ struct Projectile : Collideable, Targetable
 
 	int getType() const
 	{
-		if (!this->Collideable::_vptr) return -1;
-
-		auto func = reinterpret_cast<int(*)(const Projectile*)>(this->Collideable::_vptr[31]);
-
-		return (*func)(this);
+		return reinterpret_cast<int(__thiscall*)(const Projectile*)>(this->Collideable::_vptr[31])(this);
 	}
 };
 

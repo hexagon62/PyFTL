@@ -1,6 +1,6 @@
 #include "Reader.hpp"
 #include "../Player/Input.hpp"
-#include "../Memory.hpp"
+#include "../Utility/Memory.hpp"
 
 #include <algorithm>
 #include <unordered_map>
@@ -1837,6 +1837,12 @@ void Reader::poll()
 
 	if (!state.running) return;
 
+	if (Input::ready())
+	{
+		rs.app->focus = true;
+		rs.app->inputFocus = true;
+	}
+
 	if (state.game)
 	{
 		auto&& game = *state.game;
@@ -2026,6 +2032,16 @@ const State& Reader::getState()
 const raw::State& Reader::getRawState()
 {
 	return rs;
+}
+
+raw::State& Reader::getRawState(MutableRawState)
+{
+	return rs;
+}
+
+void* Reader::getMemory(uintptr_t offset, MutableRawState)
+{
+	return (void*)(base + offset);
 }
 
 void Reader::setSeperateThread(bool on)

@@ -11,6 +11,14 @@ using Clock = std::chrono::steady_clock;
 using Duration = Clock::duration;
 using TimePoint = Clock::time_point;
 
+class MutableRawState
+{
+	// Only some classes may use this
+	friend class Input;
+
+	MutableRawState() {}
+};
+
 class Reader
 {
 public:
@@ -27,6 +35,10 @@ public:
 
 	static const State& getState();
 	static const raw::State& getRawState();
+	static raw::State& getRawState(MutableRawState); // gets mutable raw state, if allowed
+
+	// gets a pointer to some address, if allowed; very low level
+	static void* getMemory(uintptr_t offset, MutableRawState);
 
 	// When using a separate thread for the reader
 	// the reader will poll in its own thread

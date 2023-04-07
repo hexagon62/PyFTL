@@ -1,5 +1,7 @@
 #include "Input.hpp"
-#include "../Utility/WindowsButWithoutAsMuchCancer.hpp"
+#include "../Utility/Memory.hpp"
+
+#include <array>
 
 extern HWND g_hGameWindow;
 extern WNDPROC g_hGameWindowProc;
@@ -9,7 +11,11 @@ class Input::Impl
 public:
 	static constexpr int INPUT_CAP = 1;
 
-	Impl() = default;
+	Impl()
+	{
+		auto&& mrs = Reader::getRawState(MutableRawState{});
+	}
+
 	~Impl() = default;
 
 	void iterate()
@@ -24,14 +30,8 @@ public:
 
 			switch (cmd.type)
 			{
-			case Command::Type::MouseMove:
-				this->mouseMove(cmd.mouseMove.pos);
-				break;
-			case Command::Type::MouseDown:
-				[[fallthrough]];
-			case Command::Type::MouseUp:
-				this->mouseMove(cmd.mouseClick.pos);
-				this->mouseInput(cmd);
+			case Command::Type::Mouse:
+				this->mouseInput(cmd.mouse);
 				break;
 			}
 
@@ -45,18 +45,37 @@ public:
 		return !this->queue.empty();
 	}
 
+	void unhookAll()
+	{
+		this->shiftStateHook.unhook();
+		this->ctrlStateHook.unhook();
+	}
+
 private:
 	friend class Input;
 
-	struct MouseMove
-	{
-		Point<int> pos;
+	static constexpr size_t SHIFT_STATE_ADDR = 0x00178BE0;
+	static constexpr size_t CTRL_STATE_ADDR = 0x00178C20;
+
+	// Hookable "function" that simply returns 1
+	static constexpr std::array<BYTE, 10> RET_1{
+
+		0x55, // push ebp
+		0x89, 0xE5, // mov ebp,esp
+		0xB8, 0x01, 0x00, 0x00, 0x00, // mov eax,1
+		0xC9, // leave
+		0xC3  // ret
 	};
 
-	struct MouseClick
+	// We hook into the functions that grab if these keys are down
+	// and replace them with the above if we want to force them down
+	mem::Hook shiftStateHook, ctrlStateHook;
+
+	struct MouseCommand
 	{
-		Point<int> pos;
+		Point<int> position{ -1, -1 };
 		MouseButton button;
+		MouseWillBe state = MouseWillBe::Unchanged;
 		bool shift = false, ctrl = false;
 	};
 
@@ -64,8 +83,7 @@ private:
 	{
 		enum class Type
 		{
-			MouseMove, MouseDown, MouseUp,
-			KeyDown, KeyUp
+			Mouse, Key
 		};
 
 		Type type;
@@ -73,8 +91,7 @@ private:
 
 		union
 		{
-			MouseMove mouseMove;
-			MouseClick mouseClick;
+			MouseCommand mouse;
 		};
 	};
 
@@ -86,69 +103,93 @@ private:
 		}
 	};
 
-	static void mouseMove(const Point<int>& pos)
+	// Forces shift to be held, regardless of player input
+	void setShiftHeld(bool held)
 	{
-		LPARAM l = (pos.x & 0xffff) | ((pos.y & 0xffff) << 16);
-		postMessage(WM_MOUSEMOVE, 0, l);
+		if (held)
+		{
+			if (!this->shiftStateHook.hooked())
+			{
+				void* addr = Reader::getMemory(SHIFT_STATE_ADDR, {});
+				this->shiftStateHook.hook((BYTE*)addr, RET_1.data(), RET_1.size(), true);
+			}
+		}
+		else
+		{
+			this->shiftStateHook.unhook();
+		}
 	}
 
-	static void mouseInput(const Command& cmd)
+	// Forces ctrl to be held, regardless of player input
+	void setCtrlHeld(bool held)
 	{
-		auto&& click = cmd.mouseClick;
-		bool shift = cmd.mouseClick.shift;
-		bool ctrl = cmd.mouseClick.ctrl;
-
-		WPARAM w = (shift ? MK_SHIFT : 0) | (ctrl ? MK_CONTROL : 0);
-		UINT uMsg = 0;
-
-		if (cmd.type == Command::Type::MouseDown)
+		if (held)
 		{
-			switch (cmd.mouseClick.button)
+			if (!this->ctrlStateHook.hooked())
 			{
-			case MouseButton::Left: uMsg = WM_LBUTTONDOWN; break;
-			case MouseButton::Middle: uMsg = WM_MBUTTONDOWN; break;
-			case MouseButton::Right: uMsg = WM_RBUTTONDOWN; break;
+				void* addr = Reader::getMemory(CTRL_STATE_ADDR, {});
+				this->ctrlStateHook.hook((BYTE*)addr, RET_1.data(), RET_1.size(), true);
 			}
 		}
-		else if (cmd.type == Command::Type::MouseUp)
+		else
 		{
-			switch (cmd.mouseClick.button)
+			this->ctrlStateHook.unhook();
+		}
+	}
+
+	void mouseInput(const MouseCommand& mouse)
+	{
+		auto&& mrs = Reader::getRawState({});
+		Point<int> pos = mouse.position;
+
+		// Position is invalid (intentionally or not), don't move
+		if (this->offScreen(pos))
+		{
+			auto&& curr = mrs.app->gui->crewControl.currentMouse;
+			pos = { curr.x, curr.y };
+		}
+
+		mrs.app->OnMouseMove(pos.x, pos.y, 0, 0, false, false, false);
+
+		if (mouse.state == MouseWillBe::Unchanged || mouse.button == MouseButton::None)
+		{
+			return; // not clicking
+		}
+
+		this->setShiftHeld(mouse.shift);
+		this->setCtrlHeld(mouse.ctrl);
+
+		if (mouse.state == MouseWillBe::Down)
+		{
+			switch (mouse.button)
 			{
-			case MouseButton::Left: uMsg = WM_LBUTTONUP; break;
-			case MouseButton::Middle: uMsg = WM_MBUTTONUP; break;
-			case MouseButton::Right: uMsg = WM_RBUTTONUP; break;
+			case MouseButton::Left: mrs.app->OnLButtonDown(pos.x, pos.y); break;
+			case MouseButton::Middle: mrs.app->OnMButtonDown(pos.x, pos.y); break;
+			case MouseButton::Right: mrs.app->OnRButtonDown(pos.x, pos.y); break;
 			}
 		}
 
-		if (uMsg) postMessage(uMsg, w, 0);
+		if (mouse.state == MouseWillBe::Up)
+		{
+			switch (mouse.button)
+			{
+			case MouseButton::Left: mrs.app->OnLButtonUp(pos.x, pos.y); break;
+			case MouseButton::Middle: mrs.app->OnMButtonUp(pos.x, pos.y); break;
+			case MouseButton::Right: mrs.app->OnRButtonUp(pos.x, pos.y); break;
+			}
+		}
+	}
+
+	static bool offScreen(const Point<int>& p)
+	{
+		return
+			p.x < 0 || p.x >= Input::GAME_WIDTH ||
+			p.y < 0 || p.y >= Input::GAME_HEIGHT;
 	}
 
 	static void postMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
 	{
 		PostMessage(g_hGameWindow, uMsg | WM_FTLAI, wParam, lParam);
-	}
-
-	static Point<int> gameToScreen(const Point<int>& p)
-	{
-		RECT rect;
-		GetClientRect(g_hGameWindow, &rect);
-
-		Point<float> scale{
-			float(rect.right) / float(Input::GAME_WIDTH),
-			float(rect.bottom) / float(Input::GAME_HEIGHT)
-		};
-
-		scale.x *= float(p.x);
-		scale.y *= float(p.y);
-
-		Point<int> result = { int(rect.left) + int(scale.x), int(rect.top) + int(scale.y) };
-
-		if (result.x < rect.left) result.x = rect.left;
-		if (result.y < rect.top) result.y = rect.top;
-		if (result.x >= rect.right) result.x = rect.right - 1;
-		if (result.y >= rect.bottom) result.y = rect.bottom - 1;
-
-		return { int(result.x), int(result.y) };
 	}
 
 	using Queue = std::priority_queue<Command, std::vector<Command>, CommandCompare>;
@@ -157,8 +198,8 @@ private:
 
 Input::Impl Input::impl;
 bool Input::good = false;
-bool Input::humanMouse = false;
-bool Input::humanKeyboard = false;
+bool Input::humanMouse = true;
+bool Input::humanKeyboard = true;
 
 void Input::iterate()
 {
@@ -178,6 +219,11 @@ bool Input::ready()
 void Input::setReady(bool ready)
 {
 	good = ready;
+
+	if (!ready)
+	{
+		impl.unhookAll();
+	}
 }
 
 void Input::allowHumanMouse(bool allow)
@@ -201,67 +247,32 @@ bool Input::humanKeyboardAllowed()
 }
 
 void Input::mouseMove(
-	const Point<int>& pos,
+	const Point<int>& position,
 	Duration delay)
 {
 	impl.queue.push(Impl::Command{
-		.type = Impl::Command::Type::MouseMove,
+		.type = Impl::Command::Type::Mouse,
 		.time = Clock::now() + delay,
-		.mouseMove = {
-			.pos = Impl::gameToScreen(pos)
+		.mouse = {
+			.position = position
 		},
 	});
 }
 
-void Input::mouseMove(
-	int x, int y,
-	Duration delay)
-{
-	Input::mouseMove({ x, y }, delay);
-}
-
 void Input::mouseDown(
-	const Point<int>& pos,
 	MouseButton button,
+	const Point<int>& position,
 	bool shift,
 	bool ctrl,
 	Duration delay)
 {
 	impl.queue.push(Impl::Command{
-		.type = Impl::Command::Type::MouseDown,
+		.type = Impl::Command::Type::Mouse,
 		.time = Clock::now() + delay,
-		.mouseClick = {
-			.pos = Impl::gameToScreen(pos),
+		.mouse = {
+			.position = position,
 			.button = button,
-			.shift = shift,
-			.ctrl = ctrl
-		}
-	});
-}
-
-void Input::mouseDown(
-	int x, int y,
-	MouseButton button,
-	bool shift,
-	bool ctrl,
-	Duration delay)
-{
-	Input::mouseDown({ x, y }, button, shift, ctrl, delay);
-}
-
-void Input::mouseUp(
-	const Point<int>& pos,
-	MouseButton button,
-	bool shift,
-	bool ctrl,
-	Duration delay)
-{
-	impl.queue.push(Impl::Command{
-		.type = Impl::Command::Type::MouseUp,
-		.time = Clock::now() + delay,
-		.mouseClick = {
-			.pos = Impl::gameToScreen(pos),
-			.button = button,
+			.state = MouseWillBe::Down,
 			.shift = shift,
 			.ctrl = ctrl
 		}
@@ -269,39 +280,19 @@ void Input::mouseUp(
 }
 
 void Input::mouseUp(
-	int x, int y,
 	MouseButton button,
-	bool shift,
-	bool ctrl,
-	Duration delay)
-{
-	Input::mouseUp({ x, y }, button, shift, ctrl, delay);
-}
-
-void Input::mouseClick(
-	const Point<int>& pos,
-	MouseButton button,
+	const Point<int>& position,
 	bool shift,
 	bool ctrl,
 	Duration delay)
 {
 	impl.queue.push(Impl::Command{
-		.type = Impl::Command::Type::MouseDown,
+		.type = Impl::Command::Type::Mouse,
 		.time = Clock::now() + delay,
-		.mouseClick = {
-			.pos = Impl::gameToScreen(pos),
+		.mouse = {
+			.position = position,
 			.button = button,
-			.shift = shift,
-			.ctrl = ctrl
-		}
-	});
-
-	impl.queue.push(Impl::Command{
-		.type = Impl::Command::Type::MouseUp,
-		.time = Clock::now() + delay + Duration(1),
-		.mouseClick = {
-			.pos = Impl::gameToScreen(pos),
-			.button = button,
+			.state = MouseWillBe::Up,
 			.shift = shift,
 			.ctrl = ctrl
 		}
@@ -309,11 +300,12 @@ void Input::mouseClick(
 }
 
 void Input::mouseClick(
-	int x, int y,
 	MouseButton button,
+	const Point<int>& position,
 	bool shift,
 	bool ctrl,
 	Duration delay)
 {
-	Input::mouseClick({ x, y }, button, shift, ctrl, delay);
+	mouseDown(button, position, shift, ctrl, delay);
+	mouseUp(button, position, false, false, delay + std::chrono::nanoseconds(1));
 }

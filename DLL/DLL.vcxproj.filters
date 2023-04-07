@@ -1,7 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup>
-    <ClInclude Include="Memory.hpp" />
     <ClInclude Include="..\..\..\C++ Resources\include\imgui.h">
       <Filter>imgui</Filter>
     </ClInclude>
@@ -31,9 +30,6 @@
     </ClInclude>
     <ClInclude Include="Python\Bind.hpp">
       <Filter>Python</Filter>
-    </ClInclude>
-    <ClInclude Include="State\Raw.hpp">
-      <Filter>State</Filter>
     </ClInclude>
     <ClInclude Include="State\Reader.hpp">
       <Filter>State</Filter>
@@ -143,10 +139,15 @@
     <ClInclude Include="State\Data\EnvironmentType.hpp">
       <Filter>State\Data</Filter>
     </ClInclude>
+    <ClInclude Include="Utility\Memory.hpp">
+      <Filter>Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="State\Raw.hpp">
+      <Filter>State</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="dllmain.cpp" />
-    <ClCompile Include="Memory.cpp" />
     <ClCompile Include="..\..\..\C++ Resources\src\imgui.cpp">
       <Filter>imgui</Filter>
     </ClCompile>
@@ -227,6 +228,9 @@
     </ClCompile>
     <ClCompile Include="Python\BindInput.cpp">
       <Filter>Python</Filter>
+    </ClCompile>
+    <ClCompile Include="Utility\Memory.cpp">
+      <Filter>Utility</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
