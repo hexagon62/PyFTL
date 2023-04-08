@@ -22,6 +22,8 @@ class MutableRawState
 class Reader
 {
 public:
+	static constexpr Duration DEFAULT_POLL_DELAY = std::chrono::milliseconds(5);
+
 	Reader() = delete;
 
 	static bool init(); // returns true if successful, false otherwise
@@ -37,8 +39,8 @@ public:
 	static const raw::State& getRawState();
 	static raw::State& getRawState(MutableRawState); // gets mutable raw state, if allowed
 
-	// gets a pointer to some address, if allowed; very low level
-	static void* getMemory(uintptr_t offset, MutableRawState);
+	// get an address relative to the game's base address
+	static uintptr_t getRealAddress(uintptr_t offset, MutableRawState);
 
 	// When using a separate thread for the reader
 	// the reader will poll in its own thread
