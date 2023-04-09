@@ -1,22 +1,26 @@
 #pragma once
 
 #include <utility>
-#include <tuple>
 
 template<typename T>
 struct Point
 {
+	using component = T;
+
 	T x = T(0), y = T(0);
 
 	Point() = default;
-	Point(const Point& other) = default;
-	Point(const T& x, const T& y) : x(x), y(y) {}
-	Point(const std::pair<T, T>& p) : x(p.first), y(p.second) {}
 
 	template<typename U>
 	Point(const Point<U>& other)
 		: x(T(other.x))
 		, y(T(other.y))
+	{}
+
+	template<typename U>
+	Point(const std::pair<U, U>& other)
+		: x(T(other.first))
+		, y(T(other.second))
 	{}
 
 	template<typename U>
@@ -26,14 +30,9 @@ struct Point
 	{}
 
 	template<typename U>
-	Point(const std::pair<U, U>& p)
-		: x(T(p.first))
-		, y(T(p.second))
-	{}
-
-	operator std::pair<T, T>() const
+	operator std::pair<U, U>() const
 	{
-		return { this->x, this->y };
+		return { U(this->x), U(this->y) };
 	}
 
 	Point& operator+=(const Point& other)

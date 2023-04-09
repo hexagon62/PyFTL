@@ -1,16 +1,21 @@
+#include "State/Point.hpp"
+#include "State/Rect.hpp"
+#include "State/Ellipse.hpp"
+
 #include "Reader.hpp"
-#include "../Player/Input.hpp"
-#include "../Utility/Memory.hpp"
+#include "Input.hpp"
+#include "Utility/Memory.hpp"
+#include "Utility/Exceptions.hpp"
 
 #include <algorithm>
 #include <unordered_map>
 
-Duration Reader::delay{ std::chrono::microseconds(5000) };
-TimePoint Reader::nextPoll{ Clock::now() };
+Reader::Duration Reader::delay{};
+Reader::TimePoint Reader::start{};
+Reader::TimePoint Reader::nextPoll{};
 raw::State Reader::rs;
 State Reader::state;
 uintptr_t Reader::base = 0;
-std::jthread Reader::thread;
 bool Reader::reloading;
 extern bool g_quit;
 
@@ -26,6 +31,7 @@ int calculatePowerCap(int max, int cap, int loss, int divide)
 
 void readPower(Power& power, const raw::ShipSystem& raw)
 {
+	power.required = raw.iRequiredPower;
 	power.normal = raw.powerState.first;
 	power.zoltan = raw.iBonusPower;
 	power.battery = raw.iBatteryPower;
@@ -69,6 +75,8 @@ void readSystem(System& system, const raw::ShipSystem& raw)
 	system.damageProgress = raw.fDamageOverTime / 100.f;
 	system.repairProgress = raw.fRepairOverTime / 100.f;
 
+	system.hackLevel = HackLevel(raw.iHackEffect);
+
 	// figuring out if we're actually manned is more complicated...
 	//bool limited = system.power.cap < system.level.current;
 	//bool manningBlocked = raw.iHackEffect != 0 || system.boardersAttacking || limited;
@@ -83,15 +91,17 @@ void readShieldSystem(ShieldSystem& shields, const raw::Shields& raw, const Poin
 	readSystem(shields, raw);
 	shields.blueprint = Reader::getState().blueprints.systemBlueprints.at("shields");
 
-	shields.boundary.center = offset + Point<int>{ raw.baseShield.center.x, raw.baseShield.center.y };
-	shields.boundary.a = int(raw.baseShield.a);
-	shields.boundary.b = int(raw.baseShield.b);
+	shields.boundary = raw.baseShield;
 
-	shields.bubbles.first = raw.shields.power.first;
-	shields.bubbles.second = raw.shields.power.second;
+	shields.bubbles = {
+		raw.shields.power.first,
+		 raw.shields.power.second
+	};
 
-	shields.charge.first = raw.shields.charger;
-	shields.charge.second = raw.chargeTime;
+	shields.charge = {
+		raw.shields.charger,
+		shields.charge.second
+	};
 }
 
 void readEngineSystem(EngineSystem& engines, const raw::EngineSystem& raw)
@@ -123,11 +133,15 @@ void readClonebaySystem(
 	readSystem(clonebay, raw);
 	clonebay.blueprint = Reader::getState().blueprints.systemBlueprints.at("clonebay");
 
-	clonebay.cloneTimer.first = raw.fTimeToClone;
-	clonebay.cloneTimer.second = raw.fTimeGoal;
+	clonebay.cloneTimer = {
+		raw.fTimeToClone,
+		raw.fTimeGoal
+	};
 
-	clonebay.deathTimer.first = raw.fDeathTime;
-	clonebay.deathTimer.second = ClonebaySystem::HARDCODED_DEATH_TIME;
+	clonebay.deathTimer = {
+		raw.fDeathTime,
+		ClonebaySystem::HARDCODED_DEATH_TIME
+	};
 
 	clonebay.slot = raw.slot;
 
@@ -279,8 +293,7 @@ void readWeapon(Weapon& weapon, const raw::ProjectileFactory& raw, const Point<i
 	weapon.firingAngle = raw.currentFiringAngle;
 	weapon.entryAngle = raw.currentEntryAngle;
 
-	weapon.mount.x = raw.mount.position.x+raw.localPosition.x;
-	weapon.mount.y = raw.mount.position.y+raw.localPosition.y;
+	weapon.mount = raw.mount.position + raw.localPosition;
 
 	weapon.zoltanPower = raw.iBonusPower;
 
@@ -369,14 +382,10 @@ void readDrone(
 			? playerShipPos
 			: enemyShipPos;
 		
-		info.position.x = casted.currentLocation.x + position.x;
-		info.position.y = casted.currentLocation.y + position.y;
-		info.positionLast.x = casted.lastLocation.x + position.x;
-		info.positionLast.y = casted.lastLocation.y + position.y;
-		info.destination.x = casted.destinationLocation.x + destination.x;
-		info.destination.y = casted.destinationLocation.y + destination.y;
-		info.speed.x = casted.speedVector.x;
-		info.speed.y = casted.speedVector.y;
+		info.position = casted.currentLocation + position;
+		info.positionLast = casted.lastLocation + position;
+		info.destination = casted.destinationLocation + destination;
+		info.speed = casted.speedVector;
 
 		info.pause = casted.pause;
 
@@ -399,12 +408,12 @@ void readDrone(
 
 		if (casted.weaponBlueprint)
 		{
-			info.weapon = WeaponBlueprint{};
+			info.weapon.emplace();
 			readWeaponBlueprint(*info.weapon, *casted.weaponBlueprint);
 		}
 		else
 		{
-			info.weapon = std::nullopt;
+			info.weapon.reset();
 		}
 
 		// This is weird in that it's -1 if the weapon's not on cooldown
@@ -426,23 +435,22 @@ void readDrone(
 		if (extraMovementInfo)
 		{
 			auto&& casted2 = static_cast<const raw::CombatDrone&>(casted);
-			info.extraMovement = SpaceDroneMovementExtra{};
+			info.extraMovement.emplace();
 			auto&& movement = *info.extraMovement;
 			
-			movement.destinationLast.x = casted2.lastDestination.x + destination.x;
-			movement.destinationLast.y = casted2.lastDestination.y + destination.y;
+			movement.destinationLast = casted2.lastDestination + destination;
 			movement.progress = casted2.progressToDestination;
 			movement.heading = casted2.heading;
 			movement.headingLast = casted2.oldHeading;
 		}
 		else
 		{
-			info.extraMovement = std::nullopt;
+			info.extraMovement.reset();
 		}
 	}
 	else
 	{
-		drone.space = std::nullopt;
+		drone.space.reset();
 	}
 }
 
@@ -468,7 +476,7 @@ void readWeaponSystem(WeaponSystem& weapons, const raw::WeaponSystem& raw, const
 	weapons.weapons.clear();
 	weapons.userPowered.clear();
 	weapons.repower.clear();
-	weapons.autoFiring = false; // set when reading player ship
+	weapons.autoFire = false; // set when reading player ship
 
 	for (size_t i = 0; i < raw.weapons.size(); i++)
 	{
@@ -602,8 +610,8 @@ void readHackingSystem(
 	hacking.timer = raw.effectTimer;
 	hacking.target = SystemType(raw.currentSystem ? raw.currentSystem->iSystemType : -1);
 	hacking.queued = SystemType(raw.queuedSystem ? raw.queuedSystem->iSystemType : -1);
-	hacking.drone.start = { raw.drone.startingPosition.x, raw.drone.startingPosition.y };
-	hacking.drone.goal = { raw.drone.finalDestination.x, raw.drone.finalDestination.y };
+	hacking.drone.start = raw.drone.startingPosition;
+	hacking.drone.goal = raw.drone.finalDestination;
 	hacking.drone.arrived = raw.drone.arrive;
 	hacking.drone.setUp = raw.drone.finishedSetup;
 	hacking.drone.room = raw.drone.prefRoom;
@@ -725,8 +733,8 @@ void readRoomSlots(
 		slot.crewMoving.clear();
 		slot.crew = nullptr;
 		slot.intruder = nullptr;
-		slot.fire = std::nullopt;
-		slot.breach = std::nullopt;
+		slot.fire.reset();
+		slot.breach.reset();
 		slot.occupiable = true;
 	}
 
@@ -840,7 +848,7 @@ void readDoor(
 	door.vertical = raw.bVertical;
 	door.airlock = airlock; // game stores airlocks in different array rather than flagging doors
 	door.position = offset + Point<int>{ raw.x, raw.y };
-	door.dimensions = { raw.width, raw.height };
+	door.dimensions = Point<int>{ raw.width, raw.height };
 }
 
 void readGenericShipStuff(
@@ -850,7 +858,8 @@ void readGenericShipStuff(
 	const raw::ShipManager& raw,
 	const raw::PowerManager& power,
 	const Point<int>& playerShipPos,
-	const Point<int>& enemyShipPos)
+	const Point<int>& enemyShipPos,
+	const raw::gcc::vector<raw::SystemBox*>* sysBoxes = nullptr)
 {
 	ship.player = raw.iShipId == 0;
 	ship.destroyed = raw.bDestroyed;
@@ -886,21 +895,21 @@ void readGenericShipStuff(
 		ship.reactor.normal.second + ship.reactor.battery.second;
 
 	// Clear systems
-	ship.shields = std::nullopt;
-	ship.engines = std::nullopt;
-	ship.medbay = std::nullopt;
-	ship.clonebay = std::nullopt;
-	ship.oxygen = std::nullopt;
-	ship.teleporter = std::nullopt;
-	ship.cloaking = std::nullopt;
-	ship.mindControl = std::nullopt;
-	ship.hacking = std::nullopt;
-	ship.weapons = std::nullopt;
-	ship.drones = std::nullopt;
-	ship.piloting = std::nullopt;
-	ship.sensors = std::nullopt;
-	ship.doorControl = std::nullopt;
-	ship.battery = std::nullopt;
+	ship.shields.reset();
+	ship.engines.reset();
+	ship.medbay.reset();
+	ship.clonebay.reset();
+	ship.oxygen.reset();
+	ship.teleporter.reset();
+	ship.cloaking.reset();
+	ship.mindControl.reset();
+	ship.hacking.reset();
+	ship.weapons.reset();
+	ship.drones.reset();
+	ship.piloting.reset();
+	ship.sensors.reset();
+	ship.doorControl.reset();
+	ship.battery.reset();
 	ship.artillery.clear();
 
 	// Also clear total oxygen since that's read from the system
@@ -935,97 +944,114 @@ void readGenericShipStuff(
 	// Read systems
 	for (size_t i = 0; i < raw.vSystemList.size(); i++)
 	{
-		auto current = raw.vSystemList[i];
+		auto current = ship.player ? (*sysBoxes)[i]->pSystem : raw.vSystemList[i];
 		SystemType sys = SystemType(current->iSystemType);
 		ship.rooms[current->roomId].system = sys;
 
 		switch (sys)
 		{
 		case SystemType::Shields:
-			ship.shields = ShieldSystem{};
+			ship.shields.emplace();
 			readShieldSystem(*ship.shields, *static_cast<raw::Shields*>(current), position);
+			if (ship.player) ship.shields->uiBox = int(i);
 			break;
 		case SystemType::Engines:
-			ship.engines = EngineSystem{};
+			ship.engines.emplace();
 			readEngineSystem(*ship.engines, *static_cast<raw::EngineSystem*>(current));
+			if (ship.player) ship.engines->uiBox = int(i);
 			break;
 		case SystemType::Oxygen:
 		{
 			auto& oxygen = *static_cast<raw::OxygenSystem*>(current);
-			ship.oxygen = OxygenSystem{};
+			ship.oxygen.emplace();
 			readOxygenSystem(*ship.oxygen, oxygen);
 			ship.totalOxygen = oxygen.fTotalOxygen;
+			if (ship.player) ship.oxygen->uiBox = int(i);
 			break;
 		}
 		case SystemType::Weapons:
-			ship.weapons = WeaponSystem{};
+			ship.weapons.emplace();
 			readWeaponSystem(*ship.weapons, *static_cast<raw::WeaponSystem*>(current), position);
+			if (ship.player) ship.weapons->uiBox = int(i);
 			break;
 		case SystemType::Drones:
-			ship.drones = DroneSystem{};
+			ship.drones.emplace();
 			readDroneSystem(
 				*ship.drones,
 				*static_cast<raw::DroneSystem*>(current),
 				playerShipPos, enemyShipPos,
 				ship.superShields.first);
+			if (ship.player) ship.drones->uiBox = int(i);
 			break;
 		case SystemType::Medbay:
-			ship.medbay = MedbaySystem{};
+			ship.medbay.emplace();
 			readMedbaySystem(
 				*ship.medbay,
 				*static_cast<raw::MedbaySystem*>(current),
 				raw.ship.vRoomList);
+			if (ship.player) ship.medbay->uiBox = int(i);
 			break;
 		case SystemType::Piloting:
-			ship.piloting = PilotingSystem{};
+			ship.piloting.emplace();
 			readPilotingSystem(*ship.piloting, *current);
+			if (ship.player) ship.piloting->uiBox = int(i);
 			break;
 		case SystemType::Sensors:
-			ship.sensors = SensorSystem{};
+			ship.sensors.emplace();
 			readSensorsSystem(*ship.sensors, *current);
+			if (ship.player) ship.sensors->uiBox = int(i);
 			break;
 		case SystemType::Doors:
-			ship.doorControl = DoorSystem{};
+			ship.doorControl.emplace();
 			readDoorSystem(*ship.doorControl, *current);
+			if (ship.player) ship.doorControl->uiBox = int(i);
 			break;
 		case SystemType::Teleporter:
-			ship.teleporter = TeleporterSystem{};
+			ship.teleporter.emplace();
 			readTeleporterSystemGeneric(
 				*ship.teleporter, 
 				*static_cast<raw::TeleportSystem*>(current),
 				crew);
+			if (ship.player) ship.teleporter->uiBox = int(i);
 			break;
 		case SystemType::Cloaking:
-			ship.cloaking = CloakingSystem{};
+			ship.cloaking.emplace();
 			readCloakingSystem(*ship.cloaking, *static_cast<raw::CloakingSystem*>(current));
+			if (ship.player) ship.cloaking->uiBox = int(i);
 			break;
 		case SystemType::Artillery:
 		{
 			auto& newArtillery = ship.artillery.emplace_back();
+			newArtillery.discriminator = int(ship.artillery.size()-1);
 			readArtillerySystem(newArtillery, *static_cast<raw::ArtillerySystem*>(current), position);
+			if (ship.player) newArtillery.uiBox = int(i);
 			break;
 		}
-		case SystemType::battery:
-			ship.battery = BatterySystem{};
+		case SystemType::Battery:
+			ship.battery.emplace();
 			readBatterySystem(*ship.battery, *static_cast<raw::BatterySystem*>(current));
+			if (ship.player) ship.battery->uiBox = int(i);
 			break;
 		case SystemType::Clonebay:
-			ship.clonebay = ClonebaySystem{};
+			ship.clonebay.emplace();
 			readClonebaySystem(
 				*ship.clonebay,
 				*static_cast<raw::CloneSystem*>(current),
 				crew);
+			if (ship.player) ship.clonebay->uiBox = int(i);
 			break;
 		case SystemType::MindControl:
-			ship.mindControl = MindControlSystem{};
+			ship.mindControl.emplace();
 			readMindControlSystem(*ship.mindControl, *static_cast<raw::MindSystem*>(current));
+			if (ship.player) ship.mindControl->uiBox = int(i);
 			break;
 		case SystemType::Hacking:
-			ship.hacking = HackingSystem{};
+			ship.hacking.emplace();
 			readHackingSystem(
 				*ship.hacking,
 				*static_cast<raw::HackingSystem*>(current),
 				playerShipPos, enemyShipPos);
+			if (ship.player) ship.hacking->uiBox = int(i);
 			break;
 		}
 	}
@@ -1055,40 +1081,52 @@ void readPlayerShip(
 	ship.cargo.weapons.clear();
 	ship.cargo.drones.clear();
 	ship.cargo.augments.clear();
+	ship.cargo.overCapacity.clear();
 
 	auto&& boxes = gui.equipScreen.vEquipmentBoxes;
 	size_t weaponSlots = gui.shipStatus.ship->myBlueprint.weaponSlots;
 	size_t droneSlots = gui.shipStatus.ship->myBlueprint.droneSlots;
 	size_t storageStart = weaponSlots + droneSlots;
 
-	// We start after the equipped items, only counting those in storage
+	// Iterate over cargo boxes (not equipped weapons/drones)
 	for (size_t i = storageStart; i < boxes.size(); i++)
 	{
 		auto&& equipment = boxes[i]->item;
 
 		if (equipment.pWeapon) // weapon
 		{
-			auto&& weapon = ship.cargo.weapons.emplace_back();
+			auto&& weapon = boxes[i]->slot >= 4
+				? std::get<Weapon>(ship.cargo.overCapacity.emplace_back(Weapon{}))
+				: ship.cargo.weapons.emplace_back();
 
 			readWeapon(weapon, *equipment.pWeapon, { 0, 0 });
 		}
 
 		if (equipment.pDrone) // drone
 		{
-			auto&& drone = ship.cargo.drones.emplace_back();
+			auto&& drone = boxes[i]->slot >= 4
+				? std::get<Drone>(ship.cargo.overCapacity.emplace_back(Drone{}))
+				: ship.cargo.drones.emplace_back();
 
 			readDrone(drone, *equipment.pDrone, { 0, 0 }, { 0, 0 });
 		}
 
 		if (equipment.augment) // augment
 		{
-			auto&& augment = ship.cargo.augments.emplace_back();
+			auto&& augment = boxes[i]->slot >= 4
+				? std::get<Augment>(ship.cargo.overCapacity.emplace_back(Augment{}))
+				: ship.cargo.augments.emplace_back();
 
 			readAugment(augment, *equipment.augment);
 		}
 	}
 
-	readGenericShipStuff(ship, crew, enemyCrew, *gui.shipStatus.ship, power, playerShipPos, enemyShipPos);
+	readGenericShipStuff(
+		ship,
+		crew, enemyCrew,
+		*gui.shipStatus.ship, power,
+		playerShipPos, enemyShipPos,
+		&gui.sysControl.sysBoxes);
 
 	// Read player teleporter stuff
 	if (ship.teleporter)
@@ -1146,7 +1184,12 @@ void readEnemyShip(
 		ship.cargo.augments.emplace_back(augMap.at(augName));
 	}
 
-	readGenericShipStuff(ship, crew, enemyCrew, *raw.shipManager, power, playerShipPos, enemyShipPos);
+	readGenericShipStuff(
+		ship,
+		crew, enemyCrew,
+		*raw.shipManager, power,
+		playerShipPos, enemyShipPos
+	);
 
 	if (ship.teleporter)
 	{
@@ -1184,8 +1227,8 @@ void readCrew(Crew& crew, const raw::CrewMember& raw, const Point<int>& offset)
 
 	crew.health = raw.health;
 
-	crew.path.start = offset + Point<int>{ raw.path.start.x, raw.path.start.y };
-	crew.path.finish = offset + Point<int>{ raw.path.finish.x, raw.path.finish.y };
+	crew.path.start = offset + raw.path.start;
+	crew.path.finish = offset + raw.path.finish;
 	crew.path.distance = raw.path.distance;
 	crew.path.doors.clear();
 
@@ -1361,10 +1404,10 @@ void readProjectile(
 	const Point<int>& enemyShipPos)
 {
 	projectile.type = ProjectileType(raw.getType());
-	projectile.position = { raw.position.x, raw.position.y };
-	projectile.positionLast = { raw.last_position.x, raw.last_position.y };
-	projectile.target = { raw.target.x, raw.target.y };
-	projectile.speed = { raw.speed.x, raw.speed.y };
+	projectile.position = raw.position;
+	projectile.positionLast = raw.last_position;
+	projectile.target = raw.target;
+	projectile.speed = raw.speed;
 	projectile.lifespan = raw.lifespan;
 	projectile.heading = raw.heading;
 	projectile.entryAngle = raw.entryAngle;
@@ -1470,14 +1513,14 @@ void readSpace(
 	if (raw.bStorm) space.environment = EnvironmentType::IonStorm;
 	space.environmentTargetingEnemy = raw.envTarget == 1;
 	space.hazardTimer = { raw.flashTracker.current_time, raw.flashTracker.time };
-	space.asteroids = std::nullopt;
+	space.asteroids.reset();
 
 	if (raw.asteroidGenerator.bRunning)
 	{
 		space.environment = EnvironmentType::Asteroids;
 
 		auto&& gen = raw.asteroidGenerator;
-		space.asteroids = AsteroidInfo{};
+		space.asteroids.emplace();
 		auto&& info = *space.asteroids;
 
 		for (size_t i = 0; i < 3; i++)
@@ -1624,16 +1667,16 @@ void readLocationEvent(LocationEvent& event, const raw::LocationEvent& raw, bool
 	event.repair = raw.repair;
 	event.unlockShip = raw.unlockShip;
 
-	event.ship = std::nullopt;
+	event.ship.reset();
 	readResourceEvent(event.resources, raw.stuff);
 	readResourceEvent(event.reward, raw.reward);
-	if(!event._storePtr) event.store = std::nullopt;
+	if(!event._storePtr) event.store.reset();
 	event.damage.clear();
 	event.choices.clear();
 
 	if (raw.ship.present)
 	{
-		event.ship = ShipEvent{};
+		event.ship.emplace();
 		event.ship->hostile = raw.ship.hostile;
 		event.ship->surrenderThreshold = {
 			raw.ship.surrenderThreshold.min,
@@ -1656,8 +1699,7 @@ void readLocationEvent(LocationEvent& event, const raw::LocationEvent& raw, bool
 	if (raw.pStore)
 	{
 		event._storePtr = raw.pStore; // update store pointer
-		event.store = Store{};
-		readStore(*event.store, *raw.pStore);
+		readStore(event.store.emplace(), *raw.pStore);
 	}
 
 	for (size_t i = 0; i < raw.damage.size(); i++)
@@ -1690,7 +1732,7 @@ void readLocationEvent(LocationEvent& event, const raw::LocationEvent& raw, bool
 // id & neighbors are read in the readStarMap function
 void readLocation(Location& location, const raw::Location& raw)
 {
-	location.position = { raw.loc.x, raw.loc.y };
+	location.position = raw.loc;
 	location.visits = raw.visited;
 	location.known = raw.known;
 	location.exit = raw.beacon;
@@ -1710,7 +1752,7 @@ void readSector(Sector& sector, const raw::Sector& raw)
 	sector.name = raw.description.name.data.str;
 	sector.visited = raw.visited;
 	sector.reachable = raw.reachable;
-	sector.position = { raw.location.x, raw.location.y };
+	sector.position = raw.location;
 	sector.level = raw.level;
 	sector.unique = raw.description.unique;
 }
@@ -1721,10 +1763,10 @@ void readStarMap(StarMap& map, const raw::StarMap& raw)
 	map.flagshipJumping = raw.bossJumping;
 	map.mapRevealed = raw.bMapRevealed;
 	map.secretSector = raw.secretSector;
-	map.translation = { raw.translation.x, raw.translation.y };
-	map.dangerZone.center = { float(raw.dangerZone.x), float(raw.dangerZone.y) };
-	map.dangerZone.a = raw.dangerZoneRadius;
-	map.dangerZone.b = raw.dangerZoneRadius;
+	map.translation = raw.translation;
+	map.dangerZone.center = raw.dangerZone;
+	map.dangerZone.a = raw.dangerZoneRadius*2.f;
+	map.dangerZone.b = raw.dangerZoneRadius*2.f;
 	map.pursuitDelay = raw.pursuitDelay;
 	map.turnsLeft = raw.arrivedAtBase == 0 ? -1 : 4 - raw.arrivedAtBase;
 	map.choosingNewSector = raw.bChoosingNewSector;
@@ -1837,8 +1879,7 @@ void readSettings(Settings& settings, const raw::SettingValues& raw)
 	settings.colorblindMode = raw.colorblind;
 	settings.advancedEditionEnabled = raw.bDlcEnabled;
 	settings.language = raw.language.str;
-	settings.screenSize.x = raw.screenResolution.x;
-	settings.screenSize.y = raw.screenResolution.y;
+	settings.screenSize = raw.screenResolution;
 	settings.eventChoiceSelection = Settings::EventChoiceSelection(raw.dialogKeys);
 
 	settings.hotkeys.clear();
@@ -1857,10 +1898,107 @@ void readSettings(Settings& settings, const raw::SettingValues& raw)
 	}
 }
 
+void readUI(State& state, const raw::State& raw)
+{
+	auto&& ui = state.ui;
+
+	if (raw.mouseControl)
+	{
+		auto&& mouse = *raw.mouseControl;
+		ui.mouse.position = mouse.position;
+		ui.mouse.positionLast = mouse.lastPosition;
+	}
+
+	if (state.game && state.game->playerShip)
+	{
+		if (!ui.game) ui.game.emplace();
+
+		auto&& gui = *raw.app->gui;
+
+		ui.game->ftl = gui.ftlButton.hitbox;
+		ui.game->shipMenu = gui.upgradeButton.hitbox;
+		ui.game->menu = gui.optionsButton.hitbox;
+
+		auto&& crewBoxes = gui.crewControl.crewBoxes;
+		ui.game->crewBoxes.clear();
+
+		for (size_t i = 0; i < crewBoxes.size(); i++)
+		{
+			ui.game->crewBoxes.push_back({
+				crewBoxes[i]->box,
+				crewBoxes[i]->skillBox
+			});
+		}
+
+		ui.game->saveStations = gui.crewControl.saveStations.hitbox;
+		ui.game->returnToStations = gui.crewControl.returnStations.hitbox;
+
+		ui.game->reactor = gui.sysControl.SystemPower;
+		ui.game->reactor.x += gui.sysControl.position.x;
+		ui.game->reactor.y += gui.sysControl.position.y;
+
+		ui.game->shields.reset();
+		ui.game->engines.reset();
+		ui.game->oxygen.reset();
+		ui.game->weapons.reset();
+		ui.game->drones.reset();
+		ui.game->medbay.reset();
+		ui.game->piloting.reset();
+		ui.game->sensors.reset();
+		ui.game->doorControl.reset();
+		ui.game->teleporter.reset();
+		ui.game->cloaking.reset();
+		ui.game->artillery.clear();
+		ui.game->battery.reset();
+		ui.game->clonebay.reset();
+		ui.game->mindControl.reset();
+		ui.game->hacking.reset();
+
+		auto&& ship = *state.game->playerShip;
+		auto&& sysBoxes = gui.sysControl.sysBoxes;
+		auto&& sysPos = gui.sysControl.position;
+
+		for (size_t i = 0; i < sysBoxes.size(); i++)
+		{
+			auto&& box = *sysBoxes[i];
+			auto&& sys = box.pSystem;
+			auto type = SystemType(sys->iSystemType);
+
+			switch (type)
+			{
+			case SystemType::Shields: ui.game->shields.emplace(box.hitBox + sysPos); break;
+			case SystemType::Engines: ui.game->engines.emplace(box.hitBox + sysPos); break;
+			case SystemType::Oxygen: ui.game->oxygen.emplace(box.hitBox + sysPos); break;
+			case SystemType::Weapons: ui.game->weapons.emplace(box.hitBox + sysPos); break;
+			case SystemType::Drones: ui.game->drones.emplace(box.hitBox + sysPos); break;
+			case SystemType::Medbay: ui.game->medbay.emplace(box.hitBox + sysPos); break;
+			case SystemType::Piloting: ui.game->piloting.emplace(box.hitBox + sysPos); break;
+			case SystemType::Sensors: ui.game->sensors.emplace(box.hitBox + sysPos); break;
+			case SystemType::Doors: ui.game->doorControl.emplace(box.hitBox + sysPos); break;
+			case SystemType::Teleporter: ui.game->teleporter.emplace(box.hitBox + sysPos); break;
+			case SystemType::Cloaking: ui.game->cloaking.emplace(box.hitBox + sysPos); break;
+			case SystemType::Artillery: ui.game->artillery.emplace_back(box.hitBox + sysPos); break;
+			case SystemType::Battery: ui.game->battery.emplace(box.hitBox + sysPos); break;
+			case SystemType::Clonebay: ui.game->clonebay.emplace(box.hitBox + sysPos); break;
+			case SystemType::MindControl: ui.game->mindControl.emplace(box.hitBox + sysPos); break;
+			case SystemType::Hacking: ui.game->hacking.emplace(box.hitBox + sysPos); break;
+			}
+		}
+	}
+	else
+	{
+		ui.game.reset();
+	}
+}
+
 }
 
 bool Reader::init()
 {
+	start = Clock::now();
+	nextPoll = Clock::now();
+	setPollTime(Reader::DEFAULT_POLL_TIME);
+
 	base = reinterpret_cast<uintptr_t>(GetModuleHandle(L"FTLGame.exe"));;
 
 	memcpy_s(
@@ -1873,7 +2011,7 @@ bool Reader::init()
 	rs.settingValues = &mem::get<raw::SettingValues>(base + raw::SettingValuesPtr);
 	rs.blueprints = &mem::get<raw::BlueprintManager>(base + raw::BlueprintManagerPtr);
 	rs.powerManagerContainer = &mem::get<raw::PowerManagerContainer>(base + raw::PowerManagerContainerPtr);
-
+	rs.mouseControl = &mem::get<raw::MouseControl>(base + raw::MouseControlPtr);
 
 	// Read blueprints...
 	state.blueprints.weaponBlueprints.clear();
@@ -1916,16 +2054,12 @@ bool Reader::init()
 		readSystemBlueprint(system, value);
 	});
 
-	readSettings(state.settings, *rs.settingValues);
-
-	nextPoll = Clock::now();
-	
 	poll();
 
 	return true;
 }
 
-void Reader::poll()
+void Reader::read()
 {
 	state.running = rs.app && rs.app->Running;
 
@@ -1936,6 +2070,8 @@ void Reader::poll()
 		rs.app->focus = true;
 		rs.app->inputFocus = true;
 	}
+
+	readSettings(state.settings, *rs.settingValues);
 
 	if (state.game)
 	{
@@ -1956,21 +2092,22 @@ void Reader::poll()
 		game.pause.justPaused = !prevPause && game.pause.any;
 		game.pause.justUnpaused = prevPause && !game.pause.any;
 
-		if (game.justLoaded || rs.app->gui->optionsBox.bOpen)
-		{
-			readSettings(state.settings, *rs.settingValues);
-		}
-
 		game.gameOver = rs.app->gui->gameover;
 
 		Point<int> playerShipPos, enemyShipPos;
 		{
 			auto& playerPos = rs.app->gui->combatControl.playerShipPosition;
-			playerShipPos = { playerPos.x, playerPos.y };
+			playerShipPos = playerPos;
 
-			auto base = rs.app->gui->combatControl.position;
-			auto offset = rs.app->gui->combatControl.targetPosition;
-			enemyShipPos = { base.x + offset.x, base.y + offset.y };
+			Point<int> base = rs.app->gui->combatControl.position;
+			Point<int> offset = rs.app->gui->combatControl.targetPosition;
+			enemyShipPos = base + offset;
+
+			if (state.ui.game)
+			{
+				state.ui.game->playerShip = playerShipPos;
+				state.ui.game->enemyShip = enemyShipPos;
+			}
 		}
 
 		// Space stuffs
@@ -2017,7 +2154,7 @@ void Reader::poll()
 
 		if (shipStatus.ship)
 		{
-			if (!game.playerShip) game.playerShip = Ship{};
+			if (!game.playerShip) game.playerShip.emplace();
 
 			bool prevJumping = game.playerShip->jumping;
 
@@ -2034,7 +2171,7 @@ void Reader::poll()
 		}
 		else
 		{
-			game.playerShip = std::nullopt;
+			game.playerShip.reset();
 			game.justJumped = false;
 		}
 
@@ -2047,7 +2184,7 @@ void Reader::poll()
 
 			if (enemy)
 			{
-				if (!game.enemyShip) game.enemyShip = Ship{};
+				if (!game.enemyShip) game.enemyShip.emplace();
 
 				readEnemyShip(
 					*game.enemyShip,
@@ -2060,7 +2197,7 @@ void Reader::poll()
 			}
 			else
 			{
-				game.enemyShip = std::nullopt;
+				game.enemyShip.reset();
 			}
 		}
 
@@ -2094,10 +2231,10 @@ void Reader::poll()
 			{
 				// Only null store pointer when jumping
 				bool preserveStore = game.event && game.playerShip && !game.playerShip->jumping;
-				if (!preserveStore) game.event = LocationEvent{};
+				if (!preserveStore) game.event.emplace();
 				readLocationEvent(*game.event, *current, preserveStore);
 			}
-			else game.event = std::nullopt;
+			else game.event.reset();
 		}
 
 		readStarMap(game.starMap, rs.app->world->starMap);
@@ -2105,13 +2242,15 @@ void Reader::poll()
 		if (game.justLoaded) game.justLoaded = false;
 	}
 
+	readUI(state, rs);
+
 	if (rs.app->menu.bOpen) // not in game
 	{
-		state.game = std::nullopt;
+		state.game.reset();
 	}
-	else if (state.game == std::nullopt) // create game object if it doesn't exist
+	else if (!state.game) // create game object if it doesn't exist
 	{
-		state.game = Game{};
+		state.game.emplace();
 		state.game->pause.justUnpaused = true;
 		state.game->justLoaded = true;
 	}
@@ -2121,27 +2260,64 @@ void Reader::wait()
 {
 	// Only sleep if we polled too soon!
 	std::this_thread::sleep_until(nextPoll);
-	nextPoll = Clock::now() + delay;
+	nextPoll = Reader::Clock::now() + delay;
 }
 
-void Reader::fullPoll()
+void Reader::iterate()
 {
 	Reader::wait();
-	Reader::poll();
-	if(Input::ready()) Input::iterate();
+	Reader::read();
+	if (Input::ready()) Input::iterate();
 }
 
-void Reader::setPollDelay(const Duration& d)
-{
-	if (d < std::chrono::milliseconds(1))
-		throw std::invalid_argument("cannot use poll delay less than 1 millisecond");
+std::mutex readerMutex;
+std::condition_variable readerCV;
 
-	delay = d;
+void Reader::poll()
+{
+	iterate();
 }
 
-const Duration& Reader::getPollDelay()
+namespace
 {
-	return delay;
+
+using DoubleDuration = std::chrono::duration<double, std::ratio<1>>;
+
+Reader::Duration fromDouble(double d)
+{
+	return std::chrono::duration_cast<Reader::Duration>(DoubleDuration{ d });
+}
+
+double toDouble(Reader::Duration d)
+{
+	return std::chrono::duration_cast<DoubleDuration>(d).count();
+}
+
+}
+
+void Reader::setPollTime(double d)
+{
+	if (d < 0.001)
+	{
+		throw InvalidTime("poll time must be greater than 1 millisecond");
+	}
+
+	if (d > 1.f)
+	{
+		throw InvalidTime("poll time must be less than 1 second");
+	}
+
+	delay = fromDouble(d);
+}
+
+double Reader::pollTime()
+{
+	return toDouble(delay);
+}
+
+double Reader::now()
+{
+	return toDouble(Clock::now() - start);
 }
 
 const State& Reader::getState()
@@ -2159,34 +2335,9 @@ raw::State& Reader::getRawState(MutableRawState)
 	return rs;
 }
 
-void* Reader::getMemory(uintptr_t offset, MutableRawState)
+uintptr_t Reader::getRealAddress(uintptr_t offset, MutableRawState)
 {
-	return (void*)(base + offset);
-}
-
-void Reader::setSeperateThread(bool on)
-{
-	if (!on && thread.joinable()) // already running
-	{
-		thread.request_stop();
-		thread.join();
-	}
-	else if(on && !thread.joinable()) // not running
-	{
-		std::jthread newThread([](std::stop_token stop_token) {
-			while (!stop_token.stop_requested())
-			{
-				Reader::fullPoll();
-			}
-		});
-
-		thread = std::move(newThread);
-	}
-}
-
-bool Reader::usingSeperateThread()
-{
-	return thread.joinable();
+	return base + offset;
 }
 
 void Reader::reload()

@@ -18,6 +18,7 @@ void bindStarMap(py::module_& module);
 void bindMisc(py::module_& module);
 void bindSettings(py::module_& module);
 void bindBlueprints(py::module_& module);
+void bindUI(py::module_& module);
 void bindInput(py::module_& module);
 
 }
@@ -43,5 +44,6 @@ PYBIND11_EMBEDDED_MODULE(ftl, module)
 	bindMisc(module);
 	bindSettings(module);
 	bindBlueprints(module);
+	bindUI(module);
 	bindInput(module);
 }

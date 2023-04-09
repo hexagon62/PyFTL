@@ -5,6 +5,7 @@
 struct Power
 {
 	std::pair<int, int> total{ 0, 0 };
+	int required = 0;
 	int normal = 0;
 	int zoltan = 0;
 	int battery = 0;

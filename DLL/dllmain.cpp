@@ -1,6 +1,6 @@
 #include "Utility/Memory.hpp"
 #include "GUI/GUI.hpp"
-#include "Player/Input.hpp"
+#include "Input.hpp"
 #include "Python/Bind.hpp"
 
 #define GLEW_STATIC
@@ -34,7 +34,7 @@ struct ConsoleHandler
 
     operator bool()
     {
-        return this->out && this->err && this->in && this->hConsole;
+        return this->out && this->in && this->hConsole;
     }
 
     void init()
@@ -42,11 +42,9 @@ struct ConsoleHandler
         AllocConsole();
 
         this->out = new FILE();
-        this->err = new FILE();
         this->in = new FILE();
 
         freopen_s(&this->out, "CONOUT$", "w", stdout);
-        freopen_s(&this->err, "CONERR$", "w", stderr);
         freopen_s(&this->in, "CONIN$", "r", stdin);
 
         this->hConsole = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -60,11 +58,9 @@ struct ConsoleHandler
         FreeConsole();
 
         fclose(this->out);
-        fclose(this->err);
         fclose(this->in);
 
         this->out = nullptr;
-        this->err = nullptr;
         this->in = nullptr;
         this->hConsole = nullptr;
     }
@@ -83,7 +79,6 @@ struct ConsoleHandler
     }
 
     FILE* out = nullptr;
-    FILE* err = nullptr;
     FILE* in = nullptr;
     HANDLE hConsole = nullptr;
 };
@@ -366,37 +361,41 @@ py::module initPython(ConsoleHandler& con)
 
     try
     {
-        result.attr("on_start")();
+        if (py::hasattr(result, "on_start"))
+        {
+            result.attr("on_start")();
+        }
     }
     catch (const std::exception& e)
     {
         PyFTLErr(con, "Python exception: ", e.what(), '\n');
-        PyFTLErr(con, "Since this exception happened in on_start, PyFTL will abort.\n");
-        unrecoverable();
     }
 
     return result;
 }
 
-bool mainLoop(ConsoleHandler& con, py::module& pyMain)
+void mainLoop(ConsoleHandler& con, py::module& pyMain)
 {
-    TimePoint last = Clock::now();
+    static double last = Reader::now();
 
-    if (!Reader::usingSeperateThread())
+    try
     {
-        Reader::fullPoll();
+        py::gil_scoped_acquire gil;
 
-        Duration timeEllapsed = Clock::now() - last;
-        last = Clock::now();
+        Reader::poll();
 
-        try
+        double now = Reader::now();
+        double timeEllapsed = now - last;
+        last = now;
+
+        if (py::hasattr(pyMain, "on_update"))
         {
             pyMain.attr("on_update")(timeEllapsed);
         }
-        catch (const std::exception& e)
-        {
-            PyFTLErr(con, "Python exception: ", e.what(), '\n');
-        }
+    }
+    catch (const std::exception& e)
+    {
+        PyFTLErr(con, "Python exception: ", e.what(), '\n');
     }
 
     if (Reader::reloadRequested())
@@ -405,8 +404,6 @@ bool mainLoop(ConsoleHandler& con, py::module& pyMain)
         pyMain = initPython(con);
         Reader::finishReload();
     }
-
-    return true;
 }
 
 DWORD WINAPI patcherThread(HMODULE hModule)
@@ -420,7 +417,10 @@ DWORD WINAPI patcherThread(HMODULE hModule)
         py::scoped_interpreter pyInterpreter{};
         py::module pyMain = initPython(con);
 
-        while (!g_quit && mainLoop(con, pyMain));
+        while (!g_quit)
+        {
+            mainLoop(con, pyMain);
+        }
     }
     catch (const std::exception& e)
     {

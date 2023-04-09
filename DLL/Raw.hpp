@@ -1,5 +1,8 @@
 #pragma once
-#pragma once
+
+#include "State/Point.hpp"
+#include "State/Rect.hpp"
+#include "State/Ellipse.hpp"
 
 #include <cstdint>
 #include <cstddef>
@@ -244,26 +247,10 @@ struct GL_Primitive
 	int id = 0;
 };
 
-struct Point
-{
-	int x = 0, y = 0;
-};
-
-struct Pointf
-{
-	float x = 0, y = 0;
-};
-
-struct Rect
-{
-	int x = 0, y = 0, w = 0, h = 0;
-};
-
-struct Ellipse
-{
-	Point center;
-	float a = 0.f, b = 0.f;
-};
+using Point = ::Point<int>;
+using Pointf = ::Point<float>;
+using Rect = ::Rect<int>;
+using Ellipse = ::Ellipse<float, int>;
 
 struct CachedPrimitive
 {
@@ -2022,6 +2009,48 @@ struct ShipManager : ShipObject, Targetable, Collideable
 	Pad<3> _u8;
 };
 
+struct DoorBox : SystemBox
+{
+	GL_Texture* box = nullptr;
+	Button openDoors, closeDoors;
+	ShipManager* ship = nullptr;
+	Point buttonOffset;
+};
+
+struct TeleporterBox : SystemBox
+{
+	GL_Texture* box = nullptr;
+	Button teleportLeave;
+	Button teleportArrive;
+	TeleportSystem* teleSystem = nullptr;
+	Point buttonOffset;
+	WarningMessage superShieldWarning;
+};
+
+struct CooldownSystemBox : SystemBox
+{
+	GL_Primitive* box[5]{ nullptr, nullptr, nullptr, nullptr, nullptr };
+	GL_Texture* bar[5]{ nullptr, nullptr, nullptr, nullptr, nullptr };
+	Point boxPosition;
+	bool roundDown = false;
+	Pad<3> _u0;
+	GL_Primitive* barPrimitive = nullptr;
+	int lastBarHeight = 0;
+	int lastBarTop = 0;
+};
+
+struct ArtilleryBox : CooldownSystemBox
+{
+	ArtillerySystem* artSystem = nullptr;
+	Point buttonOffset;
+};
+
+struct SystemCustomBox : SystemBox
+{
+	ShipManager* shipManager = nullptr;
+	Button button;
+};
+
 struct EquipmentBoxItem
 {
 	ProjectileFactory* pWeapon = nullptr;
@@ -2145,12 +2174,6 @@ struct CrewCustomizeBox : CrewEquipBox
 	GL_Primitive* box = nullptr;
 	GL_Primitive* box_on = nullptr;
 	GL_Texture* bigBox = nullptr;
-};
-
-struct SystemCustomBox : SystemBox
-{
-	ShipManager* shipManager = nullptr;
-	Button button;
 };
 
 struct CAchievement
@@ -2522,6 +2545,17 @@ struct WeaponControl : ArmamentControl
 	WarningMessage missileMessage;
 	WarningMessage systemMessage;
 	int armedSlot = 0;
+};
+
+struct WeaponSystemBox : SystemBox
+{
+	WeaponControl* weapControl = nullptr;
+	TextButton autofireButton;
+	Point buttonOffset;
+	TouchTooltip* autofireTouchTooltip = nullptr;
+	bool touchTipWasOpen = false;
+	bool autofireTipWasOpen = false;
+	Pad<2> _u0;
 };
 
 struct CrewAI
@@ -3762,6 +3796,39 @@ struct PowerManagerContainer
 	gcc::vector<PowerManager> powerManagers;
 };
 
+struct MouseControl
+{
+	Point position;
+	Point lastPosition;
+	int aiming_required = 0;
+	int iTeleporting = 0;
+	int iMindControlling = 0;
+	bool bSellingStuff = false;
+	bool valid = false;
+	bool newHover = false;
+	bool lastValid = false;
+	int animateDoor = 0;
+	GL_Texture* validPointer = nullptr;
+	GL_Texture* invalidPointer = nullptr;
+	GL_Texture* selling = nullptr;
+	Animation openDoor;
+	int tooltipFont = 0;
+	gcc::string tooltip;
+	float tooltipTimer = 0.f;
+	bool bMoving = false;
+	bool bHideMouse = false;
+	Pad<2> _u0;
+	GL_Texture* lastIcon = nullptr;
+	GL_Texture* lastAddition = nullptr;
+	bool bForceTooltip = false;
+	Pad<3> _u1;
+	gcc::string tooltipTitle;
+	gcc::string lastTooltipText;
+	int iHacking = 0;
+	int overrideTooltipWidth = 0;
+	Point staticTooltip;
+};
+
 struct State
 {
 	CApp* app = nullptr;
@@ -3769,13 +3836,14 @@ struct State
 	SettingValues* settingValues = nullptr;
 	BlueprintManager* blueprints = nullptr;
 	PowerManagerContainer* powerManagerContainer = nullptr;
+	MouseControl* mouseControl = nullptr;
 };
 
-constexpr size_t __SIZE_TEST = sizeof(Button);
 constexpr uintptr_t CAppPtr = 0x4C5020;
 constexpr uintptr_t CrewMemberFactoryPtr = 0x4C6E40;
 constexpr uintptr_t SettingValuesPtr = 0x4C8CA0;
 constexpr uintptr_t BlueprintManagerPtr = 0x4CBD60;
 constexpr uintptr_t PowerManagerContainerPtr = 0x4CCA40;
+constexpr uintptr_t MouseControlPtr = 0x4C76C0;
 
 }

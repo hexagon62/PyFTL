@@ -1,5 +1,5 @@
 #include "Bind.hpp"
-#include "../State/Data/Blueprints.hpp"
+#include "../State/Blueprints.hpp"
 
 namespace python_bindings
 {

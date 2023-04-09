@@ -1,5 +1,5 @@
 #include "Bind.hpp"
-#include "../State/Data/Systems.hpp"
+#include "../State/Systems.hpp"
 
 namespace python_bindings
 {
@@ -20,13 +20,15 @@ void bindSystems(py::module_& module)
 		.value("Teleporter", SystemType::Teleporter)
 		.value("Cloaking", SystemType::Cloaking)
 		.value("Artillery", SystemType::Artillery)
-		.value("Battery", SystemType::battery)
+		.value("Battery", SystemType::Battery)
 		.value("Clonebay", SystemType::Clonebay)
 		.value("MindControl", SystemType::MindControl)
 		.value("Hacking", SystemType::Hacking)
 		;
 
 	py::class_<System>(module, "System", "Generic system")
+		.def_readonly("ui_box", &System::uiBox, "Which position the system is in on the ui")
+		.def_readonly("discriminator", &System::discriminator, "If more than one instance of the system is present, this tells you which one it is.")
 		.def_readonly("type", &System::type, "The type of the system")
 		.def_readonly("blueprint", &System::blueprint, "The blueprint of the system")
 		.def_readonly("room", &System::room, "The room the system is in")
@@ -41,6 +43,8 @@ void bindSystems(py::module_& module)
 		.def_readonly("boarders_attacking", &System::boardersAttacking, "If boarders are attacking the system")
 		.def_readonly("damage_progress", &System::damageProgress, "The progress towards damaging 1 bar by boarders, fires, etc.")
 		.def_readonly("repair_progress", &System::repairProgress, "The progress towards repairing 1 bar")
+		.def("subsystem", &System::subsystem, "Returns if this is a subsystem")
+		.def("power_range", &System::powerRange, "Returns what the power of this system can currently be changed to")
 		;
 
 	py::class_<ShieldSystem, System>(module, "ShieldSystem", "The shield system")
@@ -143,6 +147,7 @@ void bindSystems(py::module_& module)
 		;
 
 	py::class_<Power>(module, "Power", "The power state of a system")
+		.def_readonly("required", &Power::required, "Required power to use this system.\n0 for drones/systems, since the value depends on the items you have.")
 		.def_readonly("total", &Power::total, "Total power")
 		.def_readonly("normal", &Power::normal, "Power from reactor")
 		.def_readonly("zoltan", &Power::zoltan, "Power from Zoltan crew")

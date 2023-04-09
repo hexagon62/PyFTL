@@ -1,5 +1,5 @@
 #include "Bind.hpp"
-#include "../State/Data/Space.hpp"
+#include "../State/Space.hpp"
 
 namespace python_bindings
 {

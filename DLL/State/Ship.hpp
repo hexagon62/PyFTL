@@ -8,8 +8,11 @@
 
 #include <vector>
 #include <utility>
-#include <array>
 #include <optional>
+#include <variant>
+#include <stdexcept>
+
+using CargoItem = std::variant<std::monostate, Weapon, Drone, Augment>;
 
 struct Cargo
 {
@@ -18,6 +21,7 @@ struct Cargo
 	std::vector<Weapon> weapons;
 	std::vector<Drone> drones;
 	std::vector<Augment> augments;
+	std::vector<CargoItem> overCapacity;
 };
 
 struct Reactor
@@ -67,4 +71,14 @@ struct Ship
 	std::optional<BatterySystem> battery;
 
 	Cargo cargo;
+
+	bool hasSystem(SystemType type, int which = 0) const
+	{
+		return ::hasSystem(*this, type, which);
+	}
+
+	const System& getSystem(SystemType type, int which = 0) const
+	{
+		return ::getSystem<const System&>(*this, type, which);
+	}
 };

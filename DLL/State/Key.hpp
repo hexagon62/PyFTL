@@ -79,7 +79,6 @@ enum class Key : int
 	Delete = 127,
 
 	// numpad
-
 	Numpad0 = 256,
 	Numpad1 = 257,
 	Numpad2 = 258,
@@ -130,5 +129,27 @@ enum class Key : int
 	// modifier keys
 	NumLock = 300,
 	CapsLock = 301,
-	ScrollLock = 302
+	ScrollLock = 302,
+	RShift = 303,
+	LShift = 304,
+	RCtrl = 305,
+	LCtrl = 306,
+	RAlt = 307,
+	LAlt = 308,
+	RMeta = 309,
+	LMeta = 310,
+	LSuper = 311,
+	RSuper = 312,
+	AltGr = 313,
+	Compose = 314,
+
+	// Misc
+	Help = 315,
+	Print = 316,
+	SysReq = 317,
+	Break = 318,
+	Menu = 319,
+	Power = 320,
+	Euro = 321,
+	Undo = 322
 };

@@ -1,5 +1,5 @@
 #include "Bind.hpp"
-#include "../State/Data/Ship.hpp"
+#include "../State/Ship.hpp"
 
 namespace python_bindings
 {

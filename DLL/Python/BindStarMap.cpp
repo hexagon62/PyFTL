@@ -1,5 +1,5 @@
 #include "Bind.hpp"
-#include "../State/Data/StarMap.hpp"
+#include "../State/StarMap.hpp"
 
 namespace python_bindings
 {
@@ -40,7 +40,7 @@ void bindStarMap(py::module_& module)
 		.def_readonly("unique", &Sector::unique, "If this particular sector type will only (usually) be generated once")
 		;
 
-	py::class_<StarMap>(module, "StarMap", "The star map is where beacon/sector selection occurs")
+	py::class_<StarMap>(module, "JumpMenu", "The jump menu is where beacon/sector selection occurs")
 		.def_readonly("locations", &StarMap::locations, "The list of locations in the current sector")
 		.def_readonly("last_stand", &StarMap::lastStand, "If the current sector is The Last Stand")
 		.def_readonly("flagship_jumping", &StarMap::flagshipJumping, "If the flagship is jumping")

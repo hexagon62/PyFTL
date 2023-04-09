@@ -12,7 +12,7 @@
 
 struct ShieldSystem : System
 {
-	Ellipse<int> boundary;
+	Ellipse<float> boundary;
 	std::pair<int, int> bubbles{ 0, 0 };
 	std::pair<float, float> charge{ 0.f, 0.f };
 };

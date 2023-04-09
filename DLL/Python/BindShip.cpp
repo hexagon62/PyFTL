@@ -1,5 +1,5 @@
 #include "Bind.hpp"
-#include "../State/Data/Ship.hpp"
+#include "../State/Ship.hpp"
 
 namespace python_bindings
 {
@@ -14,6 +14,7 @@ void bindShip(py::module_& module)
 		.def_readonly("weapons", &Cargo::weapons, "The ship's weapons in storage")
 		.def_readonly("drones", &Cargo::drones, "The ship's drones in storage")
 		.def_readonly("augments", &Cargo::augments, "The ship's augments")
+		.def_readonly("over_capacity", &Cargo::overCapacity, "Items that will be left behind on jump")
 		;
 
 	py::class_<Reactor>(module, "Reactor", "A ship's reactor")
@@ -54,6 +55,8 @@ void bindShip(py::module_& module)
 		.def_readonly("rooms", &Ship::rooms, "The ship's rooms")
 		.def_readonly("doors", &Ship::doors, "The ship's doors")
 		.def_readonly("cargo", &Ship::cargo, "The ship's inventory")
+		.def("has_system", &Ship::hasSystem, "Checks if the specified system is present")
+		.def("get_system", &Ship::getSystem, py::return_value_policy::reference, "Gets the specified system")
 		;
 }
 

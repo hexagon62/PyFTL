@@ -1,7 +1,7 @@
 #include "Bind.hpp"
-#include "../State/Data/Blueprints.hpp"
-#include "../State/Data/Systems.hpp"
-#include "../State/Data/Space.hpp"
+#include "../State/Blueprints.hpp"
+#include "../State/Systems.hpp"
+#include "../State/Space.hpp"
 
 namespace python_bindings
 {

@@ -1,12 +1,13 @@
 #pragma once
 
-#include "Data/Key.hpp"
-#include "Data/Systems.hpp"
-#include "Data/Ship.hpp"
-#include "Data/Space.hpp"
-#include "Data/StarMap.hpp"
-#include "Data/Settings.hpp"
-#include "Data/Blueprints.hpp"
+#include "State/Key.hpp"
+#include "State/Systems.hpp"
+#include "State/Ship.hpp"
+#include "State/Space.hpp"
+#include "State/StarMap.hpp"
+#include "State/Settings.hpp"
+#include "State/Blueprints.hpp"
+#include "State/UI.hpp"
 
 #include <vector>
 #include <optional>
@@ -25,8 +26,8 @@ struct Game
 
 	PauseState pause;
 	Space space;
-	LocationEvent event;
 	StarMap starMap;
+	std::optional<LocationEvent> event;
 	std::optional<Ship> playerShip, enemyShip;
 	std::vector<Crew> playerCrew, enemyCrew;
 };
@@ -35,6 +36,7 @@ struct State
 {
 	bool running = false;
 	std::optional<Game> game;
+	UIState ui;
 	Settings settings;
 	Blueprints blueprints;
 };

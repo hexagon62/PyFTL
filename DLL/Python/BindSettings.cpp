@@ -1,5 +1,5 @@
 #include "Bind.hpp"
-#include "../State/Data/Settings.hpp"
+#include "../State/Settings.hpp"
 
 namespace python_bindings
 {

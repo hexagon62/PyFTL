@@ -69,8 +69,9 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;opengl32.lib;glew32s.lib;python311.lib</AdditionalDependencies>
+      <AdditionalDependencies>opengl32.lib;glew32s.lib;python311.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>"Z:\Projects\Visual Studio 2017\C++ Resources\lib\";"Z:\Programs\Python\Python311-32\libs"</AdditionalLibraryDirectories>
+      <AdditionalOptions>/NODEFAULTLIB:LIBCMT %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -93,8 +94,9 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;opengl32.lib;glew32s.lib;python311.lib</AdditionalDependencies>
+      <AdditionalDependencies>opengl32.lib;glew32s.lib;python311.lib</AdditionalDependencies>
       <AdditionalLibraryDirectories>"Z:\Projects\Visual Studio 2017\C++ Resources\lib\";"Z:\Programs\Python\Python311-32\libs"</AdditionalLibraryDirectories>
+      <AdditionalOptions>/NODEFAULTLIB:LIBCMT %(AdditionalOptions)</AdditionalOptions>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
@@ -103,45 +105,50 @@
     <ClInclude Include="..\..\..\C++ Resources\include\imgui_impl_opengl3_loader.h" />
     <ClInclude Include="..\..\..\C++ Resources\include\imgui_impl_win32.h" />
     <ClInclude Include="GUI\GUI.hpp" />
-    <ClInclude Include="Player\Input.hpp" />
+    <ClInclude Include="Input.hpp" />
     <ClInclude Include="Python\Bind.hpp" />
-    <ClInclude Include="State\Data\Augment.hpp" />
-    <ClInclude Include="State\Data\Blueprint.hpp" />
-    <ClInclude Include="State\Data\Blueprints.hpp" />
-    <ClInclude Include="State\Data\BoostPower.hpp" />
-    <ClInclude Include="State\Data\Crew.hpp" />
-    <ClInclude Include="State\Data\CrewBlueprint.hpp" />
-    <ClInclude Include="State\Data\Damage.hpp" />
-    <ClInclude Include="State\Data\Door.hpp" />
-    <ClInclude Include="State\Data\Drone.hpp" />
-    <ClInclude Include="State\Data\DroneBlueprint.hpp" />
-    <ClInclude Include="State\Data\DroneType.hpp" />
-    <ClInclude Include="State\Data\EnvironmentType.hpp" />
-    <ClInclude Include="State\Data\Event.hpp" />
-    <ClInclude Include="State\Data\Ellipse.hpp" />
-    <ClInclude Include="State\Data\HackLevel.hpp" />
-    <ClInclude Include="State\Data\Key.hpp" />
-    <ClInclude Include="State\Data\Point.hpp" />
-    <ClInclude Include="State\Data\Power.hpp" />
-    <ClInclude Include="State\Data\RandomAmount.hpp" />
-    <ClInclude Include="State\Data\Rect.hpp" />
-    <ClInclude Include="State\Data\Repairable.hpp" />
-    <ClInclude Include="State\Data\Room.hpp" />
-    <ClInclude Include="State\Data\Settings.hpp" />
-    <ClInclude Include="State\Data\Slot.hpp" />
-    <ClInclude Include="State\Data\Space.hpp" />
-    <ClInclude Include="State\Data\Ship.hpp" />
-    <ClInclude Include="State\Data\StarMap.hpp" />
-    <ClInclude Include="State\Data\System.hpp" />
-    <ClInclude Include="State\Data\SystemBlueprint.hpp" />
-    <ClInclude Include="State\Data\Systems.hpp" />
-    <ClInclude Include="State\Data\SystemType.hpp" />
-    <ClInclude Include="State\Data\UI.hpp" />
-    <ClInclude Include="State\Data\WeaponBlueprint.hpp" />
-    <ClInclude Include="State\Data\WeaponType.hpp" />
-    <ClInclude Include="State\Raw.hpp" />
-    <ClInclude Include="State\Reader.hpp" />
-    <ClInclude Include="State\State.hpp" />
+    <ClCompile Include="dllmain.cpp" />
+    <ClCompile Include="Input.cpp" />
+    <ClCompile Include="Python\BindUI.cpp" />
+    <ClInclude Include="Raw.hpp" />
+    <ClInclude Include="Reader.hpp" />
+    <ClInclude Include="State.hpp" />
+    <ClInclude Include="State\Augment.hpp" />
+    <ClInclude Include="State\Blueprint.hpp" />
+    <ClInclude Include="State\Blueprints.hpp" />
+    <ClInclude Include="State\BoostPower.hpp" />
+    <ClInclude Include="State\Crew.hpp" />
+    <ClInclude Include="State\CrewBlueprint.hpp" />
+    <ClInclude Include="State\Damage.hpp" />
+    <ClInclude Include="State\Door.hpp" />
+    <ClInclude Include="State\Drone.hpp" />
+    <ClInclude Include="State\DroneBlueprint.hpp" />
+    <ClInclude Include="State\DroneType.hpp" />
+    <ClInclude Include="State\Ellipse.hpp" />
+    <ClInclude Include="State\EnvironmentType.hpp" />
+    <ClInclude Include="State\Event.hpp" />
+    <ClInclude Include="State\HackLevel.hpp" />
+    <ClInclude Include="State\Key.hpp" />
+    <ClInclude Include="State\Point.hpp" />
+    <ClInclude Include="State\Power.hpp" />
+    <ClInclude Include="State\RandomAmount.hpp" />
+    <ClInclude Include="State\Rect.hpp" />
+    <ClInclude Include="State\Repairable.hpp" />
+    <ClInclude Include="State\Room.hpp" />
+    <ClInclude Include="State\Settings.hpp" />
+    <ClInclude Include="State\Ship.hpp" />
+    <ClInclude Include="State\Slot.hpp" />
+    <ClInclude Include="State\Space.hpp" />
+    <ClInclude Include="State\StarMap.hpp" />
+    <ClInclude Include="State\System.hpp" />
+    <ClInclude Include="State\SystemBlueprint.hpp" />
+    <ClInclude Include="State\Systems.hpp" />
+    <ClInclude Include="State\SystemType.hpp" />
+    <ClInclude Include="State\UI.hpp" />
+    <ClInclude Include="State\WeaponBlueprint.hpp" />
+    <ClInclude Include="State\WeaponType.hpp" />
+    <ClInclude Include="Utility\Exceptions.hpp" />
+    <ClInclude Include="Utility\Float.hpp" />
     <ClInclude Include="Utility\Memory.hpp" />
     <ClInclude Include="Utility\ValueScopeGuard.hpp" />
     <ClInclude Include="Utility\WindowsButWithoutAsMuchCancer.hpp" />
@@ -155,8 +162,6 @@
     <ClCompile Include="..\..\..\C++ Resources\src\imgui_stl.cpp" />
     <ClCompile Include="..\..\..\C++ Resources\src\imgui_tables.cpp" />
     <ClCompile Include="..\..\..\C++ Resources\src\imgui_widgets.cpp" />
-    <ClCompile Include="dllmain.cpp" />
-    <ClCompile Include="Player\Input.cpp" />
     <ClCompile Include="Python\BindBlueprints.cpp" />
     <ClCompile Include="Python\BindCrew.cpp" />
     <ClCompile Include="Python\BindDrones.cpp" />
@@ -174,7 +179,7 @@
     <ClCompile Include="Python\BindStores.cpp" />
     <ClCompile Include="Python\BindSystems.cpp" />
     <ClCompile Include="Python\BindWeapons.cpp" />
-    <ClCompile Include="State\Reader.cpp" />
+    <ClCompile Include="Reader.cpp" />
     <ClCompile Include="Utility\Memory.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
