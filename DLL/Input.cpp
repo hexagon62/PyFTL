@@ -937,6 +937,12 @@ Input::Ret Input::weaponPower(
 		{
 			throw InvalidPowerRequest(weapon, "there isn't enough power in the reactor");
 		}
+
+		int remaining = weapSys.power.total.second - weapSys.power.total.first;
+		if (!suppress && needs > remaining)
+		{
+			throw InvalidPowerRequest(weapon, "there isn't enough power in the weapon system");
+		}
 	}
 	else
 	{
@@ -1058,6 +1064,12 @@ Input::Ret Input::dronePower(
 		if (!suppress && needs > state.game->playerShip->reactor.total.first)
 		{
 			throw InvalidPowerRequest(drone, "there isn't enough power in the reactor");
+		}
+
+		int remaining = droneSys.power.total.second - droneSys.power.total.first;
+		if (!suppress && needs > remaining)
+		{
+			throw InvalidPowerRequest(drone, "there isn't enough power in the drone system");
 		}
 	}
 	else
