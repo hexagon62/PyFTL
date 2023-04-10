@@ -14,31 +14,31 @@ struct Ellipse
 	Point<CenterT> center;
 	T a = T(0), b = T(0);
 
-	Ellipse() = default;
+	constexpr Ellipse() = default;
 
 	template<typename U, typename CenterU = U>
-	Ellipse(const Point<CenterU>& center, const U& a, const U& b)
+	constexpr Ellipse(const Point<CenterU>& center, const U& a, const U& b)
 		: center(center)
 		, a(T(a))
 		, b(T(b))
 	{}
 
 	template<typename U, typename CenterU = U>
-	Ellipse(const CenterU& x, const CenterU& y, const U& a, const U& b)
+	constexpr Ellipse(const CenterU& x, const CenterU& y, const U& a, const U& b)
 		: center(T(x), T(y))
 		, a(T(a))
 		, b(T(b))
 	{}
 
 	template<typename U, typename CenterU = U>
-	Ellipse(const std::tuple<CenterU, CenterU, U, U>& t)
+	constexpr Ellipse(const std::tuple<CenterU, CenterU, U, U>& t)
 		: center(T(std::get<0>(t)), T(std::get<1>(t)))
 		, a(T(std::get<2>(t)))
 		, b(T(std::get<3>(t)))
 	{}
 
 	template<typename U, typename CenterU = U>
-	Ellipse(const Ellipse<U, CenterU>& other)
+	constexpr Ellipse(const Ellipse<U, CenterU>& other)
 		: center(other.center)
 		, a(T(other.a))
 		, b(T(other.b))

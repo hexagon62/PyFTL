@@ -14,6 +14,13 @@ struct Path
 	float distance = -1.f;
 };
 
+namespace raw
+{
+
+struct Drone;
+
+}
+
 struct Crew
 {
 	int uiBox = -1, selectionState = 0;
@@ -30,6 +37,7 @@ struct Crew
 	bool intruder = false;
 	bool fighting = false;
 	bool dead = false;
+	bool dying = false;
 	bool manning = false;
 	bool moving = false;
 	bool healing = false;

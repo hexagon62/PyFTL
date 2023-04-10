@@ -5,6 +5,7 @@
 #include "Crew.hpp"
 #include "WeaponBlueprint.hpp"
 #include "HackLevel.hpp"
+#include "Weapon.hpp"
 #include "Drone.hpp"
 
 #include <utility>
@@ -67,26 +68,6 @@ struct CloakingSystem : System
 	std::pair<float, float> timer{ 0.f, 0.f };
 };
 
-struct Weapon
-{
-	std::pair<float, float> cooldown{ 0.f, 0.f };
-	WeaponBlueprint blueprint;
-	bool autoFire = false;
-	bool fireWhenReady = false;
-	bool powered = false;
-	bool artillery = false;
-	bool targetingPlayer = false;
-	float firingAngle = 0.f;
-	float entryAngle = 0.f;
-	Point<int> mount;
-	int zoltanPower = 0;
-	HackLevel hackLevel = HackLevel::None;
-	std::pair<int, int> boost{ 0, 0 };
-	std::pair<int, int> charge{ 0, 0 };
-	std::pair<float, float> shotTimer{ 0.f, 0.f };
-	std::vector<Point<float>> targetPoints;
-};
-
 struct ArtillerySystem : System
 {
 	Weapon weapon;
@@ -110,17 +91,13 @@ struct HackingSystem : System
 
 struct WeaponSystem : System
 {
-	int slotCount = 0;
-	std::vector<Weapon> weapons;
-	std::vector<bool> userPowered, repower;
+	std::vector<Weapon> list;
 	bool autoFire = false;
 };
 
 struct DroneSystem : System
 {
-	int slotCount = 0;
-	std::vector<Drone> drones;
-	std::vector<bool> userPowered, repower;
+	std::vector<Drone> list;
 };
 
 struct PilotingSystem : System

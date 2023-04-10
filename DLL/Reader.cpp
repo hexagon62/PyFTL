@@ -9,6 +9,7 @@
 
 #include <algorithm>
 #include <unordered_map>
+#include <concepts>
 
 Reader::Duration Reader::delay{};
 Reader::TimePoint Reader::start{};
@@ -281,12 +282,27 @@ void readWeaponBlueprint(WeaponBlueprint& blueprint, const raw::WeaponBlueprint&
 void readWeapon(Weapon& weapon, const raw::ProjectileFactory& raw, const Point<int>& offset)
 {
 	readWeaponBlueprint(weapon.blueprint, *raw.blueprint);
+	weapon.player = raw.iShipId == 0;
+
+	weapon.power.total.first = !raw.powered
+		? raw.iBonusPower
+		: raw.requiredPower;
+	weapon.power.total.second = raw.requiredPower;
+	weapon.power.required = raw.requiredPower;
+	weapon.power.normal = weapon.power.total.first - raw.iBonusPower;
+	weapon.power.zoltan = raw.iBonusPower;
+	weapon.power.cap = weapon.power.total.second;
+
+	// read these in weapon system function
+	weapon.power.battery = 0; 
+	weapon.power.ionLevel = 0;
+	weapon.power.ionTimer = { 0.f, 0.f };
+	weapon.power.restoreTo = 0;
 
 	weapon.cooldown = raw.cooldown;
 
 	weapon.autoFire = raw.autoFiring;
 	weapon.fireWhenReady = raw.fireWhenReady;
-	weapon.powered = raw.powered;
 	weapon.artillery = raw.isArtillery;
 	weapon.targetingPlayer = raw.currentShipTarget == 0;
 
@@ -294,8 +310,6 @@ void readWeapon(Weapon& weapon, const raw::ProjectileFactory& raw, const Point<i
 	weapon.entryAngle = raw.currentEntryAngle;
 
 	weapon.mount = raw.mount.position + raw.localPosition;
-
-	weapon.zoltanPower = raw.iBonusPower;
 
 	weapon.hackLevel = HackLevel(raw.iHackLevel);
 
@@ -315,6 +329,78 @@ void readWeapon(Weapon& weapon, const raw::ProjectileFactory& raw, const Point<i
 		auto&& pos = raw.targets[i];
 		weapon.targetPoints.emplace_back(pos.x, pos.y);
 	}
+}
+
+void readCrewBlueprint(CrewBlueprint& blueprint, const raw::CrewBlueprint& raw)
+{
+	readBlueprint(blueprint, raw);
+
+	blueprint.name = raw.crewName.data.str;
+	blueprint.nameLong = raw.crewNameLong.data.str;
+	blueprint.species = raw.name.str;
+	blueprint.male = raw.male;
+	blueprint.skillPiloting = raw.skillLevel[0];
+	blueprint.skillEngines = raw.skillLevel[1];
+	blueprint.skillShields = raw.skillLevel[2];
+	blueprint.skillWeapons = raw.skillLevel[3];
+	blueprint.skillRepair = raw.skillLevel[4];
+	blueprint.skillCombat = raw.skillLevel[5];
+}
+
+void readCrew(Crew& crew, const raw::CrewMember& raw, const Point<int>& offset)
+{
+	readCrewBlueprint(crew.blueprint, raw.blueprint);
+
+	crew.position = offset + Point<int>{raw.x, raw.y};
+	crew.goal = offset + Point<int>{raw.goal_x, raw.goal_y};
+	crew.speed = Point<int>{ raw.speed_x, raw.speed_y };
+
+	crew.health = raw.health;
+
+	crew.path.start = offset + raw.path.start;
+	crew.path.finish = offset + raw.path.finish;
+	crew.path.distance = raw.path.distance;
+	crew.path.doors.clear();
+
+	for (size_t i = 0; i < raw.path.doors.size(); i++)
+	{
+		auto&& door = crew.path.doors.emplace_back();
+
+		door = raw.path.doors[i]->iDoorId; // assuming will never use airlock doors
+	}
+
+	crew.player = raw.iShipId == 0;
+	crew.onPlayerShip = raw.currentShipId == 0;
+	crew.newPath = raw.new_path;
+	crew.suffocating = raw.bSuffocating;
+	crew.repairing = raw.currentRepair != nullptr;
+	crew.intruder = raw.intruder;
+	crew.fighting = raw.bFighting;
+	crew.dying = !raw.bDead && crew.health.first <= 0.f;
+	crew.dead = raw.bDead || crew.dying;
+	crew.manning = raw.bActiveManning;
+	crew.healing = raw.fMedbay > 0.f;
+	crew.onFire = raw.iOnFire;
+
+	crew.room = raw.iRoomId;
+	crew.mannedSystem = SystemType(raw.iManningId);
+	crew.roomGoal = raw.currentSlot.roomId;
+	crew.slotGoal = raw.currentSlot.slotId;
+	crew.roomSaved = raw.savedPosition.roomId;
+	crew.slotSaved = raw.savedPosition.slotId;
+
+	crew.deathId = raw.iDeathNumber;
+	crew.cloneDeathProgress = raw.fCloneDying;
+	crew.readyToClone = raw.clone_ready;
+	crew.moving = crew.path.distance > 0.f;
+
+	crew.mindControlled = raw.bMindControlled;
+	crew.mindControlHealthBoost = raw.healthBoost;
+	crew.mindControlDamageMultiplier = raw.fMindDamageBoost;
+
+	crew.stunTime = raw.fStunTime;
+
+	crew.drone = raw.crewAnim->bDrone;
 }
 
 void readDroneBlueprint(DroneBlueprint& blueprint, const raw::DroneBlueprint& raw)
@@ -347,28 +433,57 @@ void readDrone(
 	readDroneBlueprint(drone.blueprint, *raw.blueprint);
 
 	drone.player = raw.iShipId == 0;
-	drone.powered = raw.powered;
-	drone.dead = raw.bDead;
-	drone.zoltanPower = raw.iBonusPower;
+
+	drone.power.total.first = !raw.powered
+		? raw.iBonusPower
+		: raw.powerRequired;
+	drone.power.total.second = raw.powerRequired;
+	drone.power.required = raw.powerRequired;
+	drone.power.normal = drone.power.total.first - raw.iBonusPower;
+	drone.power.zoltan = raw.iBonusPower;
+	drone.power.cap = drone.power.total.second;
+
+	// read these in drone system function
+	drone.power.battery = 0;
+	drone.power.ionLevel = 0;
+	drone.power.ionTimer = { 0.f, 0.f };
+	drone.power.restoreTo = 0;
+
 	drone.hackLevel = HackLevel(raw.iHackLevel);
 	drone.hackTime = raw.hackTime;
-	drone.destroyTimer.first = raw.destroyedTimer;
+	drone.destroyTimer.first = drone.HARDCODED_REBUILD_TIME-raw.destroyedTimer;
 	drone.destroyTimer.second = drone.HARDCODED_REBUILD_TIME;
+	drone.deployed = raw.deployed;
+	drone.dead = drone.destroyTimer.first < drone.destroyTimer.second;
+	drone.dying = false;
 
 	auto&& type = drone.blueprint.type;
 
-	bool spaceDrone =
-		type == DroneType::Combat ||
-		type == DroneType::Defense ||
-		type == DroneType::HullRepair ||
-		type == DroneType::Hacking ||
-		type == DroneType::Shield;
+	if (drone.crewDrone())
+	{
+		auto&& casted = static_cast<const raw::CrewDrone&>(raw);
 
-	if (spaceDrone)
+		Point<int> position = casted.currentShipId == 0
+			? playerShipPos
+			: enemyShipPos;
+
+		readCrew(drone.crew.emplace(), casted, position);
+
+		// can't be dead if not deployed
+		drone.crew->dead = (drone.deployed && drone.crew->dead) || drone.dead;
+
+		drone.dying = drone.crew->dying;
+		drone.dead = drone.crew->dead;
+	}
+
+	if (drone.spaceDrone())
 	{
 		auto&& casted = static_cast<const raw::SpaceDrone&>(raw);
 		drone.space = SpaceDroneInfo{};
 		auto&& info = *drone.space;
+
+		drone.dying = casted.explosion.tracker.current_time > 0.f;
+		drone.dead = drone.dead || drone.dying;
 
 		info.playerSpace = casted.currentSpace == 0;
 		info.playerSpaceIsDestination = casted.destinationSpace == 0;
@@ -472,26 +587,36 @@ void readWeaponSystem(WeaponSystem& weapons, const raw::WeaponSystem& raw, const
 	readSystem(weapons, raw);
 	weapons.blueprint = Reader::getState().blueprints.systemBlueprints.at("weapons");
 
-	weapons.slotCount = raw.slot_count;
-	weapons.weapons.clear();
-	weapons.userPowered.clear();
-	weapons.repower.clear();
+	weapons.list.clear();
 	weapons.autoFire = false; // set when reading player ship
 
 	for (size_t i = 0; i < raw.weapons.size(); i++)
 	{
-		auto& weapon = weapons.weapons.emplace_back();
+		auto& weapon = weapons.list.emplace_back();
 		readWeapon(weapon, *raw.weapons[i], offset);
+		weapon.slot = int(i);
+		weapon.power.ionLevel = weapons.power.ionLevel;
+		weapon.power.ionTimer = weapons.power.ionTimer;
 	}
 
-	for (size_t i = 0; i < raw.userPowered.size(); i++)
+	// set battery power
+	int dist = weapons.power.battery;
+	auto it = weapons.list.rbegin();
+	while (dist > 0 && it != weapons.list.rend())
 	{
-		weapons.userPowered.emplace_back(raw.userPowered[i]);
+		int del = std::min(dist, it->power.required);
+		it->power.normal -= del;
+		it->power.battery = del;
+		dist -= del;
+		it++;
 	}
 
 	for (size_t i = 0; i < raw.repowerList.size(); i++)
 	{
-		weapons.repower.emplace_back(raw.repowerList[i]);
+		if (raw.repowerList[i])
+		{
+			weapons.list[i].power.restoreTo = weapons.list[i].power.required;
+		}
 	}
 }
 
@@ -505,25 +630,34 @@ void readDroneSystem(
 	readSystem(drones, raw);
 	drones.blueprint = Reader::getState().blueprints.systemBlueprints.at("drones");
 
-	drones.slotCount = raw.slot_count;
-	drones.drones.clear();
-	drones.userPowered.clear();
-	drones.repower.clear();
-
+	drones.list.clear();
 	for (size_t i = 0; i < raw.drones.size(); i++)
 	{
-		auto& drone = drones.drones.emplace_back();
+		auto& drone = drones.list.emplace_back();
 		readDrone(drone, *raw.drones[i], playerShipPos, enemyShipPos, superShieldBubbles);
+		drone.slot = int(i);
+		drone.power.ionLevel = drones.power.ionLevel;
+		drone.power.ionTimer = drones.power.ionTimer;
 	}
 
-	for (size_t i = 0; i < raw.userPowered.size(); i++)
+	// set battery power
+	int dist = drones.power.battery;
+	auto it = drones.list.rbegin();
+	while (dist > 0 && it != drones.list.rend())
 	{
-		drones.userPowered.emplace_back(raw.userPowered[i]);
+		int del = std::min(dist, it->power.required);
+		it->power.normal -= del;
+		it->power.battery = del;
+		dist -= del;
+		it++;
 	}
 
 	for (size_t i = 0; i < raw.repowerList.size(); i++)
 	{
-		drones.repower.emplace_back(raw.repowerList[i]);
+		if (raw.repowerList[i])
+		{
+			drones.list[i].power.restoreTo = drones.list[i].power.required;
+		}
 	}
 }
 
@@ -858,8 +992,7 @@ void readGenericShipStuff(
 	const raw::ShipManager& raw,
 	const raw::PowerManager& power,
 	const Point<int>& playerShipPos,
-	const Point<int>& enemyShipPos,
-	const raw::gcc::vector<raw::SystemBox*>* sysBoxes = nullptr)
+	const Point<int>& enemyShipPos)
 {
 	ship.player = raw.iShipId == 0;
 	ship.destroyed = raw.bDestroyed;
@@ -941,10 +1074,12 @@ void readGenericShipStuff(
 		readDoor(ship.doors.emplace_back(), *raw.ship.vOuterAirlocks[i], position, true, begin+i);
 	}
 
+	auto&& sysBoxes = Reader::getRawState().app->gui->sysControl.sysBoxes;
+
 	// Read systems
 	for (size_t i = 0; i < raw.vSystemList.size(); i++)
 	{
-		auto current = ship.player ? (*sysBoxes)[i]->pSystem : raw.vSystemList[i];
+		auto current = ship.player ? sysBoxes[i]->pSystem : raw.vSystemList[i];
 		SystemType sys = SystemType(current->iSystemType);
 		ship.rooms[current->roomId].system = sys;
 
@@ -1125,8 +1260,8 @@ void readPlayerShip(
 		ship,
 		crew, enemyCrew,
 		*gui.shipStatus.ship, power,
-		playerShipPos, enemyShipPos,
-		&gui.sysControl.sysBoxes);
+		playerShipPos, enemyShipPos
+	);
 
 	// Read player teleporter stuff
 	if (ship.teleporter)
@@ -1201,77 +1336,6 @@ void readEnemyShip(
 	}
 }
 
-void readCrewBlueprint(CrewBlueprint& blueprint, const raw::CrewBlueprint& raw)
-{
-	readBlueprint(blueprint, raw);
-
-	blueprint.name = raw.crewName.data.str;
-	blueprint.nameLong = raw.crewNameLong.data.str;
-	blueprint.species = raw.name.str;
-	blueprint.male = raw.male;
-	blueprint.skillPiloting = raw.skillLevel[0];
-	blueprint.skillEngines = raw.skillLevel[1];
-	blueprint.skillShields = raw.skillLevel[2];
-	blueprint.skillWeapons = raw.skillLevel[3];
-	blueprint.skillRepair = raw.skillLevel[4];
-	blueprint.skillCombat = raw.skillLevel[5];
-}
-
-void readCrew(Crew& crew, const raw::CrewMember& raw, const Point<int>& offset)
-{
-	readCrewBlueprint(crew.blueprint, raw.blueprint);
-
-	crew.position = offset + Point<int>{raw.x, raw.y};
-	crew.goal = offset + Point<int>{raw.goal_x, raw.goal_y};
-	crew.speed = Point<int>{raw.speed_x, raw.speed_y};
-
-	crew.health = raw.health;
-
-	crew.path.start = offset + raw.path.start;
-	crew.path.finish = offset + raw.path.finish;
-	crew.path.distance = raw.path.distance;
-	crew.path.doors.clear();
-
-	for (size_t i = 0; i < raw.path.doors.size(); i++)
-	{
-		auto&& door = crew.path.doors.emplace_back();
-
-		door = raw.path.doors[i]->iDoorId; // assuming will never use airlock doors
-	}
-
-	crew.player = raw.iShipId == 0;
-	crew.onPlayerShip = raw.currentShipId == 0;
-	crew.newPath = raw.new_path;
-	crew.suffocating = raw.bSuffocating;
-	crew.repairing = raw.currentRepair != nullptr;
-	crew.intruder = raw.intruder;
-	crew.fighting = raw.bFighting;
-	crew.dead = raw.bDead;
-	crew.manning = raw.bActiveManning;
-	crew.healing = raw.fMedbay > 0.f;
-	crew.onFire = raw.iOnFire;
-
-	crew.room = raw.iRoomId;
-	crew.mannedSystem = SystemType(raw.iManningId);
-	crew.roomGoal = raw.currentSlot.roomId;
-	crew.slotGoal = raw.currentSlot.slotId;
-	crew.roomSaved = raw.savedPosition.roomId;
-	crew.slotSaved = raw.savedPosition.slotId;
-
-	crew.deathId = raw.iDeathNumber;
-	crew.cloneDeathProgress = raw.fCloneDying;
-	crew.readyToClone = raw.clone_ready;
-	crew.moving = crew.path.distance > 0.f;
-
-	crew.mindControlled = raw.bMindControlled;
-	crew.mindControlHealthBoost = raw.healthBoost;
-	crew.mindControlDamageMultiplier = raw.fMindDamageBoost;
-
-	crew.stunTime = raw.fStunTime;
-
-	crew.drone = raw.crewAnim->bDrone;
-}
-
 void readCrewTeleportInfo(
 	Crew& crew,
 	const raw::CrewMember* ptr,
@@ -1316,83 +1380,77 @@ void readCrewTeleportInfo(
 	}
 }
 
-using OptionalRawCrewVectorRef = std::optional<const raw::gcc::vector<raw::CrewMember*>&>;
+template<typename T>
+concept CrewListInput =
+	std::same_as<T, raw::CrewMember> ||
+	std::same_as<T, raw::CrewBox>;
 
-void readPlayerCrewList(
+// Will read the list of crew so that
+// - permanently dead crew are filtered out
+// - crew on other side are filtered out
+// - crew drones are filtered out
+// - sorted in order of ui boxes, if applicable
+// If you pass crew boxes, then the function will assume you're parsing the player ship
+// since that's the only thing that'd make sense to pass crewBoxes with
+template<CrewListInput T>
+void readCrewList(
 	std::vector<Crew>& crew,
-	const raw::gcc::vector<raw::CrewMember*>& list,
-	const raw::gcc::vector<raw::CrewBox*>* crewBoxes,
+	const raw::gcc::vector<T*>& list,
 	const Point<int>& playerShipPos, const Point<int>& enemyShipPos,
 	const raw::gcc::vector<raw::CrewMember*>* arriving = nullptr,
 	const raw::gcc::vector<raw::CrewMember*>* leaving = nullptr)
 {
+	constexpr bool player = std::same_as<T, raw::CrewBox>;
+
 	crew.clear();
 
-	for (size_t i = 0; i < list.size(); i++)
+	std::vector<raw::CrewMember*> ptrs;
+
+	if constexpr (player) // use crew boxes so they're sorted by ui box
 	{
-		if (list[i]->bDead && !list[i]->clone_ready) // permanently dead
-			continue;
-
-		if (list[i]->iShipId == 0) // must belong to player
+		for (size_t i = 0; i < list.size(); i++)
 		{
-			Point<int> offset = list[i]->currentShipId == 0 // on player ship
-				? playerShipPos
-				: enemyShipPos;
+			auto* crew = list[i]->pCrew;
 
-			readCrew(crew.emplace_back(), *list[i], offset);
+			if (crew->bDead && !crew->clone_ready) // permanently dead
+				continue;
 
-			// Search UI boxes for this crew member
-			for (size_t j = 0; j < crewBoxes->size(); j++)
-			{
-				if ((*crewBoxes)[j]->pCrew == list[i])
-				{
-					crew.back().uiBox = int(j);
-					break;
-				}
-			}
-
-			if (arriving && leaving)
-			{
-				readCrewTeleportInfo(
-					crew.back(),
-					list[i],
-					*arriving, *leaving
-				);
-			}
+			ptrs.push_back(crew);
 		}
 	}
-}
-
-void readEnemyCrewList(
-	std::vector<Crew>& crew,
-	const raw::gcc::vector<raw::CrewMember*>& list,
-	const Point<int>& playerShipPos, const Point<int>& enemyShipPos,
-	const raw::gcc::vector<raw::CrewMember*>* arriving = nullptr,
-	const raw::gcc::vector<raw::CrewMember*>* leaving = nullptr)
-{
-	crew.clear();
-
-	for (size_t i = 0; i < list.size(); i++)
+	else
 	{
-		if (list[i]->bDead && !list[i]->clone_ready) // permanently dead
-			continue;
-
-		if (list[i]->iShipId == 1) // must belong to enemy
+		for (size_t i = 0; i < list.size(); i++)
 		{
-			Point<int> offset = list[i]->currentShipId == 0 // on player ship
-				? playerShipPos
-				: enemyShipPos;
+			if (list[i]->bDead && !list[i]->clone_ready) // permanently dead
+				continue;
 
-			readCrew(crew.emplace_back(), *list[i], offset);
+			if (list[i]->iShipId == player ? 1 : 0) // wrong owner
+				continue;
 
-			if (arriving && leaving)
-			{
-				readCrewTeleportInfo(
-					crew.back(),
-					list[i],
-					*arriving, *leaving
-				);
-			}
+			bool drone = list[i]->crewAnim->bDrone;
+
+			if (!drone)
+				ptrs.push_back(list[i]);
+		}
+	}
+
+	for (size_t i = 0; i < ptrs.size(); i++)
+	{
+		Point<int> offset = ptrs[i]->currentShipId == 0 // on player ship
+			? playerShipPos
+			: enemyShipPos;
+
+		readCrew(crew.emplace_back(), *ptrs[i], offset);
+		if constexpr (player) crew.back().uiBox = int(i);
+
+		if (arriving && leaving)
+		{
+			readCrewTeleportInfo(
+				crew.back(),
+				ptrs[i],
+				*arriving, *leaving
+			);
 		}
 	}
 }
@@ -1416,7 +1474,7 @@ void readProjectile(
 	projectile.player = raw.ownerId == 0;
 	projectile.playerSpace = raw.currentSpace == 0;
 	projectile.playerSpaceIsDestination = raw.destinationSpace == 0;
-	projectile.dead = raw.dead || raw.startedDeath;
+	projectile.dying = raw.dead || raw.startedDeath;
 	projectile.missed = raw.missed;
 	projectile.hit = raw.hitTarget;
 	projectile.passed = raw.passedTarget;
@@ -1954,6 +2012,18 @@ void readUI(State& state, const raw::State& raw)
 		ui.game->mindControl.reset();
 		ui.game->hacking.reset();
 
+		ui.game->weaponBoxes.clear();
+		ui.game->autoFire.reset();
+		ui.game->droneBoxes.clear();
+		ui.game->openAllDoors.reset();
+		ui.game->closeAllDoors.reset();
+		ui.game->teleportSend.reset();
+		ui.game->teleportReturn.reset();
+		ui.game->startCloak.reset();
+		ui.game->startBattery.reset();
+		ui.game->startMindControl.reset();
+		ui.game->startHack.reset();
+
 		auto&& ship = *state.game->playerShip;
 		auto&& sysBoxes = gui.sysControl.sysBoxes;
 		auto&& sysPos = gui.sysControl.position;
@@ -1966,22 +2036,106 @@ void readUI(State& state, const raw::State& raw)
 
 			switch (type)
 			{
-			case SystemType::Shields: ui.game->shields.emplace(box.hitBox + sysPos); break;
-			case SystemType::Engines: ui.game->engines.emplace(box.hitBox + sysPos); break;
-			case SystemType::Oxygen: ui.game->oxygen.emplace(box.hitBox + sysPos); break;
-			case SystemType::Weapons: ui.game->weapons.emplace(box.hitBox + sysPos); break;
-			case SystemType::Drones: ui.game->drones.emplace(box.hitBox + sysPos); break;
-			case SystemType::Medbay: ui.game->medbay.emplace(box.hitBox + sysPos); break;
-			case SystemType::Piloting: ui.game->piloting.emplace(box.hitBox + sysPos); break;
-			case SystemType::Sensors: ui.game->sensors.emplace(box.hitBox + sysPos); break;
-			case SystemType::Doors: ui.game->doorControl.emplace(box.hitBox + sysPos); break;
-			case SystemType::Teleporter: ui.game->teleporter.emplace(box.hitBox + sysPos); break;
-			case SystemType::Cloaking: ui.game->cloaking.emplace(box.hitBox + sysPos); break;
-			case SystemType::Artillery: ui.game->artillery.emplace_back(box.hitBox + sysPos); break;
-			case SystemType::Battery: ui.game->battery.emplace(box.hitBox + sysPos); break;
-			case SystemType::Clonebay: ui.game->clonebay.emplace(box.hitBox + sysPos); break;
-			case SystemType::MindControl: ui.game->mindControl.emplace(box.hitBox + sysPos); break;
-			case SystemType::Hacking: ui.game->hacking.emplace(box.hitBox + sysPos); break;
+			case SystemType::Shields:
+				ui.game->shields = box.hitBox + sysPos;
+				break;
+			case SystemType::Engines:
+				ui.game->engines = box.hitBox + sysPos;
+				break;
+			case SystemType::Oxygen:
+				ui.game->oxygen = box.hitBox + sysPos;
+				break;
+			case SystemType::Weapons:
+			{
+				ui.game->weapons = box.hitBox + sysPos;
+
+				auto&& weapControl = gui.combatControl.weapControl;
+				for (size_t i = 0; i < weapControl.boxes.size(); i++)
+				{
+					auto&& box = *weapControl.boxes[i];
+					ui.game->weaponBoxes.emplace_back(
+						weapControl.location + box.location,
+						GameUIState::HARDCODED_ARMAMENT_BOX_SIZE);
+				}
+
+				ui.game->autoFire = weapControl.autoFireButton.hitbox + weapControl.location;
+
+				break;
+			}
+			case SystemType::Drones:
+			{
+				ui.game->drones = box.hitBox + sysPos;
+
+				auto&& droneControl = gui.combatControl.droneControl;
+				for (size_t i = 0; i < droneControl.boxes.size(); i++)
+				{
+					auto&& box = *droneControl.boxes[i];
+					ui.game->droneBoxes.emplace_back(
+						droneControl.location + box.location,
+						GameUIState::HARDCODED_ARMAMENT_BOX_SIZE);
+				}
+
+				break;
+			}
+			case SystemType::Medbay:
+				ui.game->medbay = box.hitBox + sysPos;
+				break;
+			case SystemType::Piloting:
+				ui.game->piloting = box.hitBox + sysPos;
+				break;
+			case SystemType::Sensors:
+				ui.game->sensors = box.hitBox + sysPos;
+				break;
+			case SystemType::Doors:
+			{
+				auto&& doorBox = static_cast<raw::DoorBox&>(box);
+				ui.game->doorControl = box.hitBox + sysPos;
+				ui.game->openAllDoors = doorBox.openDoors.hitbox + sysPos + doorBox.buttonOffset;
+				ui.game->closeAllDoors = doorBox.closeDoors.hitbox + sysPos + doorBox.buttonOffset;
+				break;
+			}
+			case SystemType::Teleporter:
+			{
+				auto&& teleBox = static_cast<raw::TeleportBox&>(box);
+				ui.game->teleporter.emplace(box.hitBox + sysPos);
+				ui.game->teleportSend = teleBox.teleportLeave.hitbox + sysPos + teleBox.buttonOffset;
+				ui.game->teleportReturn = teleBox.teleportArrive.hitbox + sysPos + teleBox.buttonOffset;
+				break;
+			}
+			case SystemType::Cloaking:
+			{
+				auto&& cloakBox = static_cast<raw::CloakingBox&>(box);
+				ui.game->cloaking = box.hitBox + sysPos;
+				ui.game->startCloak = cloakBox.currentButton->hitbox + sysPos + cloakBox.buttonOffset;
+				break;
+			}
+			case SystemType::Artillery:
+				ui.game->artillery.emplace_back(box.hitBox + sysPos);
+				break;
+			case SystemType::Battery:
+			{
+				auto&& batteryBox = static_cast<raw::BatteryBox&>(box);
+				ui.game->battery = box.hitBox + sysPos;
+				ui.game->startBattery = batteryBox.batteryButton.hitbox + sysPos + batteryBox.buttonOffset;
+				break;
+			}
+			case SystemType::Clonebay:
+				ui.game->clonebay = box.hitBox + sysPos;
+				break;
+			case SystemType::MindControl:
+			{
+				auto&& mindBox = static_cast<raw::MindBox&>(box);
+				ui.game->mindControl = box.hitBox + sysPos;
+				ui.game->startMindControl = mindBox.mindControl.hitbox + sysPos + mindBox.buttonOffset;
+				break;
+			}
+			case SystemType::Hacking:
+			{
+				auto&& hackBox = static_cast<raw::HackBox&>(box);
+				ui.game->hacking = box.hitBox + sysPos;
+				ui.game->startHack = hackBox.hackButton.hitbox + sysPos + hackBox.buttonOffset;
+				break;
+			}
 			}
 		}
 	}
@@ -2083,11 +2237,10 @@ void Reader::read()
 		game.pause.automatic = rs.app->gui->bAutoPaused;
 		game.pause.menu = rs.app->gui->menu_pause;
 		game.pause.event = rs.app->gui->choiceBoxOpen; // more accurate for gauging if the event window's open
-		game.pause.touch = rs.app->gui->touch_pause;
 
-		game.pause.any = game.pause.normal
-			|| game.pause.automatic || game.pause.menu
-			|| game.pause.event || game.pause.touch;
+		game.pause.any =
+			game.pause.normal || game.pause.automatic ||
+			game.pause.menu || game.pause.event;
 
 		game.pause.justPaused = !prevPause && game.pause.any;
 		game.pause.justUnpaused = prevPause && !game.pause.any;
@@ -2136,14 +2289,13 @@ void Reader::read()
 				enemyLeaving = &enemyCompleteShip->leavingParty;
 			}
 
-			readPlayerCrewList(
+			readCrewList(
 				game.playerCrew,
-				rs.crewMemberFactory->crewMembers,
-				& rs.app->gui->crewControl.crewBoxes,
+				rs.app->gui->crewControl.crewBoxes,
 				playerShipPos, enemyShipPos,
 				playerArriving, playerLeaving);
 
-			readEnemyCrewList(
+			readCrewList(
 				game.enemyCrew,
 				rs.crewMemberFactory->crewMembers,
 				enemyShipPos, enemyShipPos,
@@ -2302,7 +2454,7 @@ void Reader::setPollTime(double d)
 		throw InvalidTime("poll time must be greater than 1 millisecond");
 	}
 
-	if (d > 1.f)
+	if (d > 1.0)
 	{
 		throw InvalidTime("poll time must be less than 1 second");
 	}

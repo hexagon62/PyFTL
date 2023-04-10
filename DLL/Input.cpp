@@ -1,7 +1,6 @@
 #include "Input.hpp"
 #include "Utility/Memory.hpp"
 #include "Utility/Exceptions.hpp"
-#include "Utility/Float.hpp"
 
 #include <array>
 #include <vector>
@@ -17,17 +16,17 @@ public:
 
 	struct MouseCommand
 	{
-		Point<int> position{ -1, -1 };
 		MouseButton button;
-		InputDirection direction = InputDirection::Unchanged;
+		Point<int> position{ -1, -1 };
 		bool shift = false;
+		InputDirection direction = InputDirection::Unchanged;
 	};
 
 	struct KeyboardCommand
 	{
 		Key key;
-		InputDirection direction = InputDirection::Unchanged;
 		bool shift = false;
+		InputDirection direction = InputDirection::Unchanged;
 	};
 
 	struct Command
@@ -39,14 +38,13 @@ public:
 
 		Type type;
 		double time;
+		uintmax_t id = uintmax_t(-1);
 
 		union
 		{
 			MouseCommand mouse;
 			KeyboardCommand keyboard;
 		};
-
-		uintmax_t id = uintmax_t(-1);
 
 		// Commands with higher times are sorted first
 		// That way the ones that come sooner are popped off a max heap first
@@ -69,7 +67,7 @@ public:
 
 		while (inputsMade < INPUT_CAP && !this->empty())
 		{
-			auto lowerBound = Reader::now() - 0.5;
+			auto lowerBound = Reader::now() - 500.0;
 			auto upperBound = Reader::now();
 
 			if (this->top().time > upperBound) break;
@@ -100,9 +98,8 @@ public:
 	{
 		this->queue.push_back(cmd);
 		this->queue.back().id = ++this->idCounter;
-		this->queue.back().time += Reader::now();
 		std::push_heap(this->queue.begin(), this->queue.end());
-		return { this->idCounter, this->queue.back().time };
+		return { this->idCounter, cmd.time };
 	}
 
 	bool empty() const
@@ -137,7 +134,6 @@ public:
 	void unhookAll()
 	{
 		this->shiftStateHook.unhook();
-		this->ctrlStateHook.unhook();
 	}
 
 private:
@@ -158,7 +154,7 @@ private:
 
 	// We hook into the functions that grab if these keys are down
 	// and replace them with the above if we want to force them down
-	mem::Hook shiftStateHook, ctrlStateHook;
+	mem::Hook shiftStateHook;
 
 	// Search for input with this id
 	Queue::iterator search(uintmax_t id)
@@ -217,10 +213,12 @@ private:
 		// not clicking
 		if (mouse.direction == InputDirection::Unchanged || mouse.button == MouseButton::None)
 		{
-			mrs.app->OnMouseMove(pos.x, pos.y, pos.x - old.x, pos.y - old.y, false, false, false);
+			Point<int> offset = pos - old;
+			mrs.app->OnMouseMove(pos.x, pos.y, offset.x, offset.y, false, false, false);
 			mrs.mouseControl->lastPosition = mrs.mouseControl->position;
 			mrs.mouseControl->position.x = pos.x;
 			mrs.mouseControl->position.y = pos.y;
+
 			return; 
 		}
 
@@ -310,21 +308,25 @@ bool Input::humanKeyboard = true;
 namespace
 {
 
-namespace fl = float_util;
-
-double nextDelay(double t)
+bool validateInGame(const State& s, bool nothrow = false)
 {
-	return fl::increment(t - Reader::now());
+	if (!s.game || !s.game->playerShip)
+	{
+		if (!nothrow) throw GameNotRunning();
+		else return false;
+	}
+
+	return true;
 }
 
 void validateDelay(double d)
 {
-	if (d < -1.0)
+	if (d < 0.0)
 	{
 		throw InvalidTime("we can't send commands to the past to undo our mistakes");
 	}
 
-	if (d > 86400.0)
+	if (d > 8640.0)
 	{
 		throw InvalidTime("this would send a command over a day from now; are you marathoning?");
 	}
@@ -344,6 +346,146 @@ Key getHotkey(
 	{
 		throw InvalidHotkey(k);
 	}
+}
+
+struct PowerHotkey
+{
+	Key key = Key::Unknown;
+	bool shift = false;
+};
+
+// Find any working keyboard combo to (un)power the system
+PowerHotkey workingPowerHotkey(
+	const System& sys,
+	const decltype(Settings::hotkeys)& hotkeys,
+	bool unpower)
+{
+	Key k;
+
+	if (unpower)
+	{
+		// Try to get the direct unpower key
+		k = getHotkey(hotkeys, systemUnpowerHotkey(sys.type));
+		if (k != Key::Unknown) return { k, false };
+
+		// Then, fallback to direct power key + shift
+		k = getHotkey(hotkeys, systemPowerHotkey(sys.type));
+		if (k != Key::Unknown) return { k, true };
+
+		// Then, fallback to positional unpower key
+		int id = sys.uiBox + 1;
+		k = getHotkey(hotkeys, "un_power_" + std::to_string(id));
+		if (k != Key::Unknown) return { k, false };
+
+		// Then, fallback to positional power key + shift
+		k = getHotkey(hotkeys, "power_" + std::to_string(id));
+		if (k != Key::Unknown) return { k, true };
+
+		// Otherwise, there's no hotkey for it
+		return { k, false };
+	}
+
+	// Try to get direct power key
+	k = getHotkey(hotkeys, systemPowerHotkey(sys.type));
+	if (k != Key::Unknown) return { k, false };
+
+	// Then, fallback to positional power 
+	int id = sys.uiBox + 1;
+	k = getHotkey(hotkeys, "power_" + std::to_string(id));
+	if (k != Key::Unknown) return { k, false };
+
+	// Otherwise, there's no hotkey for it
+	return { k, false };
+}
+
+// Assumes a bunch of other checks have already been made
+Input::Ret useWeapon(
+	const Weapon& weapon,
+	const std::map<std::string, Key>& hotkeys,
+	bool powerOff = false,
+	double delay = 0.0)
+{
+	// Try to use a hotkey
+	auto hotkey = getHotkey(hotkeys, "weapon" + std::to_string(weapon.slot + 1));
+
+	// If there is none, use the mouse
+	if (hotkey == Key::Unknown)
+	{
+		auto&& weaponBoxes = Reader::getState().ui.game->weaponBoxes;
+		auto pos = weaponBoxes[weapon.slot].center();
+		auto button = powerOff ? MouseButton::Right : MouseButton::Left;
+
+		return Input::mouseClick(button, pos, false, !powerOff, delay);
+	}
+
+	return Input::keyPress(hotkey, powerOff, delay);
+}
+
+const Weapon* weaponAt(int which, bool suppress = false)
+{
+	auto&& opt = Reader::getState().game->playerShip->weapons;
+
+	if (!opt)
+	{
+		if (!suppress) throw SystemNotInstalled(SystemType::Weapons);
+		else return nullptr;
+	}
+
+	auto&& weapons = *opt;
+	auto size = int(weapons.list.size());
+
+	if (which < 0 || which >= size)
+	{
+		if (!suppress) throw InvalidSlotChoice("weapon", which, size);
+		else return nullptr;
+	}
+
+	return &weapons.list.at(which);
+}
+
+// Assumes a bunch of other checks have already been made
+Input::Ret useDrone(
+	const Drone& drone,
+	const std::map<std::string, Key>& hotkeys,
+	bool powerOff = false,
+	double delay = 0.0)
+{
+	// Try to use a hotkey
+	auto hotkey = getHotkey(hotkeys, "drone" + std::to_string(drone.slot + 1));
+
+	// If there is none, use the mouse
+	if (hotkey == Key::Unknown)
+	{
+		auto&& droneBoxes = Reader::getState().ui.game->droneBoxes;
+		auto pos = droneBoxes[drone.slot].center();
+		auto button = powerOff ? MouseButton::Right : MouseButton::Left;
+
+		return Input::mouseClick(button, pos, false, !powerOff, delay);
+	}
+
+	return Input::keyPress(hotkey, powerOff, delay);
+}
+
+const Drone* droneAt(int which, bool suppress = false)
+{
+	auto&& opt = Reader::getState().game->playerShip->drones;
+
+	if (!opt)
+	{
+		if (!suppress) throw SystemNotInstalled(SystemType::Drones);
+		else return nullptr;
+	}
+
+	auto&& drones = *opt;
+	auto size = int(drones.list.size());
+
+	if (which < 0 || which >= size)
+	{
+		if (!suppress) throw InvalidSlotChoice("drone", which, size);
+		else return nullptr;
+	}
+
+	return &drones.list.at(which);
 }
 
 }
@@ -410,12 +552,12 @@ void Input::clear()
 
 Input::Ret Input::mouseMove(
 	const Point<int>& position,
-	double time)
+	double delay)
 {
-	validateDelay(time);
+	validateDelay(delay);
 	return impl.push(Impl::Command{
 		.type = Impl::Command::Type::Mouse,
-		.time = time,
+		.time = Reader::now() + delay,
 		.mouse = {
 			.position = position
 		},
@@ -426,18 +568,18 @@ Input::Ret Input::mouseDown(
 	MouseButton button,
 	const Point<int>& position,
 	bool shift,
-	double time)
+	double delay)
 {
-	validateDelay(time);
-	auto [_, moveTime] = mouseMove(position, time);
+	validateDelay(delay);
+	mouseMove(position, delay);
 	return impl.push(Impl::Command{
 		.type = Impl::Command::Type::Mouse,
-		.time = nextDelay(moveTime),
+		.time = Reader::now() + delay,
 		.mouse = {
-			.position = position,
 			.button = button,
-			.direction = InputDirection::Down,
-			.shift = shift
+			.position = position,
+			.shift = shift,
+			.direction = InputDirection::Down
 		}
 	});
 }
@@ -449,45 +591,50 @@ Input::Ret Input::mouseUp(
 	double delay)
 {
 	validateDelay(delay);
-	auto [_, moveTime] = mouseMove(position, delay);
+	mouseMove(position, delay);
 	return impl.push(Impl::Command{
 		.type = Impl::Command::Type::Mouse,
-		.time = nextDelay(moveTime),
+		.time = Reader::now() + delay,
 		.mouse = {
-			.position = position,
 			.button = button,
-			.direction = InputDirection::Up,
-			.shift = shift
+			.position = position,
+			.shift = shift,
+			.direction = InputDirection::Up
 		}
 	});
 }
 
 Input::Ret Input::mouseClick(
-	const Point<int>& position,
 	MouseButton button,
+	const Point<int>& position,
 	bool shift,
+	bool partial,
 	double delay)
 {
-	auto [_, moveTime] = mouseMove(position, delay);
-	auto [__, downTime] = impl.push(Impl::Command{
-		.type = Impl::Command::Type::Mouse,
-		.time = moveTime,
-		.mouse = {
-			.position = position,
-			.button = button,
-			.direction = InputDirection::Down,
-			.shift = shift
-		}
-	});
+	mouseMove(position, delay);
+
+	if (!partial)
+	{
+		impl.push(Impl::Command{
+			.type = Impl::Command::Type::Mouse,
+			.time = Reader::now() + delay,
+			.mouse = {
+				.button = button,
+				.position = position,
+				.shift = shift,
+				.direction = InputDirection::Down
+			}
+		});
+	}
 
 	return impl.push(Impl::Command{
 		.type = Impl::Command::Type::Mouse,
-		.time = nextDelay(downTime),
+		.time = Reader::now() + delay,
 		.mouse = {
-			.position = position,
 			.button = button,
-			.direction = InputDirection::Up,
-			.shift = shift
+			.position = position,
+			.shift = shift,
+			.direction = InputDirection::Up
 		}
 	});
 }
@@ -500,11 +647,11 @@ Input::Ret Input::keyDown(
 	validateDelay(delay);
 	return impl.push(Impl::Command{
 		.type = Impl::Command::Type::Keyboard,
-		.time = delay,
+		.time = Reader::now() + delay,
 		.keyboard = {
 			.key = key,
-			.direction = InputDirection::Down,
-			.shift = shift
+			.shift = shift,
+			.direction = InputDirection::Down
 		}
 	});
 }
@@ -517,11 +664,11 @@ Input::Ret Input::keyUp(
 	validateDelay(delay);
 	return impl.push(Impl::Command{
 		.type = Impl::Command::Type::Keyboard,
-		.time = delay,
+		.time = Reader::now() + delay,
 		.keyboard = {
 			.key = key,
-			.direction = InputDirection::Up,
-			.shift = shift
+			.shift = shift,
+			.direction = InputDirection::Up
 		}
 	});
 }
@@ -531,58 +678,8 @@ Input::Ret Input::keyPress(
 	bool shift,
 	double delay)
 {
-	auto [_, downTime] = keyDown(key, shift, delay);
-	return keyUp(key, false, nextDelay(downTime));
-}
-
-struct PowerHotkey
-{
-	Key key = Key::Unknown;
-	bool shift = false;
-};
-
-// Find any working keyboard combo to (un)power the system
-PowerHotkey workingPowerHotkey(
-	const System& sys,
-	const decltype(Settings::hotkeys)& map,
-	bool unpower)
-{
-	Key k;
-	
-	if (unpower)
-	{
-		// Try to get the direct unpower key
-		k = getHotkey(map, systemUnpowerHotkey(sys.type));
-		if (k != Key::Unknown) return { k, false };
-
-		// Then, fallback to direct power key + shift
-		k = getHotkey(map, systemPowerHotkey(sys.type));
-		if (k != Key::Unknown) return { k, true };
-
-		// Then, fallback to positional unpower key
-		int id = sys.uiBox+1;
-		k = getHotkey(map, "un_power_" + std::to_string(id));
-		if (k != Key::Unknown) return { k, false };
-
-		// Then, fallback to positional power key + shift
-		k = getHotkey(map, "power_" + std::to_string(id));
-		if (k != Key::Unknown) return { k, true };
-
-		// Otherwise, there's no hotkey for it
-		return { k, false };
-	}
-
-	// Try to get direct power key
-	k = getHotkey(map, systemPowerHotkey(sys.type));
-	if (k != Key::Unknown) return { k, false };
-
-	// Then, fallback to positional power 
-	int id = sys.uiBox+1;
-	k = getHotkey(map, "power_" + std::to_string(id));
-	if (k != Key::Unknown) return { k, false };
-
-	// Otherwise, there's no hotkey for it
-	return { k, false };
+	keyDown(key, shift, delay);
+	return keyUp(key, false, Reader::now() + delay);
 }
 
 Input::Ret Input::hotkeyDown(
@@ -622,14 +719,12 @@ Input::Ret Input::eventChoice(
 	bool suppress,
 	double delay)
 {
-	auto&& game = Reader::getState().game;
+	auto&& state = Reader::getState();
+	validateInGame(state, suppress);
 
-	if (!game)
-	{
-		if (!suppress) throw GameNotRunning();
-		else return {};
-	}
-	else if(!game->event || !game->pause.event)
+	auto&& game = state.game;
+
+	if(!game->event || !game->pause.event)
 	{
 		if (!suppress) throw NoEvent();
 		else return {};
@@ -656,13 +751,7 @@ Input::Ret Input::systemPower(
 	double delay)
 {
 	auto&& state = Reader::getState();
-
-	// Should be impossible, but just in-case
-	if (!state.game || !state.game->playerShip)
-	{
-		if (!suppress) throw GameNotRunning();
-		else return {};
-	}
+	validateInGame(state, suppress);
 
 	if (delta != 0 && set > 0)
 	{
@@ -672,15 +761,7 @@ Input::Ret Input::systemPower(
 
 	int required = system.power.required;
 
-	if (required == 0) // weapons or drones
-	{
-		if (!suppress) throw InvalidPowerRequest(system, "the power state of that system is not granular");
-		else return {};
-	}
-
-	// ...if somehow this ever happens, we can't handle it yet
-	// I tried to generalize but I couldn't think of a satisfying solution
-	if (required > 2)
+	if (required <= 0 || required > 2)
 	{
 		if (!suppress) throw InvalidPowerRequest(system, "this function can't handle that system");
 		else return {};
@@ -730,8 +811,8 @@ Input::Ret Input::systemPower(
 	}
 	else
 	{
-		int start = (current / required) * required;
-		int end = ((desired + 1) / required) * required;
+		int start = required > 1 ? (current / required) * required : current;
+		int end = required > 1 ? ((desired + 1) / required) * required : desired;
 		upInputs = (end - start) / required;
 		if (mod != 0) downInputs = 1;
 
@@ -742,24 +823,22 @@ Input::Ret Input::systemPower(
 		}
 	}
 
-	Ret last{ 0, delay + Reader::now() };
+	Ret last{ 0, Reader::now() + delay };
 
 	auto doInput = [&](const PowerHotkey& k, bool depower) {
 		auto&& [key, shift] = k;
 
 		if (key != Key::Unknown) // hotkey found
 		{
-			last = keyDown(key, shift, nextDelay(last.second));
+			last = keyDown(key, shift, delay);
 		}
 		else // must click instead
 		{
 			auto&& ship = *state.game->playerShip;
 			auto&& point = state.ui.game->getSystem(system.type, system.discriminator).bottomCenter();
 			last = mouseClick(
-				point,
 				depower ? MouseButton::Right : MouseButton::Left,
-				false,
-				nextDelay(last.second)
+				point, false, false, delay
 			);
 		}
 	};
@@ -777,4 +856,236 @@ Input::Ret Input::systemPower(
 	}
 
 	return last;
+}
+
+Input::Ret Input::systemPower(
+	SystemType which,
+	int set, int delta,
+	bool suppress,
+	double delay)
+{
+	auto&& state = Reader::getState();
+	validateInGame(state, suppress);
+
+	try
+	{
+		auto&& system = state.game->playerShip->getSystem(which, suppress);
+		return systemPower(system, set, delta, suppress, delay);
+	}
+	catch (const std::exception& e)
+	{
+		if (!suppress) throw e;
+	}
+
+	return {};
+}
+
+Input::Ret Input::weaponPower(
+	const Weapon& weapon,
+	bool on,
+	bool suppress,
+	double delay)
+{
+	auto&& state = Reader::getState();
+	validateInGame(state, suppress);
+
+	if (!state.game->playerShip->weapons)
+	{
+		if (!suppress) throw SystemNotInstalled(SystemType::Weapons);
+		else return {};
+	}
+
+	auto&& weapSys = *state.game->playerShip->weapons;
+	auto slots = int(weapSys.list.size());
+
+	if (weapon.slot < 0)
+	{
+		if (!suppress) throw InvalidSlotChoice("weapon", weapon.slot);
+		else return {};
+	}
+
+	if (weapon.slot >= slots)
+	{
+		if (!suppress) throw InvalidSlotChoice("weapon", weapon.slot, slots);
+		else return {};
+	}
+
+	auto range = weapSys.powerRange();
+	int current = weapon.power.total.first;
+	if (range.first == range.second)
+	{
+		int desired = current + weapon.power.required * (on ? 1 : -1);
+		if (!suppress) throw InvalidPowerRequest(weapSys, desired, range);
+	}
+
+	if (on)
+	{
+		int needs = weapon.power.required - current;
+
+		// Nothing needs to be done
+		if (needs == 0) return {};
+
+		// Need missiles
+		int missiles = state.game->playerShip->cargo.missiles;
+		int neededMissiles = weapon.blueprint.missiles;
+		if (!suppress && missiles < neededMissiles)
+		{
+			throw InvalidSlotChoice("weapon", weapon.slot, "there isn't enough missiles");
+		}
+
+		if (!suppress && needs > state.game->playerShip->reactor.total.first)
+		{
+			throw InvalidPowerRequest(weapon, "there isn't enough power in the reactor");
+		}
+	}
+	else
+	{
+		int del = current - weapon.power.zoltan;
+
+		// Nothing needs to be done
+		if (del == 0) return {};
+
+		if (!suppress && weapon.power.zoltan >= weapon.power.required)
+		{
+			throw InvalidPowerRequest(weapon, "it is fully powered by zoltan crew");
+		}
+	}
+
+	return useWeapon(weapon, hotkeys(), !on, delay);
+}
+
+Input::Ret Input::weaponPower(
+	int which,
+	bool on,
+	bool suppress,
+	double delay)
+{
+	auto&& state = Reader::getState();
+	validateInGame(state, suppress);
+	auto&& weapon = weaponAt(which, suppress);
+	if (!weapon) return {}; // only happens if suppressed
+	return weaponPower(*weapon, on, suppress, delay);
+}
+
+Input::Ret Input::weaponSelect(
+	const Weapon& weapon,
+	bool suppress,
+	double delay)
+{
+	auto&& state = Reader::getState();
+	validateInGame(state, suppress);
+	if (!weapon.powered()) weaponPower(weapon, true, suppress, delay);
+	return useWeapon(weapon, hotkeys(), false, delay);
+}
+
+Input::Ret Input::weaponSelect(
+	int which,
+	bool suppress,
+	double delay)
+{
+	auto&& state = Reader::getState();
+	validateInGame(state, suppress);
+	auto&& weapon = weaponAt(which, suppress);
+	if (!weapon) return {}; // only happens if suppressed
+	return weaponSelect(*weapon, suppress, delay);
+}
+
+Input::Ret Input::dronePower(
+	const Drone& drone,
+	bool on,
+	bool suppress,
+	double delay)
+{
+	auto&& state = Reader::getState();
+	validateInGame(state, suppress);
+
+	if (!state.game->playerShip->drones)
+	{
+		if (!suppress) throw SystemNotInstalled(SystemType::Drones);
+		else return {};
+	}
+
+	auto&& droneSys = *state.game->playerShip->drones;
+	auto slots = int(droneSys.list.size());
+
+	if (drone.slot < 0)
+	{
+		if (!suppress) throw InvalidSlotChoice("drone", drone.slot);
+		else return {};
+	}
+
+	if (drone.slot >= slots)
+	{
+		if (!suppress) throw InvalidSlotChoice("drone", drone.slot, slots);
+		else return {};
+	}
+
+	auto range = droneSys.powerRange();
+	int current = drone.power.total.first;
+	if (range.first == range.second)
+	{
+		int desired = current + drone.power.required * (on ? 1 : -1);
+		if (!suppress) throw InvalidPowerRequest(droneSys, desired, range);
+	}
+
+	if (on)
+	{
+		int needs = drone.power.required - current;
+
+		// Nothing needs to be done
+		if (needs == 0) return {};
+
+		// Need drone parts
+		int droneParts = state.game->playerShip->cargo.droneParts;
+		if (!suppress && droneParts < 1)
+		{
+			throw InvalidSlotChoice("drone", drone.slot, "there isn't enough drone parts");
+		}
+
+		// Need to not be destroyed
+		if (!suppress && drone.dead)
+		{
+			throw InvalidSlotChoice("drone", drone.slot, "it is destroyed or on cooldown");
+		}
+
+		// Various drone types need an enemy ship
+		bool enemy = state.game->enemyShip.has_value();
+		if (!suppress && drone.needsEnemy() && !enemy)
+		{
+			throw InvalidSlotChoice("drone", drone.slot, "it needs an enemy to function");
+		}
+
+		if (!suppress && needs > state.game->playerShip->reactor.total.first)
+		{
+			throw InvalidPowerRequest(drone, "there isn't enough power in the reactor");
+		}
+	}
+	else
+	{
+		int del = current - drone.power.zoltan;
+
+		// Nothing needs to be done
+		if (del == 0) return {};
+
+		if (!suppress && drone.power.zoltan >= drone.power.required)
+		{
+			throw InvalidPowerRequest(drone, "it is fully powered by zoltan crew");
+		}
+	}
+
+	return useDrone(drone, hotkeys(), !on, delay);
+}
+
+
+Input::Ret Input::dronePower(
+	int which,
+	bool on,
+	bool suppress,
+	double delay)
+{
+	auto&& state = Reader::getState();
+	validateInGame(state, suppress);
+	auto&& drone = droneAt(which, suppress);
+	if (!drone) return {}; // only happens if suppressed
+	return dronePower(*drone, on, suppress, delay);
 }

@@ -102,8 +102,22 @@ struct StarMapUIState
 	std::optional<Rect<int>> nextSector;
 };
 
+struct EventChoiceUIState
+{
+	std::string text;
+	Rect<int> box;
+};
+
+struct EventUIState
+{
+	std::string text;
+	std::vector<EventChoiceUIState> choices;
+};
+
 struct GameUIState
 {
+	static constexpr Point<int> HARDCODED_ARMAMENT_BOX_SIZE{ 95, 39 };
+
 	Point<int> playerShip;
 	Point<int> enemyShip;
 
@@ -134,6 +148,7 @@ struct GameUIState
 	std::optional<Rect<int>> hacking;
 
 	std::vector<Rect<int>> weaponBoxes;
+	std::optional<Rect<int>> autoFire;
 	std::vector<Rect<int>> droneBoxes;
 	std::optional<Rect<int>> openAllDoors;
 	std::optional<Rect<int>> closeAllDoors;
@@ -148,6 +163,7 @@ struct GameUIState
 	std::optional<CrewManifestUIState> crewManifest;
 	std::optional<CargoUIState> cargo;
 	std::optional<StarMapUIState> starMap;
+	std::optional<EventUIState> event;
 	std::optional<StoreUIState> store;
 
 	bool hasSystem(SystemType type, int which = 0) const

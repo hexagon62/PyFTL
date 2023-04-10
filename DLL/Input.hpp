@@ -42,7 +42,7 @@ public:
 	// This is so they're roughly executed sequentially
 	// They all will return a tuple containing:
 	// - the id of the *last* input they put in the queue
-	// - the time point the input will be made, measured in seconds since PyFTL started
+	// - the time point the input will be made, measured in milliseconds since PyFTL started
 
 	using Ret = std::pair<uintmax_t, double>;
 
@@ -66,9 +66,10 @@ public:
 	);
 
 	static Ret mouseClick(
-		const Point<int>& position = { -1, -1 },
 		MouseButton button = MouseButton::Left,
+		const Point<int>& position = { -1, -1 },
 		bool shift = false,
+		bool partial = false, // don't mouse down if true
 		double delay = 0.0
 	);
 
@@ -119,6 +120,53 @@ public:
 	static Ret systemPower(
 		const System& system,
 		int set = 0, int delta = 0,
+		bool suppress = false,
+		double delay = 0.0
+	);
+
+	static Ret systemPower(
+		SystemType which,
+		int set = 0, int delta = 0,
+		bool suppress = false,
+		double delay = 0.0
+	);
+
+	static Ret weaponPower(
+		const Weapon& weapon,
+		bool on = true,
+		bool suppress = false,
+		double delay = 0.0
+	);
+
+	static Ret weaponPower(
+		int which,
+		bool on = true,
+		bool suppress = false,
+		double delay = 0.0
+	);
+
+	static Ret weaponSelect(
+		const Weapon& weapon,
+		bool suppress = false,
+		double delay = 0.0
+	);
+
+	static Ret weaponSelect(
+		int which,
+		bool suppress = false,
+		double delay = 0.0
+	);
+
+	static Ret dronePower(
+		const Drone& drone,
+		bool on = true,
+		bool suppress = false,
+		double delay = 0.0
+	);
+
+	static Ret dronePower(
+		int which,
+		bool on = true,
 		bool suppress = false,
 		double delay = 0.0
 	);

@@ -11,10 +11,10 @@ struct Rect
 
 	T x = T(0), y = T(0), w = T(0), h = T(0);
 
-	Rect() = default;
+	constexpr Rect() = default;
 
 	template<typename U>
-	Rect(const U& x, const U& y, const U& w, const U& h)
+	constexpr Rect(const U& x, const U& y, const U& w, const U& h)
 		: x(T(x))
 		, y(T(y))
 		, w(T(w))
@@ -22,7 +22,7 @@ struct Rect
 	{}
 
 	template<typename U>
-	Rect(const std::tuple<U, U, U, U>& t)
+	constexpr Rect(const std::tuple<U, U, U, U>& t)
 		: x(T(std::get<0>(t)))
 		, y(T(std::get<1>(t)))
 		, w(T(std::get<2>(t)))
@@ -30,7 +30,7 @@ struct Rect
 	{}
 
 	template<typename U>
-	Rect(const Point<U>& p1, const Point<U>& p2)
+	constexpr Rect(const Point<U>& p1, const Point<U>& p2)
 		: x(T(p1.x))
 		, y(T(p1.y))
 		, w(T(p2.x))
@@ -38,7 +38,7 @@ struct Rect
 	{}
 
 	template<typename U>
-	Rect(const Rect<U>& other)
+	constexpr Rect(const Rect<U>& other)
 		: x(T(other.x))
 		, y(T(other.y))
 		, w(T(other.w))

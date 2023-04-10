@@ -145,6 +145,7 @@
     <ClInclude Include="State\Systems.hpp" />
     <ClInclude Include="State\SystemType.hpp" />
     <ClInclude Include="State\UI.hpp" />
+    <ClInclude Include="State\Weapon.hpp" />
     <ClInclude Include="State\WeaponBlueprint.hpp" />
     <ClInclude Include="State\WeaponType.hpp" />
     <ClInclude Include="Utility\Exceptions.hpp" />

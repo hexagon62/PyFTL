@@ -57,6 +57,18 @@ public:
 class InvalidPowerRequest final : public std::invalid_argument
 {
 public:
+	InvalidPowerRequest(const Weapon& weapon, const std::string& why)
+		: std::invalid_argument(
+			"tried to toggle weapon #" + std::to_string(weapon.slot) + " but " + why
+		)
+	{}
+
+	InvalidPowerRequest(const Drone& drone, const std::string & why)
+		: std::invalid_argument(
+			"tried to toggle drone #" + std::to_string(drone.slot) + " but " + why
+		)
+	{}
+
 	InvalidPowerRequest(const System& system, const std::string& why)
 		: std::invalid_argument(
 			"tried to change the power of " + systemName(system.type) +
@@ -79,6 +91,29 @@ public:
 			" (@" + std::to_string(system.uiBox) + ") to " + std::to_string(attempted) +
 			", but the current legal range is " +
 			std::to_string(range.first) + "-" + std::to_string(range.second)
+		)
+	{}
+};
+
+class InvalidSlotChoice final : public std::out_of_range
+{
+public:
+	InvalidSlotChoice(const std::string& what, int slot)
+		: std::out_of_range(
+			"tried to toggle a " + what + " in invalid slot #" + std::to_string(slot)
+		)
+	{}
+
+	InvalidSlotChoice(const std::string& what, int slot, int count)
+		: std::out_of_range(
+			"tried to toggle a " + what + " in slot #" + std::to_string(slot) +
+			" but there are only " + std::to_string(count) + " taken slots"
+		)
+	{}
+
+	InvalidSlotChoice(const std::string& what, int slot, const std::string& why)
+		: std::out_of_range(
+			"tried to toggle a " + what + " in slot #" + std::to_string(slot) + " but " + why
 		)
 	{}
 };

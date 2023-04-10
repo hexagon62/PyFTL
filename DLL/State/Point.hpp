@@ -9,22 +9,22 @@ struct Point
 
 	T x = T(0), y = T(0);
 
-	Point() = default;
+	constexpr Point() = default;
 
 	template<typename U>
-	Point(const Point<U>& other)
+	constexpr Point(const Point<U>& other)
 		: x(T(other.x))
 		, y(T(other.y))
 	{}
 
 	template<typename U>
-	Point(const std::pair<U, U>& other)
+	constexpr Point(const std::pair<U, U>& other)
 		: x(T(other.first))
 		, y(T(other.second))
 	{}
 
 	template<typename U>
-	Point(const U& x, const U& y)
+	constexpr Point(const U& x, const U& y)
 		: x(T(x))
 		, y(T(y))
 	{}

@@ -2017,7 +2017,7 @@ struct DoorBox : SystemBox
 	Point buttonOffset;
 };
 
-struct TeleporterBox : SystemBox
+struct TeleportBox : SystemBox
 {
 	GL_Texture* box = nullptr;
 	Button teleportLeave;
@@ -2043,6 +2043,44 @@ struct ArtilleryBox : CooldownSystemBox
 {
 	ArtillerySystem* artSystem = nullptr;
 	Point buttonOffset;
+};
+
+struct CloakingBox : CooldownSystemBox
+{
+	gcc::vector<Button*> buttons;
+	Button* currentButton = nullptr;
+	CloakingSystem* cloakSystem = nullptr;
+	Point buttonOffset;
+};
+
+struct BatteryBox : CooldownSystemBox
+{
+	BatterySystem* batterySystem = nullptr;
+	Button batteryButton;
+	Point buttonOffset;
+};
+
+struct MindBox : CooldownSystemBox
+{
+	MindSystem *mindSystem = nullptr;
+	Button mindControl;
+	Point buttonOffset;
+	WarningMessage* superShieldWarning = nullptr;
+};
+
+struct HackBox : CooldownSystemBox
+{
+	HackingSystem* hackSys = nullptr;
+	gcc::vector<Button*> buttons;
+	Button* currentButton = nullptr;
+	Point buttonOffset;
+	GL_Texture* box = nullptr;
+	GL_Texture* box2 = nullptr;
+	Button hackButton;
+	Button overlayButton;
+	ShipManager* shipManager = nullptr;
+	AnimationTracker flashTracker;
+	WarningMessage* superShieldWarning = nullptr;
 };
 
 struct SystemCustomBox : SystemBox

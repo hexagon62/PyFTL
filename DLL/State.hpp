@@ -15,7 +15,7 @@
 struct PauseState
 {
 	bool any = false, justPaused = false, justUnpaused = false;
-	bool normal = false, automatic = false, menu = false, event = false, touch = false;
+	bool normal = false, automatic = false, menu = false, event = false;
 };
 
 struct Game

@@ -156,7 +156,7 @@ void bindInput(py::module_& module)
 		.value("Undo", Key::Undo)
 		;
 
-	py::enum_<MouseButton>(sub, "MouseButton", "A mouse button")
+	py::enum_<MouseButton>(sub, "Mouse", "A mouse button")
 		.value("None", MouseButton::None)
 		.value("Left", MouseButton::Left)
 		.value("Middle", MouseButton::Middle)
@@ -222,16 +222,17 @@ void bindInput(py::module_& module)
 		"mouse_move",
 		&Input::mouseMove,
 		py::arg("position"),
+		py::kw_only(),
 		py::arg("delay") = 0.0,
-		"Queue a command to move the mouse"
+		"Queue a command to move the mouse."
 	);
 
 	sub.def(
 		"mouse_down",
 		&Input::mouseDown,
 		py::arg("button") = MouseButton::Left,
-		py::kw_only(),
 		py::arg("position") = Point<int>(-1, -1),
+		py::kw_only(),
 		py::arg("shift") = false,
 		py::arg("delay") = 0.0,
 		"Queue a command to hold a mouse button down."
@@ -241,8 +242,8 @@ void bindInput(py::module_& module)
 		"mouse_up",
 		&Input::mouseUp,
 		py::arg("button") = MouseButton::Left,
-		py::kw_only(),
 		py::arg("position") = Point<int>(-1, -1),
+		py::kw_only(),
 		py::arg("shift") = false,
 		py::arg("delay") = 0.0,
 		"Queue a command to release a mouse button."
@@ -251,12 +252,15 @@ void bindInput(py::module_& module)
 	sub.def(
 		"mouse_click",
 		&Input::mouseClick,
-		py::arg("position") = Point<int>(-1, -1),
 		py::arg("button") = MouseButton::Left,
+		py::arg("position") = Point<int>(-1, -1),
 		py::kw_only(),
 		py::arg("shift") = false,
+		py::arg("partial") = false,
 		py::arg("delay") = 0.0,
-		"Queue a command to click a mouse button."
+		"Calls mouse_move, mouse_down, and then mouse_up.\n"
+		"Set 'partial' to True to not call mouse_down.\n"
+		"There are some use cases, such as selecting a weapon/drone without dragging, that require this."
 	);
 
 	sub.def(
@@ -341,19 +345,113 @@ void bindInput(py::module_& module)
 
 	sub.def(
 		"system_power",
-		&Input::systemPower,
+		py::overload_cast<const System&, int, int, bool, double>(&Input::systemPower),
+		py::arg("system"),
+		py::arg("set") = 0,
+		py::kw_only(),
+		py::arg("delta") = 0,
+		py::arg("suppress") = false,
+		py::arg("delay") = 0.0
+	);
+
+	sub.def(
+		"system_power",
+		py::overload_cast<SystemType, int, int, bool, double>(&Input::systemPower),
 		py::arg("system"),
 		py::arg("set") = 0,
 		py::kw_only(),
 		py::arg("delta") = 0,
 		py::arg("suppress") = false,
 		py::arg("delay") = 0.0,
-		"Queue a command to change a system's power.\n"
+		"Queue a command to change a system's power.\n\n"
 		"Specify 'set' to change to an amount. Specify 'delta' to change by an amount.\n"
 		"Setting both is invalid and will result in an exception.\n"
+		"Setting neither will completely unpower the system.\n\n"
+		"Set 'suppress' to True to suppress non-critical exceptions.\n"
+		"This will input commands as long as it's possible.\n"
+		"This allows you to click on a system even if you can't actually change its power state.\n\n"
+		"Inputs will be tried in the below order:\n"
+		"1) The direct unpower hotkey (if lowering power)\n"
+		"2) The direct power hotkey (+shift if lowering power)\n"
+		"3) The positional unpower hotkey (if lowering power)\n"
+		"4) The positional power hotkey (+shift if lowering power)\n"
+		"5) Clicking directly on the system"
+	);
+
+	sub.def(
+		"weapon_power",
+		py::overload_cast<const Weapon&, bool, bool, double>(&Input::weaponPower),
+		py::arg("weapon"),
+		py::arg("on") = true,
+		py::kw_only(),
+		py::arg("suppress") = false,
+		py::arg("delay") = 0.0
+	);
+
+	sub.def(
+		"weapon_power",
+		py::overload_cast<int, bool, bool, double>(&Input::weaponPower),
+		py::arg("which"),
+		py::arg("on") = true,
+		py::kw_only(),
+		py::arg("suppress") = false,
+		py::arg("delay") = 0.0,
+		"Queue a command to toggle a weapon.\n"
+		"By default it will turn the weapon on, set 'on' to false if you don't want this.\n\n"
 		"Set 'suppress' to True to surpress non-critical exceptions.\n"
 		"This will input commands as long as it's possible.\n"
-		"This allows you to click on a system even if you can't actually change its power state."
+		"This allows you to click on a weapon even if you can't actually change its power state.\n\n"
+		"Inputs will be tried in the below order:\n"
+		"1) The slot hotkey (+shift if lowering power)\n"
+		"2) Clicking directly on the slot"
+	);
+
+	sub.def(
+		"weapon_select",
+		py::overload_cast<const Weapon&, bool, double>(&Input::weaponSelect),
+		py::arg("weapon"),
+		py::kw_only(),
+		py::arg("suppress") = false,
+		py::arg("delay") = 0.0
+	);
+
+	sub.def(
+		"weapon_select",
+		py::overload_cast<int, bool, double>(&Input::weaponSelect),
+		py::arg("which"),
+		py::kw_only(),
+		py::arg("suppress") = false,
+		py::arg("delay") = 0.0,
+		"Queue a command to select a weapon.\n"
+		"Will call weapon_power to turn the weapon on if it's off."
+	);
+
+	sub.def(
+		"drone_power",
+		py::overload_cast<const Drone&, bool, bool, double>(&Input::dronePower),
+		py::arg("drone"),
+		py::arg("on") = true,
+		py::kw_only(),
+		py::arg("suppress") = false,
+		py::arg("delay") = 0.0
+	);
+
+	sub.def(
+		"drone_power",
+		py::overload_cast<int, bool, bool, double>(&Input::dronePower),
+		py::arg("drone"),
+		py::arg("on") = true,
+		py::kw_only(),
+		py::arg("suppress") = false,
+		py::arg("delay") = 0.0,
+		"Queue a command to toggle a drone.\n"
+		"By default it will turn the drone on, set 'on' to false if you don't want this.\n"
+		"Set 'suppress' to True to surpress non-critical exceptions.\n"
+		"This will input commands as long as it's possible.\n"
+		"This allows you to click on a drone even if you can't actually change its power state.\n\n"
+		"Inputs will be tried in the below order:\n"
+		"1) The slot hotkey (+shift if lowering power)\n"
+		"2) Clicking directly on the slot"
 	);
 }
 

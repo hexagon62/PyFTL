@@ -115,18 +115,12 @@ void bindSystems(py::module_& module)
 		;
 
 	py::class_<WeaponSystem, System>(module, "WeaponSystem", "The weapon system")
-		.def_readonly("slot_count", &WeaponSystem::slotCount, "The number of slots the system has")
-		.def_readonly("weapons", &WeaponSystem::weapons, "The weapons installed")
-		.def_readonly("user_powered", &WeaponSystem::userPowered, "Which weapons are powered by the user")
-		.def_readonly("repower", &WeaponSystem::repower, "Which weapons will need repowering upon repair/deionization")
+		.def_readonly("list", &WeaponSystem::list, "The list of weapons installed")
 		.def_readonly("auto_fire", &WeaponSystem::autoFire, "If auto-fire is toggled to on (player only)")
 		;
 
 	py::class_<DroneSystem, System>(module, "DroneSystem")
-		.def_readonly("slot_count", &DroneSystem::slotCount, "The number of slots the system has")
-		.def_readonly("drones", &DroneSystem::drones, "The drones installed")
-		.def_readonly("user_powered", &DroneSystem::userPowered, "Which drones are powered by the user")
-		.def_readonly("repower", &DroneSystem::repower, "Which drones will need repowering upon repair/deionization")
+		.def_readonly("list", &DroneSystem::list, "The list of drones installed")
 		;
 
 	py::class_<PilotingSystem, System>(module, "PilotingSystem", "The piloting system")

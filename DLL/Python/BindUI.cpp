@@ -74,6 +74,16 @@ void bindUI(py::module_& module)
 		.def_readonly("next_sector", &StarMapUIState::nextSector, "The button to go to the next sector.\nValid only if at an exit beacon.")
 		;
 
+	py::class_<EventChoiceUIState>(module, "EventChoiceUIState", "The state of choice in the event UI.")
+		.def_readonly("text", &EventChoiceUIState::text, "The text")
+		.def_readonly("box", &EventChoiceUIState::box, "The box bounding the choice")
+		;
+
+	py::class_<EventUIState>(module, "EventUIState", "The state of the event UI")
+		.def_readonly("text", &EventUIState::text, "The main text of the event")
+		.def_readonly("choices", &EventUIState::choices, "The choices that can be made")
+		;
+
 	py::class_<GameUIState>(module, "GameUIState", "The state of in-game UI stuff. Mostly button positions.")
 		.def_readonly("player_ship", &GameUIState::playerShip, "The base position of the player ship")
 		.def_readonly("enemy_ship", &GameUIState::enemyShip, "The base position of the enemy ship")
@@ -100,10 +110,12 @@ void bindUI(py::module_& module)
 		.def_readonly("clonebay", &GameUIState::clonebay, "The box containing the clonebay icon and power bars.\nValid only if the system is present.")
 		.def_readonly("mind_control", &GameUIState::mindControl, "The box containing the mind control icon and power bars.\nValid only if the system is present.")
 		.def_readonly("hacking", &GameUIState::hacking, "The box containing the hacking icon and power bars, if present")
-		.def_readonly("weapon_boxes", &GameUIState::weaponBoxes, "The boxes for each weapon currently equipped")
-		.def_readonly("drone_boxes", &GameUIState::droneBoxes, "The boxes for each drone currently equipped")
+		.def_readonly("weapon_boxes", &GameUIState::weaponBoxes, "The boxes for each weapon currently equipped.\nValid only if the weapom system is present")
+		.def_readonly("auto_fire", &GameUIState::autoFire, "The button to toggle auto-fire.\nValid only if the weapom system is present")
 		.def_readonly("open_all_doors", &GameUIState::openAllDoors, "The button to open all doors.\nValid only if the door system is present.")
-		.def_readonly("open_all_doors", &GameUIState::closeAllDoors, "The button to close all doors.\nValid only if the door system is present.")
+		.def_readonly("drone_boxes", &GameUIState::droneBoxes, "The boxes for each drone currently equipped.\nValid only if the drone system is present")
+		.def_readonly("open_all_doors", &GameUIState::openAllDoors, "The button to open all doors.\nValid only if the door system is present.")
+		.def_readonly("close_all_doors", &GameUIState::closeAllDoors, "The button to close all doors.\nValid only if the door system is present.")
 		.def_readonly("teleport_send", &GameUIState::teleportSend, "The button to teleport crew away.\nValid only if the teleporter system is present.")
 		.def_readonly("teleport_return", &GameUIState::teleportReturn, "The button to teleport crew back.\nValid only if the teleporter system is present.")
 		.def_readonly("start_cloak", &GameUIState::startCloak, "The button to activate cloaking.\nValid only if the cloaking system is present.")

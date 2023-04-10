@@ -140,6 +140,9 @@
     <ClInclude Include="Utility\Float.hpp">
       <Filter>Utility</Filter>
     </ClInclude>
+    <ClInclude Include="State\Weapon.hpp">
+      <Filter>State</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\C++ Resources\src\imgui.cpp">

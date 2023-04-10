@@ -14,7 +14,6 @@ void bindMisc(py::module_& module)
 		.def_readonly("automatic", &PauseState::automatic, "If the game was automatically paused")
 		.def_readonly("menu", &PauseState::menu, "If the game is paused due to a menu being open")
 		.def_readonly("event", &PauseState::event, "If an event paused the game")
-		.def_readonly("touch", &PauseState::touch, "If the game was paused through touch (not used on PC)")
 		;
 
 	py::class_<RandomAmount<int>>(module, "RandomAmountInt", "Used by FTL to generate random integers")
@@ -39,8 +38,8 @@ void bindMisc(py::module_& module)
 		.def_readonly("event", &Game::event, "The current event")
 		.def_readonly("player_ship", &Game::playerShip, "The player ship")
 		.def_readonly("enemy_ship", &Game::enemyShip, "The enemy ship")
-		.def_readonly("player_crew", &Game::playerCrew, "The player crew")
-		.def_readonly("enemy_crew", &Game::enemyCrew, "The enemy crew")
+		.def_readonly("player_crew", &Game::playerCrew, "The player crew, excluding drones")
+		.def_readonly("enemy_crew", &Game::enemyCrew, "The enemy crew, excluding drones")
 		;
 
 	py::class_<State>(module, "State", "The overall game state")

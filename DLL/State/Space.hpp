@@ -45,7 +45,7 @@ struct Projectile
 	bool player = false;
 	bool playerSpace = false;
 	bool playerSpaceIsDestination = false;
-	bool dead = false;
+	bool dying = false;
 	bool missed = false;
 	bool hit = false;
 	bool passed = false;
