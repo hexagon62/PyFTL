@@ -456,6 +456,8 @@ void readDrone(
 	drone.deployed = raw.deployed;
 	drone.dead = drone.destroyTimer.first < drone.destroyTimer.second;
 	drone.dying = false;
+	drone.powerUpTimer = { 0.f, 0.f };
+	drone.powerDownTimer = { 0.f, 0.f };
 
 	auto&& type = drone.blueprint.type;
 
@@ -474,6 +476,12 @@ void readDrone(
 
 		drone.dying = drone.crew->dying;
 		drone.dead = drone.crew->dead;
+
+		auto&& upTracker = casted.powerUp.tracker;
+		auto&& downTracker = casted.powerDown.tracker;
+
+		drone.powerUpTimer = { upTracker.current_time, upTracker.time };
+		drone.powerDownTimer = { downTracker.current_time, downTracker.time };
 	}
 
 	if (drone.spaceDrone())

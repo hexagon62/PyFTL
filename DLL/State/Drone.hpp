@@ -48,6 +48,8 @@ struct Drone
 	bool deployed = false;
 	HackLevel hackLevel = HackLevel::None;
 	float hackTime = 0.f;
+	std::pair<float, float> powerUpTimer{ 0.f, 0.f };
+	std::pair<float, float> powerDownTimer{ 0.f, 0.f };
 	std::pair<float, float> destroyTimer{ 0.f, 0.f };
 
 	std::optional<SpaceDroneInfo> space;
