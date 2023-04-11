@@ -1932,10 +1932,10 @@ void readStarMap(StarMap& map, const raw::StarMap& raw)
 
 void readSettings(Settings& settings, const raw::SettingValues& raw)
 {
-	settings.fullscreen = Settings::FullscreenMode(raw.fullscreen);
+	settings.fullscreen = FullscreenMode(raw.fullscreen);
 	settings.soundVolume = raw.sound;
 	settings.musicVolume = raw.music;
-	settings.difficulty = Settings::Difficulty(raw.difficulty);
+	settings.difficulty = Difficulty(raw.difficulty);
 	settings.consoleEnabled = raw.commandConsole;
 	settings.pauseOnFocusLoss = raw.altPause;
 	settings.touchPause = raw.touchAutoPause;
@@ -1948,7 +1948,7 @@ void readSettings(Settings& settings, const raw::SettingValues& raw)
 	settings.advancedEditionEnabled = raw.bDlcEnabled;
 	settings.language = raw.language.str;
 	settings.screenSize = raw.screenResolution;
-	settings.eventChoiceSelection = Settings::EventChoiceSelection(raw.dialogKeys);
+	settings.eventChoiceSelection = EventChoiceSelection(raw.dialogKeys);
 
 	settings.hotkeys.clear();
 
@@ -2150,6 +2150,49 @@ void readUI(State& state, const raw::State& raw)
 				break;
 			}
 			}
+		}
+
+		// Misc menus
+		if (state.game->event)
+		{
+			auto&& choiceBox = raw.app->gui->choiceBox;
+			auto&& mainText = choiceBox.mainText;
+			auto&& text = choiceBox.choices;
+			auto&& boxes = choiceBox.choiceBoxes;
+			auto&& openTime = choiceBox.openTime;
+
+			ui.game->event.emplace();
+			ui.game->event->text = mainText.str;
+
+			for (size_t i = 0; i < text.size(); i++)
+			{
+				auto&& choice = ui.game->event->choices.emplace_back();
+				choice.text = text[i].text.str;
+				choice.box = boxes[i];
+			}
+
+			switch (state.settings.eventChoiceSelection)
+			{
+			case EventChoiceSelection::NoDelay:
+				ui.game->event->openTime = { 0.f, 0.f };
+				break;
+			case EventChoiceSelection::BriefDelay:
+				ui.game->event->openTime = {
+					openTime,
+					EventUIState::HARDCODED_BRIEF_DELAY_TIME
+				};
+				break;
+			default: // no hotkeys
+				ui.game->event->openTime = {
+					openTime,
+					std::numeric_limits<float>::infinity()
+				};
+				break;
+			}
+		}
+		else
+		{
+			ui.game->event.reset();
 		}
 
 		// Set in-game cursor info

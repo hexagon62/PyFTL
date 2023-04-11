@@ -3,6 +3,18 @@
 #include <stdexcept>
 #include <string>
 
+class WrongMenu final : public std::runtime_error
+{
+public:
+	WrongMenu()
+		: std::runtime_error("an input was attempted in the wrong menu state")
+	{}
+
+	WrongMenu(const std::string& what)
+		: std::runtime_error(what + " was attempted in the wrong menu state")
+	{}
+};
+
 class InvalidTime final : public std::invalid_argument
 {
 public:
@@ -48,8 +60,14 @@ class InvalidEventChoice final : public std::out_of_range
 public:
 	InvalidEventChoice(int choice, int count)
 		: std::out_of_range(
-			"tried to select choice " + std::to_string(choice+1) +
+			"tried to select event choice #" + std::to_string(choice + 1) +
 			" from an event with " + std::to_string(count) + " choice(s)"
+		)
+	{}
+
+	InvalidEventChoice(int choice, const std::string& why)
+		: std::out_of_range(
+			"tried to select event choice #" + std::to_string(choice + 1) + " but " + why
 		)
 	{}
 };
@@ -114,6 +132,34 @@ public:
 	InvalidSlotChoice(const std::string& what, int slot, const std::string& why)
 		: std::out_of_range(
 			"tried to toggle a " + what + " in slot #" + std::to_string(slot) + " but " + why
+		)
+	{}
+};
+
+class InvalidCrewChoice final : public std::invalid_argument
+{
+public:
+	InvalidCrewChoice(const Crew& crew, const std::string& why)
+		: std::invalid_argument(
+			"tried to select crewmember " + crew.blueprint.name +
+			" (@" + std::to_string(crew.uiBox) + ") but " + why
+		)
+	{}
+};
+
+class InvalidCrewBoxChoice final : public std::out_of_range
+{
+public:
+	InvalidCrewBoxChoice(int which)
+		: std::out_of_range(
+			"tried to select crewmember #" + std::to_string(which) + " which is invalid"
+		)
+	{}
+
+	InvalidCrewBoxChoice(int which, int count)
+		: std::out_of_range(
+			"tried to select crewmember #" + std::to_string(which) +
+			" but there's only " + std::to_string(count) + " selectable crew"
 		)
 	{}
 };

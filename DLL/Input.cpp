@@ -136,6 +136,13 @@ public:
 		this->shiftStateHook.unhook();
 	}
 
+	static bool offScreen(const Point<int>& p)
+	{
+		return
+			p.x < 0 || p.x >= Input::GAME_WIDTH ||
+			p.y < 0 || p.y >= Input::GAME_HEIGHT;
+	}
+
 private:
 	friend class Input;
 	using Queue = std::vector<Command>;
@@ -272,13 +279,6 @@ private:
 		}
 	}
 
-	static bool offScreen(const Point<int>& p)
-	{
-		return
-			p.x < 0 || p.x >= Input::GAME_WIDTH ||
-			p.y < 0 || p.y >= Input::GAME_HEIGHT;
-	}
-
 	static void postMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
 	{
 		PostMessage(g_hGameWindow, uMsg | WM_FTLAI, wParam, lParam);
@@ -398,6 +398,12 @@ PowerHotkey workingPowerHotkey(
 	return { k, false };
 }
 
+// Some arbitrary spot that should have no UI elements
+Point<int> nopSpot()
+{
+	return { Input::GAME_WIDTH - 1, Input::GAME_HEIGHT - 1 };
+}
+
 // Assumes a bunch of other checks have already been made
 Input::Ret useWeapon(
 	const Weapon& weapon,
@@ -488,11 +494,28 @@ const Drone* droneAt(int which, bool suppress = false)
 	return &drones.list.at(which);
 }
 
-// Some arbitrary spot that should have no UI elements
-Point<int> nopSpot()
+// Assumes a bunch of other checks have already been made
+Input::Ret useCrew(
+	const Crew& crew,
+	const std::map<std::string, Key>& hotkeys,
+	bool exclusive = true,
+	double delay = 0.0)
 {
-	return { 0, 0 };
+	// Try to use a hotkey
+	auto hotkey = getHotkey(hotkeys, "crew" + std::to_string(crew.uiBox + 1));
+
+	if (hotkey == Key::Unknown)
+	{
+		// If there is none, use the mouse
+		auto&& crewBoxes = Reader::getState().ui.game->crewBoxes;
+		auto pos = crewBoxes[crew.uiBox].box.center();
+
+		return Input::mouseClick(MouseButton::Left, pos, !exclusive, false, delay);
+	}
+
+	return Input::keyPress(hotkey, !exclusive, delay);
 }
+
 
 }
 
@@ -720,6 +743,28 @@ const decltype(Settings::hotkeys)& Input::hotkeys()
 	return Reader::getState().settings.hotkeys;
 }
 
+Input::Ret Input::pause(
+	bool on,
+	bool suppress,
+	double delay)
+{
+	auto&& state = Reader::getState();
+	validateInGame(state, suppress);
+	auto&& pause = state.game->pause;
+	
+	if (pause.menu && !pause.event)
+	{
+		if (!suppress) throw WrongMenu("pausing");
+		else return {};
+	}
+
+	// nothing to do
+	if (pause.any == on) return {};
+
+	// middle mouse is always available, no need to check for hotkey
+	return mouseClick(MouseButton::Left, { -1, -1 }, false, false, delay);
+}
+
 Input::Ret Input::eventChoice(
 	int which,
 	bool suppress,
@@ -736,13 +781,38 @@ Input::Ret Input::eventChoice(
 		else return {};
 	}
 
-	auto&& choices = game->event->choices;
+	auto&& event = state.ui.game->event;
+	auto&& choices = event->choices;
 		
 	if (size_t(which) >= choices.size())
 	{
 		if (!suppress) throw InvalidEventChoice(which, int(choices.size()));
 		else return {};
 	}
+
+	// Hotkeys disabled, must click...
+	if (state.settings.eventChoiceSelection == EventChoiceSelection::DisableHotkeys)
+	{
+		auto&& choice = choices.at(which);
+		bool topCenter = !impl.offScreen(choice.box.topCenter());
+
+		if (!topCenter)
+		{
+			if (!suppress) throw InvalidEventChoice(which, "hotkeys are disabled and the choice is off-screen");
+			else return {};
+		}
+
+		bool center = !impl.offScreen(choice.box.center());
+
+		return mouseClick(
+			MouseButton::Left,
+			center ? choice.box.center() : choice.box.topCenter(),
+			false, false, delay);
+	}
+
+	// Make sure delay is long enough so input doesn't get ate
+	double diff = event->openTime.second - event->openTime.first;
+	if (delay < diff) delay = diff;
 
 	return keyPress(Key(int(Key::Num1) + which), false, delay);
 }
@@ -1113,12 +1183,165 @@ Input::Ret Input::aimCancel(double delay)
 	return mouseClick(MouseButton::Right, nopSpot(), false, false, delay);
 }
 
-Input::Ret Input::crewSelectAll(double delay)
+Input::Ret Input::crewSelect(
+	const Crew& crew,
+	bool exclusive,
+	bool suppress,
+	double delay)
 {
-	return mouseClick(MouseButton::Left, nopSpot(), false, false, delay);
+	auto&& state = Reader::getState();
+	validateInGame(state, suppress);
+
+	if (crew.dead)
+	{
+		if (!suppress) throw InvalidCrewChoice(crew, "they're dead");
+		else return {};
+	}
+
+	if (crew.drone)
+	{
+		if (!suppress) throw InvalidCrewChoice(crew, "they're a drone");
+		else return {};
+	}
+
+	if (!crew.player)
+	{
+		if (!suppress) throw InvalidCrewChoice(crew, "they're an enemy");
+		else return {};
+	}
+
+	auto&& list = state.game->playerCrew;
+	int count = int(list.size());
+
+	if (crew.uiBox < 0)
+	{
+		if (!suppress) throw InvalidCrewBoxChoice(crew.uiBox);
+		else return {};
+	}
+
+	if (crew.uiBox > count)
+	{
+		if (!suppress) throw InvalidCrewBoxChoice(crew.uiBox, count);
+		else return {};
+	}
+
+	return useCrew(crew, hotkeys(), exclusive, delay);
 }
 
-Input::Ret Input::crewUnselectAll(double delay)
+Input::Ret Input::crewSelect(
+	const std::vector<Crew>& crew,
+	bool exclusive,
+	bool suppress,
+	double delay)
+{
+	auto&& state = Reader::getState();
+	validateInGame(state, suppress);
+
+	if (crew.empty() && exclusive)
+	{
+		return crewCancel(delay);
+	}
+
+	// Trying to select all crew
+	if (crew.size() == state.ui.game->crewBoxes.size())
+	{
+		// Try to use a hotkey
+		auto hotkey = getHotkey(hotkeys(), "crew_all");
+
+		if (hotkey != Key::Unknown)
+		{
+			return Input::keyPress(hotkey, false, delay);
+		}
+	}
+
+	Input::Ret last{};
+
+	for (auto&& c : crew)
+	{
+		last = crewSelect(c, exclusive, suppress, delay);
+
+		// stop exclusivity after first crewmember
+		if (exclusive) exclusive = false;
+	}
+
+	return last;
+}
+
+Input::Ret Input::crewSelect(
+	int which,
+	bool exclusive,
+	bool suppress,
+	double delay)
+{
+	auto&& state = Reader::getState();
+	validateInGame(state, suppress);
+
+	auto&& list = state.game->playerCrew;
+	int count = int(list.size());
+
+	if (which < 0)
+	{
+		if (!suppress) throw InvalidCrewBoxChoice(which);
+		else return {};
+	}
+
+	if (which > count)
+	{
+		if (!suppress) throw InvalidCrewBoxChoice(which, count);
+		else return {};
+	}
+
+	return crewSelect(list.at(which), exclusive, suppress, delay);
+}
+
+Input::Ret Input::crewSelect(
+	const std::vector<int>& which,
+	bool exclusive,
+	bool suppress,
+	double delay)
+{
+	auto&& state = Reader::getState();
+	validateInGame(state, suppress);
+
+	if (which.empty() && exclusive)
+	{
+		return crewCancel(delay);
+	}
+
+	// Trying to select all crew
+	if (which.size() == state.ui.game->crewBoxes.size())
+	{
+		// Try to use a hotkey
+		auto hotkey = getHotkey(hotkeys(), "crew_all");
+
+		if (hotkey != Key::Unknown)
+		{
+			return Input::keyPress(hotkey, false, delay);
+		}
+	}
+
+	Input::Ret last{};
+
+	for (auto&& w : which)
+	{
+		last = crewSelect(w, exclusive, suppress, delay);
+
+		// stop exclusivity after first crewmember
+		if (exclusive) exclusive = false;
+	}
+
+	return last;
+}
+
+Input::Ret Input::crewSelectAll(bool suppress, double delay)
+{
+	auto&& state = Reader::getState();
+	validateInGame(state, suppress);
+	auto&& list = state.game->playerCrew;
+	return crewSelect(list, true, suppress, delay);
+}
+
+Input::Ret Input::crewCancel(double delay)
 {
 	return mouseClick(MouseButton::Left, nopSpot(), false, false, delay);
 }

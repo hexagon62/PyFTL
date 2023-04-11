@@ -6,23 +6,23 @@
 #include <string>
 #include <map>
 
+enum class FullscreenMode : int
+{
+	Off, Stretch, Borders, Native
+};
+
+enum class Difficulty : int
+{
+	Easy, Normal, Hard
+};
+
+enum class EventChoiceSelection : int
+{
+	DisableHotkeys, NoDelay, BriefDelay
+};
+
 struct Settings
 {
-	enum class FullscreenMode : int
-	{
-		Off, Stretch, Borders, Native
-	};
-
-	enum class Difficulty : int
-	{
-		Easy, Normal, Hard
-	};
-
-	enum class EventChoiceSelection : int
-	{
-		DisableHotkeys, NoDelay, BriefDelay
-	};
-
 	FullscreenMode fullscreen = FullscreenMode::Off;
 	int soundVolume = 0;
 	int musicVolume = 0;

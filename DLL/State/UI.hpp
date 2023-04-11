@@ -113,8 +113,11 @@ struct EventChoiceUIState
 
 struct EventUIState
 {
+	static constexpr float HARDCODED_BRIEF_DELAY_TIME = 0.3f;
+
 	std::string text;
 	std::vector<EventChoiceUIState> choices;
+	std::pair<float, float> openTime;
 };
 
 struct GameUIState
@@ -164,6 +167,7 @@ struct GameUIState
 
 	std::optional<UpgradesUIState> upgrades;
 	std::optional<CrewManifestUIState> crewManifest;
+	std::optional<ConfirmUIState> leaveCrew;
 	std::optional<CargoUIState> cargo;
 	std::optional<StarMapUIState> starMap;
 	std::optional<EventUIState> event;

@@ -463,21 +463,67 @@ void bindInput(py::module_& module)
 		"What it actually does is it right clicks in a spot that does nothing."
 	);
 
-	//sub.def(
-	//	"crew_select_all",
-	//	&Input::crewSelectAll,
-	//	py::kw_only(),
-	//	py::arg("delay") = 0.0,
-	//	"Queue a command to select all crew.\n"
-	//	"First it will try the hotkey, then fallback to clicking and dragging on the whole ship."
-	//);
+	sub.def(
+		"crew_select",
+		py::overload_cast<const Crew&, bool, bool, double>(&Input::crewSelect),
+		py::arg("crew"),
+		py::kw_only(),
+		py::arg("exclusive") = true,
+		py::arg("suppress") = false,
+		py::arg("delay") = 0.0
+	);
 
 	sub.def(
-		"crew_unselect_all",
-		&Input::crewUnselectAll,
+		"crew_select",
+		py::overload_cast<const std::vector<Crew>&, bool, bool, double>(&Input::crewSelect),
+		py::arg("crew"),
+		py::kw_only(),
+		py::arg("exclusive") = true,
+		py::arg("suppress") = false,
+		py::arg("delay") = 0.0
+	);
+
+	sub.def(
+		"crew_select",
+		py::overload_cast<int, bool, bool, double>(&Input::crewSelect),
+		py::arg("which"),
+		py::kw_only(),
+		py::arg("exclusive") = true,
+		py::arg("suppress") = false,
+		py::arg("delay") = 0.0
+	);
+
+	sub.def(
+		"crew_select",
+		py::overload_cast<const std::vector<int>&, bool, bool, double>(&Input::crewSelect),
+		py::arg("which"),
+		py::kw_only(),
+		py::arg("exclusive") = true,
+		py::arg("suppress") = false,
+		py::arg("delay") = 0.0,
+		"Queue a command to select crew.\n"
+		"Can specify either one crewmember, or a list of crew.\n"
+		"Set 'exclusive' to False if you want to keep previously selected crew.\n\n"
+		"Will try to use hotkeys to select crew, then fallback to mouse clicks."
+	);
+
+	sub.def(
+		"crew_select_all",
+		&Input::crewSelectAll,
+		py::kw_only(),
+		py::arg("suppress") = false,
+		py::arg("delay") = 0.0,
+		"Queue a command to select all crew.\n\n"
+		"Will try to use the dedicated hotkey first.\n"
+		"Then it will fallback to using crew_select on the whole crew list."
+	);
+
+	sub.def(
+		"crew_cancel",
+		&Input::crewCancel,
 		py::kw_only(),
 		py::arg("delay") = 0.0,
-		"Queue a command to unselect all crew.\n"
+		"Queue a command to stop giving crewmembers tasks.\n"
 		"What it actually does is it left clicks in a spot that does nothing."
 	);
 

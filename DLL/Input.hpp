@@ -111,6 +111,12 @@ public:
 
 	static const decltype(Settings::hotkeys)& hotkeys();
 
+	static Ret pause(
+		bool on = true,
+		bool suppress = false,
+		double delay = 0.0
+	);
+
 	static Ret eventChoice(
 		int which,
 		bool suppress = false,
@@ -173,8 +179,36 @@ public:
 
 	static Ret aimCancel(double delay = 0.0);
 
-	static Ret crewSelectAll(double delay = 0.0);
-	static Ret crewUnselectAll(double delay = 0.0);
+	static Ret crewSelect(
+		const Crew& crew,
+		bool exclusive = true,
+		bool suppress = false,
+		double delay = 0.0
+	);
+
+	static Ret crewSelect(
+		const std::vector<Crew>& crew,
+		bool exclusive = true,
+		bool suppress = false,
+		double delay = 0.0
+	);
+
+	static Ret crewSelect(
+		int which,
+		bool exclusive = true,
+		bool suppress = false,
+		double delay = 0.0
+	);
+
+	static Ret crewSelect(
+		const std::vector<int>& which,
+		bool exclusive = true,
+		bool suppress = false,
+		double delay = 0.0
+	);
+
+	static Ret crewSelectAll(bool suppress = false, double delay = 0.0);
+	static Ret crewCancel(double delay = 0.0);
 
 	static void cheat(const std::string& command);
 

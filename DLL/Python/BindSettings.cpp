@@ -6,23 +6,23 @@ namespace python_bindings
 
 void bindSettings(py::module_& module)
 {
-	py::enum_<Settings::FullscreenMode>(module, "FullscreenMode", "A fullscreen mode the game can be set to")
-		.value("Off", Settings::FullscreenMode::Off, "Windowed")
-		.value("Stretch", Settings::FullscreenMode::Stretch, "Borderless window")
-		.value("Borders", Settings::FullscreenMode::Borders, "Fullscreen that is not upscaleed")
-		.value("Native", Settings::FullscreenMode::Native, "Native fullscreen")
+	py::enum_<FullscreenMode>(module, "FullscreenMode", "A fullscreen mode the game can be set to")
+		.value("Off", FullscreenMode::Off, "Windowed")
+		.value("Stretch", FullscreenMode::Stretch, "Borderless window")
+		.value("Borders", FullscreenMode::Borders, "Fullscreen that is not upscaleed")
+		.value("Native", FullscreenMode::Native, "Native fullscreen")
 		;
 
-	py::enum_<Settings::Difficulty>(module, "Difficulty", "A difficulty level")
-		.value("Easy", Settings::Difficulty::Easy)
-		.value("Normal", Settings::Difficulty::Normal)
-		.value("Hard", Settings::Difficulty::Hard)
+	py::enum_<Difficulty>(module, "Difficulty", "A difficulty level")
+		.value("Easy", Difficulty::Easy)
+		.value("Normal", Difficulty::Normal)
+		.value("Hard", Difficulty::Hard)
 		;
 
-	py::enum_<Settings::EventChoiceSelection>(module, "EventChoiceSelection", "Options for how event choices can be made")
-		.value("DisableHotkeys", Settings::EventChoiceSelection::DisableHotkeys)
-		.value("NoDelay", Settings::EventChoiceSelection::NoDelay)
-		.value("BriefDelay", Settings::EventChoiceSelection::BriefDelay)
+	py::enum_<EventChoiceSelection>(module, "EventChoiceSelection", "Options for how event choices can be made")
+		.value("DisableHotkeys", EventChoiceSelection::DisableHotkeys)
+		.value("NoDelay", EventChoiceSelection::NoDelay)
+		.value("BriefDelay", EventChoiceSelection::BriefDelay)
 		;
 
 	py::class_<Settings>(module, "Settings", "Game settings")

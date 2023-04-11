@@ -80,8 +80,10 @@ void bindUI(py::module_& module)
 		;
 
 	py::class_<EventUIState>(module, "EventUIState", "The state of the event UI")
+		.def_readonly_static("HARDCODED_BRIEF_DELAY_TIME", &EventUIState::HARDCODED_BRIEF_DELAY_TIME, "The delay used if event hotkeys are set to 'brief delay'")
 		.def_readonly("text", &EventUIState::text, "The main text of the event")
 		.def_readonly("choices", &EventUIState::choices, "The choices that can be made")
+		.def_readonly("open_time", &EventUIState::openTime, "Timer for progress towards when hotkey presses will work")
 		;
 
 	py::class_<GameUIState>(module, "GameUIState", "The state of in-game UI stuff. Mostly button positions.")
@@ -124,8 +126,10 @@ void bindUI(py::module_& module)
 		.def_readonly("start_hack", &GameUIState::startHack, "The button to star hacking.\nValid only if the hacking system is present.")
 		.def_readonly("upgrades", &GameUIState::upgrades, "The state of the upgrades menu. Valid only if opened.")
 		.def_readonly("crew_manifest", &GameUIState::crewManifest, "The state of the crew menu. Valid only if opened.")
+		.def_readonly("leave_crew", &GameUIState::leaveCrew, "The window that pops up if leaving crew behind on the enemy ship.")
 		.def_readonly("cargo", &GameUIState::cargo, "The state of the inventory menu. Valid only if opened.")
 		.def_readonly("star_map", &GameUIState::starMap, "The state of the jump menu. Valid only if opened.")
+		.def_readonly("event", &GameUIState::event, "The state of the event menu.\nValid only if there is an event.")
 		.def_readonly("store", &GameUIState::store, "The state of the store menu, and the button to open it.\nValid only if a store is present.")
 		.def("has_system", &GameUIState::hasSystem, "Checks if the specified system is present")
 		.def("get_system", &GameUIState::getSystem, py::return_value_policy::reference, "Gets the specified system's box containing its icon and power bars")
