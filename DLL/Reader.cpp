@@ -1089,6 +1089,7 @@ void readGenericShipStuff(
 	// Read systems
 	for (size_t i = 0; i < raw.vSystemList.size(); i++)
 	{
+		if (ship.player && i >= sysBoxes.size()) break;
 		auto current = ship.player ? sysBoxes[i]->pSystem : raw.vSystemList[i];
 		SystemType sys = SystemType(current->iSystemType);
 		ship.rooms[current->roomId].system = sys;
@@ -2153,7 +2154,7 @@ void readUI(State& state, const raw::State& raw)
 		}
 
 		// Misc menus
-		if (state.game->event)
+		if (state.game->event && state.game->pause.event)
 		{
 			auto&& choiceBox = raw.app->gui->choiceBox;
 			auto&& mainText = choiceBox.mainText;
@@ -2168,7 +2169,7 @@ void readUI(State& state, const raw::State& raw)
 			{
 				auto&& choice = ui.game->event->choices.emplace_back();
 				choice.text = text[i].text.str;
-				choice.box = boxes[i];
+				if(i < boxes.size()) choice.box = boxes[i];
 			}
 
 			switch (state.settings.eventChoiceSelection)
