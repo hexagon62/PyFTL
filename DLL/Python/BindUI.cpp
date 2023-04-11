@@ -134,6 +134,8 @@ void bindUI(py::module_& module)
 	py::class_<MouseState>(module, "MouseState", "The state of the mouse")
 		.def_readonly("position", &MouseState::position, "The current position of the mouse")
 		.def_readonly("position_last", &MouseState::positionLast, "The last position of the mouse")
+		.def_readonly("drag_from", &MouseState::dragFrom, "The starting position of the box when clicking+dragging to select crew")
+		.def_readonly("aiming", &MouseState::aiming, "The system/weapon currently being aimed")
 		;
 
 	py::class_<UIState>(module, "UIState", "The state of the overall UI")

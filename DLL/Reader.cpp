@@ -381,6 +381,7 @@ void readCrew(Crew& crew, const raw::CrewMember& raw, const Point<int>& offset)
 	crew.manning = raw.bActiveManning;
 	crew.healing = raw.fMedbay > 0.f;
 	crew.onFire = raw.iOnFire;
+	crew.selected = raw.selectionState == 2;
 
 	crew.room = raw.iRoomId;
 	crew.mannedSystem = SystemType(raw.iManningId);
@@ -821,6 +822,7 @@ void readRoom(
 	room.tiles.x = raw.rect.w / Room::HARDCODED_TILE_SIZE;
 	room.tiles.y = raw.rect.h / Room::HARDCODED_TILE_SIZE;
 
+	room.visible = !raw.bBlackedOut;
 	room.stunning = raw.bStunning;
 	room.oxygen = raw.lastO2/100.f;
 	room.hackLevel = HackLevel(raw.iHackLevel);
@@ -1973,11 +1975,15 @@ void readUI(State& state, const raw::State& raw)
 		auto&& mouse = *raw.mouseControl;
 		ui.mouse.position = mouse.position;
 		ui.mouse.positionLast = mouse.lastPosition;
+		ui.mouse.dragFrom = std::nullopt;
+		ui.mouse.aiming = std::monostate{};
 	}
 
 	if (state.game && state.game->playerShip)
 	{
 		if (!ui.game) ui.game.emplace();
+
+		auto&& ship = *state.game->playerShip;
 
 		auto&& gui = *raw.app->gui;
 
@@ -2032,7 +2038,6 @@ void readUI(State& state, const raw::State& raw)
 		ui.game->startMindControl.reset();
 		ui.game->startHack.reset();
 
-		auto&& ship = *state.game->playerShip;
 		auto&& sysBoxes = gui.sysControl.sysBoxes;
 		auto&& sysPos = gui.sysControl.position;
 
@@ -2144,6 +2149,37 @@ void readUI(State& state, const raw::State& raw)
 				ui.game->startHack = hackBox.hackButton.hitbox + sysPos + hackBox.buttonOffset;
 				break;
 			}
+			}
+		}
+
+		// Set in-game cursor info
+		if (raw.mouseControl)
+		{
+			auto&& mouse = *raw.mouseControl;
+
+			// What is currently being aimed
+			if (mouse.aiming_required > 0 && ship.weapons)
+			{
+				ui.mouse.aiming = std::cref(ship.weapons->list[mouse.aiming_required-1]);
+			}
+			else if (mouse.iTeleporting != 0 && ship.teleporter)
+			{
+				ui.mouse.aiming = std::cref(*ship.teleporter);
+			}
+			else if (mouse.iMindControlling != 0 && ship.mindControl)
+			{
+				ui.mouse.aiming = std::cref(*ship.mindControl);
+			}
+			else if (mouse.iHacking != 0 && ship.hacking)
+			{
+				ui.mouse.aiming = std::cref(*ship.hacking);
+			}
+
+			auto&& crew = raw.app->gui->crewControl;
+
+			if (crew.mouseDown)
+			{
+				ui.mouse.dragFrom = crew.firstMouse;
 			}
 		}
 	}

@@ -20,6 +20,7 @@ struct Room
 	Point<int> tiles;
 
 	bool player = false;
+	bool visible = false;
 	bool stunning = false;
 	float oxygen = 0.f;
 	HackLevel hackLevel = HackLevel::None;

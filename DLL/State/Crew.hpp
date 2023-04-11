@@ -23,7 +23,7 @@ struct Drone;
 
 struct Crew
 {
-	int uiBox = -1, selectionState = 0;
+	int uiBox = -1;
 	CrewBlueprint blueprint;
 	Point<float> position, goal;
 	std::pair<float, float> health{ 0.f, 0.f };
@@ -41,6 +41,7 @@ struct Crew
 	bool manning = false;
 	bool moving = false;
 	bool healing = false;
+	bool selected = false;
 	int onFire = 0;
 	int room = 0, slot = 0; // slot is set when reading room slots... FTL moment
 	SystemType mannedSystem = SystemType::None;
