@@ -453,6 +453,44 @@ void bindInput(py::module_& module)
 		"1) The slot hotkey (+shift if lowering power)\n"
 		"2) Clicking directly on the slot"
 	);
+
+	sub.def(
+		"aim_cancel",
+		&Input::aimCancel,
+		py::kw_only(),
+		py::arg("delay") = 0.0,
+		"Queue a command to stop aiming any weapons or systems.\n"
+		"What it actually does is it right clicks in a spot that does nothing."
+	);
+
+	//sub.def(
+	//	"crew_select_all",
+	//	&Input::crewSelectAll,
+	//	py::kw_only(),
+	//	py::arg("delay") = 0.0,
+	//	"Queue a command to select all crew.\n"
+	//	"First it will try the hotkey, then fallback to clicking and dragging on the whole ship."
+	//);
+
+	sub.def(
+		"crew_unselect_all",
+		&Input::crewUnselectAll,
+		py::kw_only(),
+		py::arg("delay") = 0.0,
+		"Queue a command to unselect all crew.\n"
+		"What it actually does is it left clicks in a spot that does nothing."
+	);
+
+	sub.def(
+		"cheat",
+		&Input::cheat,
+		py::arg("command"),
+		"Are you a dirty cheater? Use this!\n"
+		"This effectively lets you use the game's built-in console without enabling/opening it.\n"
+		"This is not a queued input command and thus it will occur immediately.\n"
+		"Do note the case-sensitivity of some parameters.\n"
+		"Weapon/drone blueprints are ALL_CAPS, and crew are all lower_case."
+	);
 }
 
 }

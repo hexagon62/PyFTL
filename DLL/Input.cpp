@@ -488,6 +488,12 @@ const Drone* droneAt(int which, bool suppress = false)
 	return &drones.list.at(which);
 }
 
+// Some arbitrary spot that should have no UI elements
+Point<int> nopSpot()
+{
+	return { 0, 0 };
+}
+
 }
 
 void Input::iterate()
@@ -1100,4 +1106,47 @@ Input::Ret Input::dronePower(
 	auto&& drone = droneAt(which, suppress);
 	if (!drone) return {}; // only happens if suppressed
 	return dronePower(*drone, on, suppress, delay);
+}
+
+Input::Ret Input::aimCancel(double delay)
+{
+	return mouseClick(MouseButton::Right, nopSpot(), false, false, delay);
+}
+
+Input::Ret Input::crewSelectAll(double delay)
+{
+	return mouseClick(MouseButton::Left, nopSpot(), false, false, delay);
+}
+
+Input::Ret Input::crewUnselectAll(double delay)
+{
+	return mouseClick(MouseButton::Left, nopSpot(), false, false, delay);
+}
+
+void Input::cheat(const std::string& command)
+{
+	static constexpr uintptr_t CONSOLE_ADDR = 0x0011B4A0;
+	auto* gui = Reader::getRawState({}).app->gui;
+	uintptr_t funcAddr = Reader::getRealAddress(CONSOLE_ADDR, {});
+	auto* func = reinterpret_cast<void(__thiscall*)(raw::CommandGui*, raw::gcc::string&)>(funcAddr);
+
+	// The one time we will ever have to do this conversion
+	raw::gcc::string str;
+	str.len = command.size();
+
+	if (str.len <= raw::gcc::string::SMALL_STRING_OPTIMIZATION_LEN)
+	{
+		// small string optimization, copy it like this
+		strcpy_s(str.local_data, command.data());
+		str.local_data[raw::gcc::string::SMALL_STRING_OPTIMIZATION_LEN] = '\0';
+		str.str = str.local_data;
+		func(gui, str);
+	}
+	else
+	{
+		// not using const_cast just to be safe
+		std::string copy = command;
+		str.str = copy.data();
+		func(gui, str);
+	}
 }

@@ -171,6 +171,13 @@ public:
 		double delay = 0.0
 	);
 
+	static Ret aimCancel(double delay = 0.0);
+
+	static Ret crewSelectAll(double delay = 0.0);
+	static Ret crewUnselectAll(double delay = 0.0);
+
+	static void cheat(const std::string& command);
+
 private:
 	class Impl;
 	static Impl impl;
