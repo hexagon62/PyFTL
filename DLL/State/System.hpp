@@ -20,6 +20,7 @@ struct System
 	std::pair<int, int> health{ 0, 0 }, level{ 0, 0 };
 	int manningLevel = 0;
 	HackLevel hackLevel = HackLevel::None;
+	bool player = false;
 	bool needsManning = false;
 	bool occupied = false;
 	bool onFire = false;

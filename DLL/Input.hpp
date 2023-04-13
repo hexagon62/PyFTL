@@ -113,7 +113,7 @@ public:
 
 	static const decltype(Settings::hotkeys)& hotkeys();
 
-	static Ret text(char character, double delay = 0.0);
+	static Ret text(char ch, double delay = 0.0);
 	static Ret text(const std::string& str, double delay = 0.0);
 	static Ret textConfirm(double delay = 0.0);
 	static Ret textClear(double delay = 0.0);
@@ -123,6 +123,8 @@ public:
 	static Ret textRight(double delay = 0.0);
 	static Ret textHome(double delay = 0.0);
 	static Ret textEnd(double delay = 0.0);
+
+	static void cheat(const std::string& command, bool suppress = false);
 
 	static Ret pause(
 		bool on = true,
@@ -190,6 +192,23 @@ public:
 		double delay = 0.0
 	);
 
+	static Ret autofire(
+		bool on = false,
+		bool suppress = false,
+		double delay = 0.0
+	);
+
+	static Ret openAllDoors(
+		bool airlocks = false,
+		bool suppress = false,
+		double delay = 0.0
+	);
+
+	static Ret closeAllDoors(
+		bool suppress = false,
+		double delay = 0.0
+	);
+
 	static Ret aimCancel(
 		bool suppress = false,
 		double delay = 0.0
@@ -238,7 +257,15 @@ public:
 		double delay = 0.0
 	);
 
-	static void cheat(const std::string& command, bool suppress = false);
+	static Ret crewSaveStations(
+		bool suppress = false,
+		double delay = 0.0
+	);
+
+	static Ret crewLoadStations(
+		bool suppress = false,
+		double delay = 0.0
+	);
 
 private:
 	class Impl;

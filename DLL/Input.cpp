@@ -636,6 +636,36 @@ Input::Ret useCrewMany(
 	return Input::mouseUp(MouseButton::Left, last, !exclusive, delay);
 }
 
+// Generic function to try a hotkey and fallback to clicking
+Input::Ret hotkeyOr(
+	const char* what,
+	const char* hotkey,
+	const std::map<std::string, Key>& hotkeys,
+	Point<int> fallback,
+	bool suppress,
+	double delay)
+{
+	auto&& state = Reader::getState();
+	if (!validateInGame(state, suppress)) return {};
+
+	if (state.game->pause.menu)
+	{
+		if (!suppress) throw WrongMenu(what);
+		else return {};
+	}
+
+	// Use if hotkey possible
+	auto k = getHotkey(hotkeys, hotkey);
+
+	if (k != Key::Unknown)
+	{
+		return Input::keyPress(k, false, delay);
+	}
+
+	return Input::mouseClick(MouseButton::Left, fallback, false, delay);
+
+}
+
 }
 
 void Input::iterate()
@@ -863,13 +893,13 @@ const decltype(Settings::hotkeys)& Input::hotkeys()
 	return Reader::getState().settings.hotkeys;
 }
 
-Input::Ret Input::text(char character, double delay)
+Input::Ret Input::text(char ch, double delay)
 {
 	validateDelay(delay);
 	return impl.push(Impl::Command{
 		.type = Impl::Command::Type::TextInput,
 		.time = Reader::now() + delay,
-		.textInput = character
+		.textInput = ch
 	});
 }
 
@@ -960,13 +990,21 @@ Input::Ret Input::textEnd(double delay)
 	});
 }
 
+void Input::cheat(const std::string& command, bool suppress)
+{
+	auto&& state = Reader::getState();
+	if (!validateInGame(state, suppress)) return;
+
+	impl.cheat(command);
+}
+
 Input::Ret Input::pause(
 	bool on,
 	bool suppress,
 	double delay)
 {
 	auto&& state = Reader::getState();
-	validateInGame(state, suppress);
+	if (!validateInGame(state, suppress)) return {};
 	auto&& pause = state.game->pause;
 	
 	if (pause.menu && !pause.event)
@@ -988,7 +1026,7 @@ Input::Ret Input::eventChoice(
 	double delay)
 {
 	auto&& state = Reader::getState();
-	validateInGame(state, suppress);
+	if (!validateInGame(state, suppress)) return {};
 
 	auto&& game = state.game;
 
@@ -1044,7 +1082,7 @@ Input::Ret Input::systemPower(
 	double delay)
 {
 	auto&& state = Reader::getState();
-	validateInGame(state, suppress);
+	if (!validateInGame(state, suppress)) return {};
 
 	if (state.game->pause.menu)
 	{
@@ -1054,7 +1092,13 @@ Input::Ret Input::systemPower(
 
 	if (delta != 0 && set > 0)
 	{
-		if (!suppress) throw std::invalid_argument("delta and set cannot both be non-zero");
+		if (!suppress) throw InvalidPowerRequest(system, "delta and set cannot both be non-zero");
+		else return {};
+	}
+
+	if (!system.player)
+	{
+		if (!suppress) throw InvalidPowerRequest(system, "it does not belong to player");
 		else return {};
 	}
 
@@ -1164,7 +1208,7 @@ Input::Ret Input::systemPower(
 	double delay)
 {
 	auto&& state = Reader::getState();
-	validateInGame(state, suppress);
+	if (!validateInGame(state, suppress)) return {};
 
 	try
 	{
@@ -1186,11 +1230,17 @@ Input::Ret Input::weaponPower(
 	double delay)
 {
 	auto&& state = Reader::getState();
-	validateInGame(state, suppress);
+	if (!validateInGame(state, suppress)) return {};
 
 	if (state.game->pause.menu)
 	{
 		if (!suppress) throw WrongMenu("powering a weapon");
+		else return {};
+	}
+
+	if (!weapon.player)
+	{
+		if (!suppress) throw InvalidPowerRequest(weapon, "it does not belong to the player");
 		else return {};
 	}
 
@@ -1272,7 +1322,7 @@ Input::Ret Input::weaponPower(
 	double delay)
 {
 	auto&& state = Reader::getState();
-	validateInGame(state, suppress);
+	if (!validateInGame(state, suppress)) return {};
 	auto&& weapon = weaponAt(which, suppress);
 	if (!weapon) return {}; // only happens if suppressed
 	return weaponPower(*weapon, on, suppress, delay);
@@ -1284,11 +1334,17 @@ Input::Ret Input::weaponSelect(
 	double delay)
 {
 	auto&& state = Reader::getState();
-	validateInGame(state, suppress);
+	if (!validateInGame(state, suppress)) return {};
 
 	if (state.game->pause.menu)
 	{
 		if (!suppress) throw WrongMenu("selecting a weapon");
+		else return {};
+	}
+
+	if (!weapon.player)
+	{
+		if (!suppress) throw InvalidSlotChoice("weapon", weapon.slot, "it does not belong to the player");
 		else return {};
 	}
 
@@ -1302,7 +1358,7 @@ Input::Ret Input::weaponSelect(
 	double delay)
 {
 	auto&& state = Reader::getState();
-	validateInGame(state, suppress);
+	if (!validateInGame(state, suppress)) return {};
 	auto&& weapon = weaponAt(which, suppress);
 	if (!weapon) return {}; // only happens if suppressed
 	return weaponSelect(*weapon, suppress, delay);
@@ -1315,11 +1371,17 @@ Input::Ret Input::dronePower(
 	double delay)
 {
 	auto&& state = Reader::getState();
-	validateInGame(state, suppress);
+	if (!validateInGame(state, suppress)) return {};
 
 	if (state.game->pause.menu)
 	{
 		if (!suppress) throw WrongMenu("powering a drone");
+		else return {};
+	}
+
+	if (!drone.player)
+	{
+		if (!suppress) throw InvalidPowerRequest(drone, "it does not belong to the player");
 		else return {};
 	}
 
@@ -1414,10 +1476,111 @@ Input::Ret Input::dronePower(
 	double delay)
 {
 	auto&& state = Reader::getState();
-	validateInGame(state, suppress);
+	if (!validateInGame(state, suppress)) return {};
 	auto&& drone = droneAt(which, suppress);
 	if (!drone) return {}; // only happens if suppressed
 	return dronePower(*drone, on, suppress, delay);
+}
+
+Input::Ret Input::autofire(bool on, bool suppress, double delay)
+{
+	auto&& state = Reader::getState();
+	if (!validateInGame(state, suppress)) return {};
+
+	if (!state.game->playerShip->weapons)
+	{
+		if (!suppress) throw SystemNotInstalled(SystemType::Weapons);
+		else return {};
+	}
+
+	if (state.game->playerShip->weapons->autoFire == on)
+	{
+		// Nothing to do
+		return {};
+	}
+
+	return hotkeyOr(
+		"toggling auto-fire", "autofire", hotkeys(),
+		state.ui.game->autofire->center(), suppress, delay
+	);
+}
+
+Input::Ret Input::openAllDoors(bool airlocks, bool suppress, double delay)
+{
+	auto&& state = Reader::getState();
+	if (!validateInGame(state, suppress)) return {};
+
+	if (!state.game->playerShip->doorControl)
+	{
+		if (!suppress) throw SystemNotInstalled(SystemType::Doors);
+		else return {};
+	}
+
+	bool onlyAirlocksClosed = true;
+
+	for (auto&& door : state.game->playerShip->doors)
+	{
+		if (!door.airlock && !door.open)
+		{
+			onlyAirlocksClosed = false;
+			break;
+		}
+	}
+
+	if (!airlocks && onlyAirlocksClosed)
+	{
+		// Nothing to do
+		return {};
+	}
+
+	auto l = [&] {
+		return hotkeyOr(
+			"opening all doors", "open", hotkeys(),
+			state.ui.game->openAllDoors->center(), suppress, delay
+		);
+	};
+
+	if (airlocks && !onlyAirlocksClosed)
+	{
+		// Tap the button again
+		l();
+	}
+
+	return l();
+}
+
+Input::Ret Input::closeAllDoors(bool suppress, double delay)
+{
+	auto&& state = Reader::getState();
+	if (!validateInGame(state, suppress)) return {};
+
+	if (!state.game->playerShip->doorControl)
+	{
+		if (!suppress) throw SystemNotInstalled(SystemType::Doors);
+		else return {};
+	}
+
+	bool allClosed = true;
+
+	for (auto&& door : state.game->playerShip->doors)
+	{
+		if (door.open)
+		{
+			allClosed = false;
+			break;
+		}
+	}
+
+	if (allClosed)
+	{
+		// Nothing to do
+		return {};
+	}
+
+	return hotkeyOr(
+		"closing all doors", "close", hotkeys(),
+		state.ui.game->closeAllDoors->center(), suppress, delay
+	);
 }
 
 Input::Ret Input::aimCancel(bool suppress, double delay)
@@ -1441,7 +1604,7 @@ Input::Ret Input::crewSelect(
 	double delay)
 {
 	auto&& state = Reader::getState();
-	validateInGame(state, suppress);
+	if (!validateInGame(state, suppress)) return {};
 
 	if (state.game->pause.menu)
 	{
@@ -1469,7 +1632,7 @@ Input::Ret Input::crewSelect(
 {
 
 	auto&& state = Reader::getState();
-	validateInGame(state, suppress);
+	if (!validateInGame(state, suppress)) return {};
 
 	if (state.game->pause.menu)
 	{
@@ -1548,7 +1711,7 @@ Input::Ret Input::crewSelect(
 	double delay)
 {
 	auto&& state = Reader::getState();
-	validateInGame(state, suppress);
+	if (!validateInGame(state, suppress)) return {};
 
 	auto&& list = state.game->playerCrew;
 	int count = int(list.size());
@@ -1575,7 +1738,7 @@ Input::Ret Input::crewSelect(
 	double delay)
 {
 	auto&& state = Reader::getState();
-	validateInGame(state, suppress);
+	if (!validateInGame(state, suppress)) return {};
 
 	if (which.empty() && exclusive)
 	{
@@ -1610,7 +1773,7 @@ Input::Ret Input::crewSelect(
 Input::Ret Input::crewSelectAll(bool suppress, double delay)
 {
 	auto&& state = Reader::getState();
-	validateInGame(state, suppress);
+	if (!validateInGame(state, suppress)) return {};
 
 	auto&& list = state.game->playerCrew;
 
@@ -1629,7 +1792,7 @@ Input::Ret Input::crewSelectAll(bool suppress, double delay)
 Input::Ret Input::crewCancel(bool suppress, double delay)
 {
 	auto&& state = Reader::getState();
-	validateInGame(state, suppress);
+	if (!validateInGame(state, suppress)) return {};
 
 	if (state.game->pause.menu)
 	{
@@ -1640,10 +1803,24 @@ Input::Ret Input::crewCancel(bool suppress, double delay)
 	return mouseClick(MouseButton::Left, nopSpot(), false, delay);
 }
 
-void Input::cheat(const std::string& command, bool suppress)
+Input::Ret Input::crewSaveStations(bool suppress, double delay)
 {
 	auto&& state = Reader::getState();
-	validateInGame(state, suppress);
+	if (!validateInGame(state, suppress)) return {};
 
-	impl.cheat(command);
+	return hotkeyOr(
+		"saving crew stations", "savePositions", hotkeys(),
+		state.ui.game->saveStations.center(), suppress, delay
+	);
+}
+
+Input::Ret Input::crewLoadStations(bool suppress, double delay)
+{
+	auto&& state = Reader::getState();
+	if (!validateInGame(state, suppress)) return {};
+
+	return hotkeyOr(
+		"loading crew stations", "loadPositions", hotkeys(),
+		state.ui.game->loadStations.center(), suppress, delay
+	);
 }

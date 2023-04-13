@@ -413,6 +413,19 @@ void bindInput(py::module_& module)
 	);
 
 	sub.def(
+		"cheat",
+		&Input::cheat,
+		py::arg("command"),
+		py::kw_only(),
+		py::arg("suppress") = false,
+		"Are you a dirty cheater? Use this!\n"
+		"This effectively lets you use the game's built-in console without enabling/opening it.\n"
+		"This is not a queued input command and thus it will occur immediately.\n"
+		"Do note the case-sensitivity of some parameters.\n"
+		"Weapon/drone blueprints are generall ALL_CAPS, and crew are generally all_lower_case."
+	);
+
+	sub.def(
 		"pause",
 		&Input::pause,
 		py::arg("on") = true,
@@ -557,6 +570,32 @@ void bindInput(py::module_& module)
 	);
 
 	sub.def(
+		"autofire",
+		&Input::autofire,
+		py::arg("on") = false,
+		py::kw_only(),
+		py::arg("suppress") = false,
+		py::arg("delay") = 0.0
+	);
+
+	sub.def(
+		"open_all_doors",
+		&Input::openAllDoors,
+		py::kw_only(),
+		py::arg("airlocks") = false,
+		py::arg("suppress") = false,
+		py::arg("delay") = 0.0
+	);
+
+	sub.def(
+		"close_all_doors",
+		&Input::closeAllDoors,
+		py::kw_only(),
+		py::arg("suppress") = false,
+		py::arg("delay") = 0.0
+	);
+
+	sub.def(
 		"crew_select",
 		py::overload_cast<const Crew&, bool, bool, double>(&Input::crewSelect),
 		py::arg("crew"),
@@ -622,16 +661,23 @@ void bindInput(py::module_& module)
 	);
 
 	sub.def(
-		"cheat",
-		&Input::cheat,
-		py::arg("command"),
+		"crew_save_stations",
+		&Input::crewSaveStations,
 		py::kw_only(),
 		py::arg("suppress") = false,
-		"Are you a dirty cheater? Use this!\n"
-		"This effectively lets you use the game's built-in console without enabling/opening it.\n"
-		"This is not a queued input command and thus it will occur immediately.\n"
-		"Do note the case-sensitivity of some parameters.\n"
-		"Weapon/drone blueprints are generall ALL_CAPS, and crew are generally all_lower_case."
+		py::arg("delay") = 0.0,
+		"Queue a command to save the stations of the player crew.\n"
+		"Tries the hotkey first, then clicks the button."
+	);
+
+	sub.def(
+		"crew_load_stations",
+		&Input::crewLoadStations,
+		py::kw_only(),
+		py::arg("suppress") = false,
+		py::arg("delay") = 0.0,
+		"Queue a command to load the stations of the player crew.\n"
+		"Tries the hotkey first, then clicks the button."
 	);
 }
 

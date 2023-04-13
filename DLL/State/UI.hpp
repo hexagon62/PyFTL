@@ -16,7 +16,6 @@ struct ConfirmUIState
 
 struct StoreUIState
 {
-	Rect<int> open;
 	Rect<int> close;
 
 	Rect<int> buy;
@@ -130,10 +129,11 @@ struct GameUIState
 	Rect<int> ftl;
 	Rect<int> shipMenu;
 	Rect<int> menu;
+	std::optional<Rect<int>> storeButton;
 
 	std::vector<CrewBoxUIState> crewBoxes;
 	Rect<int> saveStations;
-	Rect<int> returnToStations;
+	Rect<int> loadStations;
 
 	Rect<int> reactor;
 	std::optional<Rect<int>> shields;
@@ -154,7 +154,7 @@ struct GameUIState
 	std::optional<Rect<int>> hacking;
 
 	std::vector<Rect<int>> weaponBoxes;
-	std::optional<Rect<int>> autoFire;
+	std::optional<Rect<int>> autofire;
 	std::vector<Rect<int>> droneBoxes;
 	std::optional<Rect<int>> openAllDoors;
 	std::optional<Rect<int>> closeAllDoors;

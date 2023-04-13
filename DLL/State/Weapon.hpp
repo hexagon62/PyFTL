@@ -12,7 +12,7 @@ struct Weapon
 	WeaponBlueprint blueprint;
 	Power power;
 	bool player = false;
-	bool autoFire = false;
+	bool autofire = false;
 	bool fireWhenReady = false;
 	bool artillery = false;
 	bool targetingPlayer = false;

@@ -68,6 +68,7 @@ void readSystem(System& system, const raw::ShipSystem& raw)
 	system.needsManning = raw.bNeedsManned;
 	system.occupied = raw.bFriendlies;
 
+	system.player = raw._shipObj.iShipId == 0;
 	system.onFire = raw.bOnFire;
 	system.breached = raw.bBreached;
 	system.boardersAttacking = raw.bUnderAttack;
@@ -300,7 +301,7 @@ void readWeapon(Weapon& weapon, const raw::ProjectileFactory& raw, const Point<i
 
 	weapon.cooldown = raw.cooldown;
 
-	weapon.autoFire = raw.autoFiring;
+	weapon.autofire = raw.autoFiring;
 	weapon.fireWhenReady = raw.fireWhenReady;
 	weapon.artillery = raw.isArtillery;
 	weapon.targetingPlayer = raw.currentShipTarget == 0;
@@ -2020,7 +2021,7 @@ void readUI(State& state, const raw::State& raw)
 		}
 
 		ui.game->saveStations = gui.crewControl.saveStations.hitbox;
-		ui.game->returnToStations = gui.crewControl.returnStations.hitbox;
+		ui.game->loadStations = gui.crewControl.returnStations.hitbox;
 
 		ui.game->reactor = gui.sysControl.SystemPower;
 		ui.game->reactor.x += gui.sysControl.position.x;
@@ -2044,7 +2045,7 @@ void readUI(State& state, const raw::State& raw)
 		ui.game->hacking.reset();
 
 		ui.game->weaponBoxes.clear();
-		ui.game->autoFire.reset();
+		ui.game->autofire.reset();
 		ui.game->droneBoxes.clear();
 		ui.game->openAllDoors.reset();
 		ui.game->closeAllDoors.reset();
@@ -2088,7 +2089,7 @@ void readUI(State& state, const raw::State& raw)
 						GameUIState::HARDCODED_ARMAMENT_BOX_SIZE);
 				}
 
-				ui.game->autoFire = weapControl.autoFireButton.hitbox + weapControl.location;
+				ui.game->autofire = weapControl.autoFireButton.hitbox + weapControl.location;
 
 				break;
 			}
@@ -2206,10 +2207,18 @@ void readUI(State& state, const raw::State& raw)
 				};
 				break;
 			}
+
+			if (state.game->event->store)
+			{
+				auto&& store = *state.game->event->store;
+				ui.game->storeButton = raw.app->gui->storeButton.hitbox;
+			}
 		}
 		else
 		{
 			ui.game->event.reset();
+			ui.game->store.reset();
+			ui.game->storeButton.reset();
 		}
 
 		// Set in-game cursor info
