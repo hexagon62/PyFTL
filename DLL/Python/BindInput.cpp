@@ -456,17 +456,6 @@ void bindInput(py::module_& module)
 		py::kw_only(),
 		py::arg("delta") = 0,
 		py::arg("suppress") = false,
-		py::arg("delay") = 0.0
-	);
-
-	sub.def(
-		"system_power",
-		py::overload_cast<SystemType, int, int, bool, double>(&Input::systemPower),
-		py::arg("system"),
-		py::arg("set") = 0,
-		py::kw_only(),
-		py::arg("delta") = 0,
-		py::arg("suppress") = false,
 		py::arg("delay") = 0.0,
 		"Queue a command to change a system's power.\n\n"
 		"Specify 'set' to change to an amount. Specify 'delta' to change by an amount.\n"
@@ -490,16 +479,6 @@ void bindInput(py::module_& module)
 		py::arg("on") = true,
 		py::kw_only(),
 		py::arg("suppress") = false,
-		py::arg("delay") = 0.0
-	);
-
-	sub.def(
-		"weapon_power",
-		py::overload_cast<int, bool, bool, double>(&Input::weaponPower),
-		py::arg("which"),
-		py::arg("on") = true,
-		py::kw_only(),
-		py::arg("suppress") = false,
 		py::arg("delay") = 0.0,
 		"Queue a command to toggle a weapon.\n"
 		"By default it will turn the weapon on, set 'on' to false if you don't want this.\n\n"
@@ -517,15 +496,6 @@ void bindInput(py::module_& module)
 		py::arg("weapon"),
 		py::kw_only(),
 		py::arg("suppress") = false,
-		py::arg("delay") = 0.0
-	);
-
-	sub.def(
-		"weapon_select",
-		py::overload_cast<int, bool, double>(&Input::weaponSelect),
-		py::arg("which"),
-		py::kw_only(),
-		py::arg("suppress") = false,
 		py::arg("delay") = 0.0,
 		"Queue a command to select a weapon.\n"
 		"Will call weapon_power to turn the weapon on if it's off."
@@ -534,16 +504,6 @@ void bindInput(py::module_& module)
 	sub.def(
 		"drone_power",
 		py::overload_cast<const Drone&, bool, bool, double>(&Input::dronePower),
-		py::arg("drone"),
-		py::arg("on") = true,
-		py::kw_only(),
-		py::arg("suppress") = false,
-		py::arg("delay") = 0.0
-	);
-
-	sub.def(
-		"drone_power",
-		py::overload_cast<int, bool, bool, double>(&Input::dronePower),
 		py::arg("drone"),
 		py::arg("on") = true,
 		py::kw_only(),
@@ -609,26 +569,6 @@ void bindInput(py::module_& module)
 		"crew_select",
 		py::overload_cast<const Input::CrewRefList&, bool, bool, double>(&Input::crewSelect),
 		py::arg("crew"),
-		py::kw_only(),
-		py::arg("exclusive") = true,
-		py::arg("suppress") = false,
-		py::arg("delay") = 0.0
-	);
-
-	sub.def(
-		"crew_select",
-		py::overload_cast<int, bool, bool, double>(&Input::crewSelect),
-		py::arg("which"),
-		py::kw_only(),
-		py::arg("exclusive") = true,
-		py::arg("suppress") = false,
-		py::arg("delay") = 0.0
-	);
-
-	sub.def(
-		"crew_select",
-		py::overload_cast<const std::vector<int>&, bool, bool, double>(&Input::crewSelect),
-		py::arg("which"),
 		py::kw_only(),
 		py::arg("exclusive") = true,
 		py::arg("suppress") = false,

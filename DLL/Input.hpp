@@ -145,13 +145,6 @@ public:
 		double delay = 0.0
 	);
 
-	static Ret systemPower(
-		SystemType which,
-		int set = 0, int delta = 0,
-		bool suppress = false,
-		double delay = 0.0
-	);
-
 	static Ret weaponPower(
 		const Weapon& weapon,
 		bool on = true,
@@ -159,34 +152,14 @@ public:
 		double delay = 0.0
 	);
 
-	static Ret weaponPower(
-		int which,
-		bool on = true,
-		bool suppress = false,
-		double delay = 0.0
-	);
-
 	static Ret weaponSelect(
 		const Weapon& weapon,
-		bool suppress = false,
-		double delay = 0.0
-	);
-
-	static Ret weaponSelect(
-		int which,
 		bool suppress = false,
 		double delay = 0.0
 	);
 
 	static Ret dronePower(
 		const Drone& drone,
-		bool on = true,
-		bool suppress = false,
-		double delay = 0.0
-	);
-
-	static Ret dronePower(
-		int which,
 		bool on = true,
 		bool suppress = false,
 		double delay = 0.0
@@ -228,20 +201,6 @@ public:
 	// So at least on the C++ side if we call this, we should be deliberate
 	static Ret crewSelect(
 		const CrewRefList& crew,
-		bool exclusive = true,
-		bool suppress = false,
-		double delay = 0.0
-	);
-
-	static Ret crewSelect(
-		int which,
-		bool exclusive = true,
-		bool suppress = false,
-		double delay = 0.0
-	);
-
-	static Ret crewSelect(
-		const std::vector<int>& which,
 		bool exclusive = true,
 		bool suppress = false,
 		double delay = 0.0

@@ -1201,28 +1201,6 @@ Input::Ret Input::systemPower(
 	return last;
 }
 
-Input::Ret Input::systemPower(
-	SystemType which,
-	int set, int delta,
-	bool suppress,
-	double delay)
-{
-	auto&& state = Reader::getState();
-	if (!validateInGame(state, suppress)) return {};
-
-	try
-	{
-		auto&& system = state.game->playerShip->getSystem(which, suppress);
-		return systemPower(system, set, delta, suppress, delay);
-	}
-	catch (const std::exception& e)
-	{
-		if (!suppress) throw e;
-	}
-
-	return {};
-}
-
 Input::Ret Input::weaponPower(
 	const Weapon& weapon,
 	bool on,
@@ -1315,19 +1293,6 @@ Input::Ret Input::weaponPower(
 	return useWeapon(weapon, hotkeys(), !on, delay);
 }
 
-Input::Ret Input::weaponPower(
-	int which,
-	bool on,
-	bool suppress,
-	double delay)
-{
-	auto&& state = Reader::getState();
-	if (!validateInGame(state, suppress)) return {};
-	auto&& weapon = weaponAt(which, suppress);
-	if (!weapon) return {}; // only happens if suppressed
-	return weaponPower(*weapon, on, suppress, delay);
-}
-
 Input::Ret Input::weaponSelect(
 	const Weapon& weapon,
 	bool suppress,
@@ -1350,18 +1315,6 @@ Input::Ret Input::weaponSelect(
 
 	if (!weapon.powered()) weaponPower(weapon, true, suppress, delay);
 	return useWeapon(weapon, hotkeys(), false, delay);
-}
-
-Input::Ret Input::weaponSelect(
-	int which,
-	bool suppress,
-	double delay)
-{
-	auto&& state = Reader::getState();
-	if (!validateInGame(state, suppress)) return {};
-	auto&& weapon = weaponAt(which, suppress);
-	if (!weapon) return {}; // only happens if suppressed
-	return weaponSelect(*weapon, suppress, delay);
 }
 
 Input::Ret Input::dronePower(
@@ -1466,20 +1419,6 @@ Input::Ret Input::dronePower(
 	}
 
 	return useDrone(drone, hotkeys(), !on, delay);
-}
-
-
-Input::Ret Input::dronePower(
-	int which,
-	bool on,
-	bool suppress,
-	double delay)
-{
-	auto&& state = Reader::getState();
-	if (!validateInGame(state, suppress)) return {};
-	auto&& drone = droneAt(which, suppress);
-	if (!drone) return {}; // only happens if suppressed
-	return dronePower(*drone, on, suppress, delay);
 }
 
 Input::Ret Input::autofire(bool on, bool suppress, double delay)
@@ -1702,72 +1641,6 @@ Input::Ret Input::crewSelect(
 	}
 
 	return last;
-}
-
-Input::Ret Input::crewSelect(
-	int which,
-	bool exclusive,
-	bool suppress,
-	double delay)
-{
-	auto&& state = Reader::getState();
-	if (!validateInGame(state, suppress)) return {};
-
-	auto&& list = state.game->playerCrew;
-	int count = int(list.size());
-
-	if (which < 0)
-	{
-		if (!suppress) throw InvalidCrewBoxChoice(which);
-		else return {};
-	}
-
-	if (which > count)
-	{
-		if (!suppress) throw InvalidCrewBoxChoice(which, count);
-		else return {};
-	}
-
-	return crewSelect(list.at(which), exclusive, suppress, delay);
-}
-
-Input::Ret Input::crewSelect(
-	const std::vector<int>& which,
-	bool exclusive,
-	bool suppress,
-	double delay)
-{
-	auto&& state = Reader::getState();
-	if (!validateInGame(state, suppress)) return {};
-
-	if (which.empty() && exclusive)
-	{
-		return crewCancel(delay);
-	}
-
-	Input::CrewRefList select;
-	select.reserve(which.size());
-	auto&& list = state.game->playerCrew;
-	int count = int(list.size());
-
-	for (size_t i = 0; i < which.size(); i++)
-	{
-		if (which[i] < 0)
-		{
-			if (!suppress) throw InvalidCrewBoxChoice(which[i]);
-			else return {};
-		}
-
-		if (which[i] > count)
-		{
-			if (!suppress) throw InvalidCrewBoxChoice(which[i], count);
-			else return {};
-		}
-
-		select.push_back(std::cref(state.game->playerCrew.at(which[i])));
-	}
-
-	return crewSelect(select, exclusive, suppress, delay);
 }
 
 Input::Ret Input::crewSelectAll(bool suppress, double delay)
