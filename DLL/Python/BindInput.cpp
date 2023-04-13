@@ -450,7 +450,7 @@ void bindInput(py::module_& module)
 
 	sub.def(
 		"system_power",
-		py::overload_cast<const System&, int, int, bool, double>(&Input::systemPower),
+		&Input::systemPower,
 		py::arg("system"),
 		py::arg("set") = 0,
 		py::kw_only(),
@@ -474,7 +474,7 @@ void bindInput(py::module_& module)
 
 	sub.def(
 		"weapon_power",
-		py::overload_cast<const Weapon&, bool, bool, double>(&Input::weaponPower),
+		&Input::weaponPower,
 		py::arg("weapon"),
 		py::arg("on") = true,
 		py::kw_only(),
@@ -492,7 +492,7 @@ void bindInput(py::module_& module)
 
 	sub.def(
 		"weapon_select",
-		py::overload_cast<const Weapon&, bool, double>(&Input::weaponSelect),
+		&Input::weaponSelect,
 		py::arg("weapon"),
 		py::kw_only(),
 		py::arg("suppress") = false,
@@ -503,7 +503,7 @@ void bindInput(py::module_& module)
 
 	sub.def(
 		"drone_power",
-		py::overload_cast<const Drone&, bool, bool, double>(&Input::dronePower),
+		&Input::dronePower,
 		py::arg("drone"),
 		py::arg("on") = true,
 		py::kw_only(),
