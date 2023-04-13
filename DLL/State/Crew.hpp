@@ -41,7 +41,7 @@ struct Crew
 	bool manning = false;
 	bool moving = false;
 	bool healing = false;
-	bool selected = false;
+	int selectionId = 0;
 	int onFire = 0;
 	int room = 0, slot = 0; // slot is set when reading room slots... FTL moment
 	SystemType mannedSystem = SystemType::None;

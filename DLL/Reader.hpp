@@ -18,23 +18,18 @@ class MutableRawState
 class Reader
 {
 public:
-	static constexpr double DEFAULT_POLL_TIME = 0.005; // 5 milliseconds
 	using Clock = std::chrono::steady_clock;
 	using Duration = Clock::duration;
 	using TimePoint = Clock::time_point;
 
 	Reader() = delete;
 
-	// handles waiting, polling, and input (if ready)
-	// blocks if polling loop is already running in a separate thread
-	// and waits until that thread terminates
+	// handles polling, and input (if ready)
 	static void poll();
 
 	static bool init(); // returns true if successful, false otherwise
+	static bool ready(); // returns true if initialized
 
-	// How long to block the thread (in seconds) before allowing another poll
-	static void setPollTime(double time);
-	static double pollTime(); // gets the poll time in seconds
 	static double now(); // gets the time since start in seconds
 
 	static const State& getState();
@@ -54,15 +49,13 @@ public:
 	static void quit();
 
 private:
-	static void iterate(); // handles waiting, polling, and input (if ready)
+	static void iterate(); // handles polling, and input (if ready)
 	static void read(); // process polling
-	static void wait(); // process waiting
 
-	static Duration delay;
-	static TimePoint start, nextPoll;
+	static TimePoint start;
 
 	static raw::State rs;
 	static State state;
 	static uintptr_t base;
-	static bool reloading;
+	static bool started, reloading;
 };

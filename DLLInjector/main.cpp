@@ -39,11 +39,17 @@ bool inject(const char* dll, HANDLE hProc)
         0, nullptr);
 
     if (hRemoteThread && hRemoteThread != INVALID_HANDLE_VALUE)
+    {
+        DWORD res = WAIT_OBJECT_0;
+        res = WaitForSingleObject(hRemoteThread, INFINITE);
+        DWORD code = 0;
+        GetExitCodeThread(hRemoteThread, &code);
         CloseHandle(hRemoteThread);
-    else
-        return false;
 
-    return true;
+        return code != 0;
+    }
+    
+    return false;
 }
 
 bool unload(const HMODULE& dll, HANDLE hProc)
@@ -55,11 +61,17 @@ bool unload(const HMODULE& dll, HANDLE hProc)
         0, nullptr);
 
     if (hRemoteThread && hRemoteThread != INVALID_HANDLE_VALUE)
+    {
+        DWORD res = WAIT_OBJECT_0;
+        res = WaitForSingleObject(hRemoteThread, INFINITE);
+        DWORD code = 0;
+        GetExitCodeThread(hRemoteThread, &code);
         CloseHandle(hRemoteThread);
-    else
-        return false;
 
-    return true;
+        return code != 0;
+    }
+
+    return false;
 }
 
 struct ProcessInfo
@@ -150,8 +162,8 @@ int main(int argc, char** argv)
     {
         if (arg == "?" || arg == "help")
         {
-            std::cout << "Specify -d or -detach to detach all dlls." << std::endl;
             std::cout << "Specify -p or -pause to wait for a keypress before terminating." << std::endl;
+            std::cout << "Specify -d or -detach to detach all dlls. Only do this if you know what you're doing." << std::endl;
             std::cout << "Specify ? or help to print this message and quit." << std::endl;
             return 0;
         }

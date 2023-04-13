@@ -13,9 +13,6 @@
     <ClInclude Include="..\..\..\C++ Resources\include\imgui_impl_win32.h">
       <Filter>imgui</Filter>
     </ClInclude>
-    <ClInclude Include="GUI\GUI.hpp">
-      <Filter>GUI</Filter>
-    </ClInclude>
     <ClInclude Include="Utility\WindowsButWithoutAsMuchCancer.hpp">
       <Filter>Utility</Filter>
     </ClInclude>
@@ -143,6 +140,8 @@
     <ClInclude Include="State\Weapon.hpp">
       <Filter>State</Filter>
     </ClInclude>
+    <ClInclude Include="GUI.hpp" />
+    <ClInclude Include="TextEditor.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="..\..\..\C++ Resources\src\imgui.cpp">
@@ -229,13 +228,11 @@
     <ClCompile Include="dllmain.cpp" />
     <ClCompile Include="Input.cpp" />
     <ClCompile Include="Reader.cpp" />
+    <ClCompile Include="TextEditor.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Filter Include="imgui">
       <UniqueIdentifier>{0bba110c-ddc3-4c9c-96d0-746b9382f378}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="GUI">
-      <UniqueIdentifier>{2800e564-7acc-4f6b-b7ab-0354aed5a494}</UniqueIdentifier>
     </Filter>
     <Filter Include="Utility">
       <UniqueIdentifier>{1ab46470-b03f-4398-ba10-fe7d5e9246be}</UniqueIdentifier>

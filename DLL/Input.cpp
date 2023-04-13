@@ -33,7 +33,7 @@ public:
 	{
 		enum class Type
 		{
-			Mouse, Keyboard
+			Mouse, Keyboard, TextInput, TextEvent
 		};
 
 		Type type;
@@ -44,6 +44,8 @@ public:
 		{
 			MouseCommand mouse;
 			KeyboardCommand keyboard;
+			char textInput;
+			raw::TextEvent textEvent;
 		};
 
 		// Commands with higher times are sorted first
@@ -85,6 +87,12 @@ public:
 				case Command::Type::Keyboard:
 					this->keyboardInput(cmd.keyboard);
 					break;
+				case Command::Type::TextInput:
+					this->textInput(cmd.textInput);
+					break;
+				case Command::Type::TextEvent:
+					this->textEvent(cmd.textEvent);
+					break;
 				}
 
 				inputsMade++;
@@ -105,6 +113,19 @@ public:
 	bool empty() const
 	{
 		return this->queue.empty();
+	}
+
+	bool emptyWithin(double time) const
+	{
+		double now = Reader::now();
+
+		return 
+			this->queue.end() == std::find_if(
+				this->queue.begin(), this->queue.end(),
+				[&](auto& cmd) {
+					return cmd.time-now <= time;
+				}
+			);
 	}
 
 	bool queued(uintmax_t id) const
@@ -141,6 +162,34 @@ public:
 		return
 			p.x < 0 || p.x >= Input::GAME_WIDTH ||
 			p.y < 0 || p.y >= Input::GAME_HEIGHT;
+	}
+
+	void cheat(const std::string& cmd)
+	{
+		static constexpr uintptr_t CONSOLE_ADDR = 0x0011B4A0;
+		auto* gui = Reader::getRawState({}).app->gui;
+		uintptr_t funcAddr = Reader::getRealAddress(CONSOLE_ADDR, {});
+		auto* func = reinterpret_cast<void(__thiscall*)(raw::CommandGui*, raw::gcc::string&)>(funcAddr);
+
+		// The one time we will ever have to do this conversion
+		raw::gcc::string str;
+		str.len = cmd.size();
+
+		if (str.len <= raw::gcc::string::SMALL_STRING_OPTIMIZATION_LEN)
+		{
+			// small string optimization, copy it like this
+			strcpy_s(str.local_data, cmd.data());
+			str.local_data[raw::gcc::string::SMALL_STRING_OPTIMIZATION_LEN] = '\0';
+			str.str = str.local_data;
+			func(gui, str);
+		}
+		else
+		{
+			// not using const_cast just to be safe
+			std::string copy = cmd;
+			str.str = copy.data();
+			func(gui, str);
+		}
 	}
 
 private:
@@ -189,16 +238,13 @@ private:
 	{
 		auto&& mrs = Reader::getRawState({});
 
-		if (held)
+		if (held && !this->shiftStateHook.hooked())
 		{
-			if (!this->shiftStateHook.hooked())
-			{
-				auto addr = (BYTE*)Reader::getRealAddress(SHIFT_STATE_ADDR, {});
-				this->shiftStateHook.hook(addr, RET_1.data(), RET_1.size(), true);
-			}
+			auto addr = (BYTE*)Reader::getRealAddress(SHIFT_STATE_ADDR, {});
+			this->shiftStateHook.hook(addr, RET_1.data(), RET_1.size(), true);
 			mrs.app->shift_held = true;
 		}
-		else
+		else if(!held && this->shiftStateHook.hooked())
 		{
 			this->shiftStateHook.unhook();
 			mrs.app->shift_held = false;
@@ -249,6 +295,8 @@ private:
 			case MouseButton::Right: mrs.app->OnRButtonUp(pos.x, pos.y); break;
 			}
 		}
+
+		this->setShiftHeld(false);
 	}
 
 	void keyboardInput(const KeyboardCommand& keyboard)
@@ -277,11 +325,21 @@ private:
 			if (keyIsShift) this->setShiftHeld(false);
 			else mrs.app->OnKeyUp(int(keyboard.key));
 		}
+
+		// Ignore shift parameter for shift key
+		if (!keyIsShift) this->setShiftHeld(false);
 	}
 
-	static void postMessage(UINT uMsg, WPARAM wParam, LPARAM lParam)
+	void textInput(char character)
 	{
-		PostMessage(g_hGameWindow, uMsg | WM_FTLAI, wParam, lParam);
+		auto&& mrs = Reader::getRawState({});
+		mrs.app->OnTextInput(character);
+	}
+
+	void textEvent(raw::TextEvent event)
+	{
+		auto&& mrs = Reader::getRawState({});
+		mrs.app->OnTextEvent(event);
 	}
 
 	Command& top()
@@ -421,7 +479,12 @@ Input::Ret useWeapon(
 		auto pos = weaponBoxes[weapon.slot].center();
 		auto button = powerOff ? MouseButton::Right : MouseButton::Left;
 
-		return Input::mouseClick(button, pos, false, !powerOff, delay);
+		if (powerOff)
+		{
+			return Input::mouseClick(button, pos, false, delay);
+		}
+
+		return Input::mouseUp(button, pos, false, delay);
 	}
 
 	return Input::keyPress(hotkey, powerOff, delay);
@@ -466,7 +529,12 @@ Input::Ret useDrone(
 		auto pos = droneBoxes[drone.slot].center();
 		auto button = powerOff ? MouseButton::Right : MouseButton::Left;
 
-		return Input::mouseClick(button, pos, false, !powerOff, delay);
+		if (powerOff)
+		{
+			return Input::mouseClick(button, pos, false, delay);
+		}
+
+		return Input::mouseUp(button, pos, false, delay);
 	}
 
 	return Input::keyPress(hotkey, powerOff, delay);
@@ -494,15 +562,50 @@ const Drone* droneAt(int which, bool suppress = false)
 	return &drones.list.at(which);
 }
 
+void validateCrew(const Crew& crew, const std::vector<Crew>& list)
+{
+	if (crew.dead)
+	{
+		throw InvalidCrewChoice(crew, "they're dead");
+	}
+
+	if (crew.drone)
+	{
+		throw InvalidCrewChoice(crew, "they're a drone");
+	}
+
+	if (!crew.player)
+	{
+		throw InvalidCrewChoice(crew, "they're an enemy");
+	}
+
+	int count = int(list.size());
+
+	if (crew.uiBox < 0)
+	{
+		throw InvalidCrewBoxChoice(crew.uiBox);
+	}
+
+	if (crew.uiBox > count)
+	{
+		throw InvalidCrewBoxChoice(crew.uiBox, count);
+	}
+}
+
+Key crewHotkey(int which, const std::map<std::string, Key>& hotkeys)
+{
+	return getHotkey(hotkeys, "crew" + std::to_string(which + 1));
+}
+
 // Assumes a bunch of other checks have already been made
-Input::Ret useCrew(
+Input::Ret useCrewSingle(
 	const Crew& crew,
 	const std::map<std::string, Key>& hotkeys,
 	bool exclusive = true,
 	double delay = 0.0)
 {
 	// Try to use a hotkey
-	auto hotkey = getHotkey(hotkeys, "crew" + std::to_string(crew.uiBox + 1));
+	auto hotkey = crewHotkey(crew.uiBox, hotkeys);
 
 	if (hotkey == Key::Unknown)
 	{
@@ -510,12 +613,28 @@ Input::Ret useCrew(
 		auto&& crewBoxes = Reader::getState().ui.game->crewBoxes;
 		auto pos = crewBoxes[crew.uiBox].box.center();
 
-		return Input::mouseClick(MouseButton::Left, pos, !exclusive, false, delay);
+		return Input::mouseClick(MouseButton::Left, pos, !exclusive, delay);
 	}
 
 	return Input::keyPress(hotkey, !exclusive, delay);
 }
 
+// Assumes a bunch of other checks have already been made
+// Assumes crew list is sorted by ui box order already
+// Always uses mouse
+Input::Ret useCrewMany(
+	const Input::CrewRefList& crew,
+	bool exclusive = true,
+	double delay = 0.0)
+{
+	auto&& crewBoxes = Reader::getState().ui.game->crewBoxes;
+
+	Point<int> first = crewBoxes[crew.front().get().uiBox].box.center();
+	Point<int> last = crewBoxes[crew.back().get().uiBox].box.center();
+
+	Input::mouseDown(MouseButton::Left, first, !exclusive, delay);
+	return Input::mouseUp(MouseButton::Left, last, !exclusive, delay);
+}
 
 }
 
@@ -527,6 +646,11 @@ void Input::iterate()
 bool Input::empty()
 {
 	return impl.empty();
+}
+
+bool Input::emptyWithin(double time)
+{
+	return impl.emptyWithin(time);
 }
 
 bool Input::queued(uintmax_t id)
@@ -637,24 +761,20 @@ Input::Ret Input::mouseClick(
 	MouseButton button,
 	const Point<int>& position,
 	bool shift,
-	bool partial,
 	double delay)
 {
 	mouseMove(position, delay);
 
-	if (!partial)
-	{
-		impl.push(Impl::Command{
-			.type = Impl::Command::Type::Mouse,
-			.time = Reader::now() + delay,
-			.mouse = {
-				.button = button,
-				.position = position,
-				.shift = shift,
-				.direction = InputDirection::Down
-			}
-		});
-	}
+	impl.push(Impl::Command{
+		.type = Impl::Command::Type::Mouse,
+		.time = Reader::now() + delay,
+		.mouse = {
+			.button = button,
+			.position = position,
+			.shift = shift,
+			.direction = InputDirection::Down
+		}
+	});
 
 	return impl.push(Impl::Command{
 		.type = Impl::Command::Type::Mouse,
@@ -743,6 +863,103 @@ const decltype(Settings::hotkeys)& Input::hotkeys()
 	return Reader::getState().settings.hotkeys;
 }
 
+Input::Ret Input::text(char character, double delay)
+{
+	validateDelay(delay);
+	return impl.push(Impl::Command{
+		.type = Impl::Command::Type::TextInput,
+		.time = Reader::now() + delay,
+		.textInput = character
+	});
+}
+
+Input::Ret Input::text(const std::string& str, double delay)
+{
+	Input::Ret last;
+	for (auto&& c : str) last = text(c, delay);
+	return last;
+}
+
+Input::Ret Input::textConfirm(double delay)
+{
+	validateDelay(delay);
+	return impl.push(Impl::Command{
+		.type = Impl::Command::Type::TextEvent,
+		.time = Reader::now() + delay,
+		.textEvent = raw::TEXT_CONFIRM
+	});
+}
+
+Input::Ret Input::textClear(double delay)
+{
+	validateDelay(delay);
+	return impl.push(Impl::Command{
+		.type = Impl::Command::Type::TextEvent,
+		.time = Reader::now() + delay,
+		.textEvent = raw::TEXT_CLEAR
+	});
+}
+
+Input::Ret Input::textBackspace(double delay)
+{
+	validateDelay(delay);
+	return impl.push(Impl::Command{
+		.type = Impl::Command::Type::TextEvent,
+		.time = Reader::now() + delay,
+		.textEvent = raw::TEXT_BACKSPACE
+	});
+}
+
+Input::Ret Input::textDelete(double delay)
+{
+	validateDelay(delay);
+	return impl.push(Impl::Command{
+		.type = Impl::Command::Type::TextEvent,
+		.time = Reader::now() + delay,
+		.textEvent = raw::TEXT_DELETE
+	});
+}
+
+Input::Ret Input::textLeft(double delay)
+{
+	validateDelay(delay);
+	return impl.push(Impl::Command{
+		.type = Impl::Command::Type::TextEvent,
+		.time = Reader::now() + delay,
+		.textEvent = raw::TEXT_LEFT
+	});
+}
+
+Input::Ret Input::textRight(double delay)
+{
+	validateDelay(delay);
+	return impl.push(Impl::Command{
+		.type = Impl::Command::Type::TextEvent,
+		.time = Reader::now() + delay,
+		.textEvent = raw::TEXT_RIGHT
+	});
+}
+
+Input::Ret Input::textHome(double delay)
+{
+	validateDelay(delay);
+	return impl.push(Impl::Command{
+		.type = Impl::Command::Type::TextEvent,
+		.time = Reader::now() + delay,
+		.textEvent = raw::TEXT_HOME
+	});
+}
+
+Input::Ret Input::textEnd(double delay)
+{
+	validateDelay(delay);
+	return impl.push(Impl::Command{
+		.type = Impl::Command::Type::TextEvent,
+		.time = Reader::now() + delay,
+		.textEvent = raw::TEXT_END
+	});
+}
+
 Input::Ret Input::pause(
 	bool on,
 	bool suppress,
@@ -762,7 +979,7 @@ Input::Ret Input::pause(
 	if (pause.any == on) return {};
 
 	// middle mouse is always available, no need to check for hotkey
-	return mouseClick(MouseButton::Left, { -1, -1 }, false, false, delay);
+	return mouseClick(MouseButton::Left, { -1, -1 }, false, delay);
 }
 
 Input::Ret Input::eventChoice(
@@ -807,7 +1024,7 @@ Input::Ret Input::eventChoice(
 		return mouseClick(
 			MouseButton::Left,
 			center ? choice.box.center() : choice.box.topCenter(),
-			false, false, delay);
+			false, delay);
 	}
 
 	// Make sure delay is long enough so input doesn't get ate
@@ -828,6 +1045,12 @@ Input::Ret Input::systemPower(
 {
 	auto&& state = Reader::getState();
 	validateInGame(state, suppress);
+
+	if (state.game->pause.menu)
+	{
+		if (!suppress) throw WrongMenu("powering a system");
+		else return {};
+	}
 
 	if (delta != 0 && set > 0)
 	{
@@ -914,7 +1137,7 @@ Input::Ret Input::systemPower(
 			auto&& point = state.ui.game->getSystem(system.type, system.discriminator).bottomCenter();
 			last = mouseClick(
 				depower ? MouseButton::Right : MouseButton::Left,
-				point, false, false, delay
+				point, false, delay
 			);
 		}
 	};
@@ -964,6 +1187,12 @@ Input::Ret Input::weaponPower(
 {
 	auto&& state = Reader::getState();
 	validateInGame(state, suppress);
+
+	if (state.game->pause.menu)
+	{
+		if (!suppress) throw WrongMenu("powering a weapon");
+		else return {};
+	}
 
 	if (!state.game->playerShip->weapons)
 	{
@@ -1056,6 +1285,13 @@ Input::Ret Input::weaponSelect(
 {
 	auto&& state = Reader::getState();
 	validateInGame(state, suppress);
+
+	if (state.game->pause.menu)
+	{
+		if (!suppress) throw WrongMenu("selecting a weapon");
+		else return {};
+	}
+
 	if (!weapon.powered()) weaponPower(weapon, true, suppress, delay);
 	return useWeapon(weapon, hotkeys(), false, delay);
 }
@@ -1080,6 +1316,12 @@ Input::Ret Input::dronePower(
 {
 	auto&& state = Reader::getState();
 	validateInGame(state, suppress);
+
+	if (state.game->pause.menu)
+	{
+		if (!suppress) throw WrongMenu("powering a drone");
+		else return {};
+	}
 
 	if (!state.game->playerShip->drones)
 	{
@@ -1178,9 +1420,18 @@ Input::Ret Input::dronePower(
 	return dronePower(*drone, on, suppress, delay);
 }
 
-Input::Ret Input::aimCancel(double delay)
+Input::Ret Input::aimCancel(bool suppress, double delay)
 {
-	return mouseClick(MouseButton::Right, nopSpot(), false, false, delay);
+	auto&& state = Reader::getState();
+	validateInGame(state, suppress);
+
+	if (state.game->pause.menu)
+	{
+		if (!suppress) throw WrongMenu("cancelling aiming");
+		else return {};
+	}
+
+	return mouseClick(MouseButton::Right, nopSpot(), false, delay);
 }
 
 Input::Ret Input::crewSelect(
@@ -1192,76 +1443,99 @@ Input::Ret Input::crewSelect(
 	auto&& state = Reader::getState();
 	validateInGame(state, suppress);
 
-	if (crew.dead)
+	if (state.game->pause.menu)
 	{
-		if (!suppress) throw InvalidCrewChoice(crew, "they're dead");
+		if (!suppress) throw WrongMenu("selecting crew");
 		else return {};
 	}
 
-	if (crew.drone)
+	try
 	{
-		if (!suppress) throw InvalidCrewChoice(crew, "they're a drone");
-		else return {};
+		validateCrew(crew, state.game->playerCrew);
+	}
+	catch (const std::exception& e)
+	{
+		if (!suppress) throw e;
 	}
 
-	if (!crew.player)
-	{
-		if (!suppress) throw InvalidCrewChoice(crew, "they're an enemy");
-		else return {};
-	}
-
-	auto&& list = state.game->playerCrew;
-	int count = int(list.size());
-
-	if (crew.uiBox < 0)
-	{
-		if (!suppress) throw InvalidCrewBoxChoice(crew.uiBox);
-		else return {};
-	}
-
-	if (crew.uiBox > count)
-	{
-		if (!suppress) throw InvalidCrewBoxChoice(crew.uiBox, count);
-		else return {};
-	}
-
-	return useCrew(crew, hotkeys(), exclusive, delay);
+	return useCrewSingle(crew, hotkeys(), exclusive, delay);
 }
 
 Input::Ret Input::crewSelect(
-	const std::vector<Crew>& crew,
+	const Input::CrewRefList& crew,
 	bool exclusive,
 	bool suppress,
 	double delay)
 {
+
 	auto&& state = Reader::getState();
 	validateInGame(state, suppress);
+
+	if (state.game->pause.menu)
+	{
+		if (!suppress) throw WrongMenu("selecting crew");
+		else return {};
+	}
 
 	if (crew.empty() && exclusive)
 	{
 		return crewCancel(delay);
 	}
 
-	// Trying to select all crew
-	if (crew.size() == state.ui.game->crewBoxes.size())
-	{
-		// Try to use a hotkey
-		auto hotkey = getHotkey(hotkeys(), "crew_all");
+	Input::CrewRefList group;
+	group.reserve(crew.size());
+	int prev = crew[0].get().uiBox-1;
+	Input::Ret last;
 
-		if (hotkey != Key::Unknown)
+	for (size_t i = 0; i < crew.size(); i++)
+	{
+		// Skip dead crew
+		if (crew[i].get().dead) continue;
+
+		// If not contiguous, input and clear group
+		if (!group.empty() && prev != crew[i].get().uiBox-1)
 		{
-			return Input::keyPress(hotkey, false, delay);
+			if (group.size() == 1)
+			{
+				last = useCrewSingle(group[0], hotkeys(), exclusive, delay);
+			}
+			else
+			{
+				last = useCrewMany(group, exclusive, delay);
+			}
+
+			// stop being exclusive after first selection
+			exclusive = false;
+
+			group.clear();
 		}
+
+		group.push_back(crew[i]);
+		prev = crew[i].get().uiBox;
 	}
 
-	Input::Ret last{};
-
-	for (auto&& c : crew)
+	// Final group
+	if (!group.empty())
 	{
-		last = crewSelect(c, exclusive, suppress, delay);
+		if (group.size() == state.ui.game->crewBoxes.size())
+		{
+			// Selecting all crew in order, use if hotkey possible
+			auto hotkey = getHotkey(hotkeys(), "crew_all");
 
-		// stop exclusivity after first crewmember
-		if (exclusive) exclusive = false;
+			if (hotkey != Key::Unknown)
+			{
+				return Input::keyPress(hotkey, false, delay);
+			}
+		}
+
+		if (group.size() == 1)
+		{
+			last = useCrewSingle(group[0], hotkeys(), exclusive, delay);
+		}
+		else
+		{
+			last = useCrewMany(group, exclusive, delay);
+		}
 	}
 
 	return last;
@@ -1308,68 +1582,68 @@ Input::Ret Input::crewSelect(
 		return crewCancel(delay);
 	}
 
-	// Trying to select all crew
-	if (which.size() == state.ui.game->crewBoxes.size())
-	{
-		// Try to use a hotkey
-		auto hotkey = getHotkey(hotkeys(), "crew_all");
+	Input::CrewRefList select;
+	select.reserve(which.size());
+	auto&& list = state.game->playerCrew;
+	int count = int(list.size());
 
-		if (hotkey != Key::Unknown)
+	for (size_t i = 0; i < which.size(); i++)
+	{
+		if (which[i] < 0)
 		{
-			return Input::keyPress(hotkey, false, delay);
+			if (!suppress) throw InvalidCrewBoxChoice(which[i]);
+			else return {};
 		}
+
+		if (which[i] > count)
+		{
+			if (!suppress) throw InvalidCrewBoxChoice(which[i], count);
+			else return {};
+		}
+
+		select.push_back(std::cref(state.game->playerCrew.at(which[i])));
 	}
 
-	Input::Ret last{};
-
-	for (auto&& w : which)
-	{
-		last = crewSelect(w, exclusive, suppress, delay);
-
-		// stop exclusivity after first crewmember
-		if (exclusive) exclusive = false;
-	}
-
-	return last;
+	return crewSelect(select, exclusive, suppress, delay);
 }
 
 Input::Ret Input::crewSelectAll(bool suppress, double delay)
 {
 	auto&& state = Reader::getState();
 	validateInGame(state, suppress);
+
 	auto&& list = state.game->playerCrew;
-	return crewSelect(list, true, suppress, delay);
+
+	Input::CrewRefList select;
+	select.reserve(list.size());
+
+	// Should already be sorted
+	for (size_t i = 0; i < list.size(); i++)
+	{
+		select.push_back(std::cref(list[i]));
+	}
+
+	return crewSelect(select, true, suppress, delay);
 }
 
-Input::Ret Input::crewCancel(double delay)
+Input::Ret Input::crewCancel(bool suppress, double delay)
 {
-	return mouseClick(MouseButton::Left, nopSpot(), false, false, delay);
+	auto&& state = Reader::getState();
+	validateInGame(state, suppress);
+
+	if (state.game->pause.menu)
+	{
+		if (!suppress) throw WrongMenu("canceling crew selection");
+		else return {};
+	}
+
+	return mouseClick(MouseButton::Left, nopSpot(), false, delay);
 }
 
-void Input::cheat(const std::string& command)
+void Input::cheat(const std::string& command, bool suppress)
 {
-	static constexpr uintptr_t CONSOLE_ADDR = 0x0011B4A0;
-	auto* gui = Reader::getRawState({}).app->gui;
-	uintptr_t funcAddr = Reader::getRealAddress(CONSOLE_ADDR, {});
-	auto* func = reinterpret_cast<void(__thiscall*)(raw::CommandGui*, raw::gcc::string&)>(funcAddr);
+	auto&& state = Reader::getState();
+	validateInGame(state, suppress);
 
-	// The one time we will ever have to do this conversion
-	raw::gcc::string str;
-	str.len = command.size();
-
-	if (str.len <= raw::gcc::string::SMALL_STRING_OPTIMIZATION_LEN)
-	{
-		// small string optimization, copy it like this
-		strcpy_s(str.local_data, command.data());
-		str.local_data[raw::gcc::string::SMALL_STRING_OPTIMIZATION_LEN] = '\0';
-		str.str = str.local_data;
-		func(gui, str);
-	}
-	else
-	{
-		// not using const_cast just to be safe
-		std::string copy = command;
-		str.str = copy.data();
-		func(gui, str);
-	}
+	impl.cheat(command);
 }

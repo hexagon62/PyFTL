@@ -175,14 +175,23 @@ void bindInput(py::module_& module)
 	);
 
 	sub.def(
+		"empty_within",
+		&Input::emptyWithin,
+		py::arg("time"),
+		"Check if no inputs are queued before this amount of time from now."
+	);
+
+	sub.def(
 		"queued",
 		&Input::queued,
+		py::arg("id"),
 		"Check if an input with this id is still queued."
 	);
 
 	sub.def(
 		"pop",
 		&Input::pop,
+		py::arg("id"),
 		"Dequeues the input with this id; returns false if the input wasn't in the queue."
 	);
 
@@ -235,7 +244,8 @@ void bindInput(py::module_& module)
 		py::kw_only(),
 		py::arg("shift") = false,
 		py::arg("delay") = 0.0,
-		"Queue a command to hold a mouse button down."
+		"Queue a command to hold a mouse button down.\n"
+		"Calls mouse_move before clicking. Default 'position' argument makes mouse not move."
 	);
 
 	sub.def(
@@ -246,7 +256,8 @@ void bindInput(py::module_& module)
 		py::kw_only(),
 		py::arg("shift") = false,
 		py::arg("delay") = 0.0,
-		"Queue a command to release a mouse button."
+		"Queue a command to release a mouse button.\n"
+		"Calls mouse_move before releasing. Default 'position' argument makes mouse not move."
 	);
 
 	sub.def(
@@ -256,11 +267,9 @@ void bindInput(py::module_& module)
 		py::arg("position") = Point<int>(-1, -1),
 		py::kw_only(),
 		py::arg("shift") = false,
-		py::arg("partial") = false,
 		py::arg("delay") = 0.0,
 		"Calls mouse_move, mouse_down, and then mouse_up.\n"
-		"Set 'partial' to True to not call mouse_down.\n"
-		"There are some use cases, such as selecting a weapon/drone without dragging, that require this."
+		"Calls mouse_move before releasing. Default 'position' argument makes mouse not move."
 	);
 
 	sub.def(
@@ -328,6 +337,89 @@ void bindInput(py::module_& module)
 		&Input::hotkeys,
 		py::return_value_policy::reference,
 		"Returns the hotkey dictionary."
+	);
+
+	sub.def(
+		"text",
+		py::overload_cast<const std::string&, double>(&Input::text),
+		py::arg("str"),
+		py::kw_only(),
+		py::arg("delay") = 0.0,
+		"Inputs a string of text into a text input"
+	);
+
+	sub.def(
+		"text_confirm",
+		&Input::textConfirm,
+		py::kw_only(),
+		py::arg("delay") = 0.0,
+		"Confirms the text entered into a text input"
+	);
+
+	sub.def(
+		"text_clear",
+		&Input::textClear,
+		py::kw_only(),
+		py::arg("delay") = 0.0,
+		"Clears the text entered into a text input"
+	);
+
+	sub.def(
+		"text_backspace",
+		&Input::textBackspace,
+		py::kw_only(),
+		py::arg("delay") = 0.0,
+		"Deletes the character before the cursor in a text input"
+	);
+
+	sub.def(
+		"text_delete",
+		&Input::textDelete,
+		py::kw_only(),
+		py::arg("delay") = 0.0,
+		"Deletes the character after the cursor in a text input"
+	);
+
+	sub.def(
+		"text_left",
+		&Input::textLeft,
+		py::kw_only(),
+		py::arg("delay") = 0.0,
+		"Moves the cursor one character to the left in a text input"
+	);
+
+	sub.def(
+		"text_right",
+		&Input::textLeft,
+		py::kw_only(),
+		py::arg("delay") = 0.0,
+		"Moves the cursor one character to the right in a text input"
+	);
+
+	sub.def(
+		"text_home",
+		&Input::textHome,
+		py::kw_only(),
+		py::arg("delay") = 0.0,
+		"Moves the cursor to the beginning of a text input"
+	);
+
+	sub.def(
+		"text_end",
+		&Input::textEnd,
+		py::kw_only(),
+		py::arg("delay") = 0.0,
+		"Moves the cursor to the end of a text input"
+	);
+
+	sub.def(
+		"pause",
+		&Input::pause,
+		py::arg("on") = true,
+		py::kw_only(),
+		py::arg("suppress") = false,
+		py::arg("delay") = 0.0,
+		"Sets if the game is paused or not"
 	);
 
 	sub.def(
@@ -458,6 +550,7 @@ void bindInput(py::module_& module)
 		"aim_cancel",
 		&Input::aimCancel,
 		py::kw_only(),
+		py::arg("suppress") = false,
 		py::arg("delay") = 0.0,
 		"Queue a command to stop aiming any weapons or systems.\n"
 		"What it actually does is it right clicks in a spot that does nothing."
@@ -475,7 +568,7 @@ void bindInput(py::module_& module)
 
 	sub.def(
 		"crew_select",
-		py::overload_cast<const std::vector<Crew>&, bool, bool, double>(&Input::crewSelect),
+		py::overload_cast<const Input::CrewRefList&, bool, bool, double>(&Input::crewSelect),
 		py::arg("crew"),
 		py::kw_only(),
 		py::arg("exclusive") = true,
@@ -504,7 +597,8 @@ void bindInput(py::module_& module)
 		"Queue a command to select crew.\n"
 		"Can specify either one crewmember, or a list of crew.\n"
 		"Set 'exclusive' to False if you want to keep previously selected crew.\n\n"
-		"Will try to use hotkeys to select crew, then fallback to mouse clicks."
+		"Will use a combination of hotkeys (if bound) and mouse clicks.\n"
+		"This is to use the fewest inputs possible."
 	);
 
 	sub.def(
@@ -513,15 +607,15 @@ void bindInput(py::module_& module)
 		py::kw_only(),
 		py::arg("suppress") = false,
 		py::arg("delay") = 0.0,
-		"Queue a command to select all crew.\n\n"
-		"Will try to use the dedicated hotkey first.\n"
-		"Then it will fallback to using crew_select on the whole crew list."
+		"Queue a command to select all crew.\n"
+		"Basically calls crew_select with all crew in ui box order."
 	);
 
 	sub.def(
 		"crew_cancel",
 		&Input::crewCancel,
 		py::kw_only(),
+		py::arg("suppress") = false,
 		py::arg("delay") = 0.0,
 		"Queue a command to stop giving crewmembers tasks.\n"
 		"What it actually does is it left clicks in a spot that does nothing."
@@ -531,11 +625,13 @@ void bindInput(py::module_& module)
 		"cheat",
 		&Input::cheat,
 		py::arg("command"),
+		py::kw_only(),
+		py::arg("suppress") = false,
 		"Are you a dirty cheater? Use this!\n"
 		"This effectively lets you use the game's built-in console without enabling/opening it.\n"
 		"This is not a queued input command and thus it will occur immediately.\n"
 		"Do note the case-sensitivity of some parameters.\n"
-		"Weapon/drone blueprints are ALL_CAPS, and crew are all lower_case."
+		"Weapon/drone blueprints are generall ALL_CAPS, and crew are generally all_lower_case."
 	);
 }
 

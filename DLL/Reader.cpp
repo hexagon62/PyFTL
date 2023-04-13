@@ -11,13 +11,12 @@
 #include <unordered_map>
 #include <concepts>
 
-Reader::Duration Reader::delay{};
-Reader::TimePoint Reader::start{};
-Reader::TimePoint Reader::nextPoll{};
+Reader::TimePoint Reader::start = Reader::Clock::now();
 raw::State Reader::rs;
 State Reader::state;
 uintptr_t Reader::base = 0;
-bool Reader::reloading;
+bool Reader::started = false;
+bool Reader::reloading = false;
 extern bool g_quit;
 
 namespace
@@ -381,7 +380,7 @@ void readCrew(Crew& crew, const raw::CrewMember& raw, const Point<int>& offset)
 	crew.manning = raw.bActiveManning;
 	crew.healing = raw.fMedbay > 0.f;
 	crew.onFire = raw.iOnFire;
-	crew.selected = raw.selectionState == 2;
+	crew.selectionId = 0;
 
 	crew.room = raw.iRoomId;
 	crew.mannedSystem = SystemType(raw.iManningId);
@@ -1409,12 +1408,14 @@ void readCrewList(
 	const raw::gcc::vector<T*>& list,
 	const Point<int>& playerShipPos, const Point<int>& enemyShipPos,
 	const raw::gcc::vector<raw::CrewMember*>* arriving = nullptr,
-	const raw::gcc::vector<raw::CrewMember*>* leaving = nullptr)
+	const raw::gcc::vector<raw::CrewMember*>* leaving = nullptr,
+	const raw::CrewControl* control = nullptr)
 {
 	constexpr bool player = std::same_as<T, raw::CrewBox>;
 
 	crew.clear();
 
+	std::unordered_map<raw::CrewMember*, size_t> selectionIndices;
 	std::vector<raw::CrewMember*> ptrs;
 
 	if constexpr (player) // use crew boxes so they're sorted by ui box
@@ -1427,6 +1428,16 @@ void readCrewList(
 				continue;
 
 			ptrs.push_back(crew);
+		}
+
+		// Get position in selection
+		if (control)
+		{
+			auto&& selection = control->selectedCrew;
+			for (size_t i = 0; i < selection.size(); i++)
+			{
+				selectionIndices[selection[i]] = i;
+			}
 		}
 	}
 	else
@@ -1453,7 +1464,12 @@ void readCrewList(
 			: enemyShipPos;
 
 		readCrew(crew.emplace_back(), *ptrs[i], offset);
-		if constexpr (player) crew.back().uiBox = int(i);
+		if constexpr (player)
+		{
+			crew.back().uiBox = int(i);
+			auto it = selectionIndices.find(ptrs[i]);
+			crew.back().selectionId = it != selectionIndices.end() ? it->second : -1;
+		}
 
 		if (arriving && leaving)
 		{
@@ -2238,8 +2254,6 @@ void readUI(State& state, const raw::State& raw)
 bool Reader::init()
 {
 	start = Clock::now();
-	nextPoll = Clock::now();
-	setPollTime(Reader::DEFAULT_POLL_TIME);
 
 	base = reinterpret_cast<uintptr_t>(GetModuleHandle(L"FTLGame.exe"));;
 
@@ -2298,6 +2312,7 @@ bool Reader::init()
 
 	poll();
 
+	started = true;
 	return true;
 }
 
@@ -2496,16 +2511,8 @@ void Reader::read()
 	}
 }
 
-void Reader::wait()
-{
-	// Only sleep if we polled too soon!
-	std::this_thread::sleep_until(nextPoll);
-	nextPoll = Reader::Clock::now() + delay;
-}
-
 void Reader::iterate()
 {
-	Reader::wait();
 	Reader::read();
 	if (Input::ready()) Input::iterate();
 }
@@ -2535,28 +2542,9 @@ double toDouble(Reader::Duration d)
 
 }
 
-void Reader::setPollTime(double d)
-{
-	if (d < 0.001)
-	{
-		throw InvalidTime("poll time must be greater than 1 millisecond");
-	}
-
-	if (d > 1.0)
-	{
-		throw InvalidTime("poll time must be less than 1 second");
-	}
-
-	delay = fromDouble(d);
-}
-
-double Reader::pollTime()
-{
-	return toDouble(delay);
-}
-
 double Reader::now()
 {
+	if (!started) return 0.0;
 	return toDouble(Clock::now() - start);
 }
 

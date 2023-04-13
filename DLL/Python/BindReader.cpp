@@ -14,20 +14,6 @@ void bindReader(py::module_& module)
 	);
 
 	module.def(
-		"set_poll_time",
-		&Reader::setPollTime,
-		py::arg("time") = Reader::DEFAULT_POLL_TIME,
-		py::return_value_policy::reference,
-		"Sets how long PyFTL waits before doing each poll & input in seconds"
-	);
-
-	module.def(
-		"poll_time",
-		&Reader::pollTime,
-		"Returns how long PyFTL waits before doing each poll & input in seconds"
-	);
-
-	module.def(
 		"now",
 		&Reader::now,
 		"Returns how long PyFTL has been running in seconds"
