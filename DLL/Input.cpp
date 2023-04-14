@@ -6,6 +6,7 @@
 
 #include <array>
 #include <vector>
+#include <vector>
 #include <deque>
 #include <algorithm>
 #include <tuple>
@@ -19,7 +20,7 @@ public:
 	struct MouseCommand
 	{
 		MouseButton button;
-		Point<int> position{ -1, -1 };
+		Point<int> pos{ -1, -1 };
 		bool shift = false;
 		InputDirection direction = InputDirection::Unchanged;
 	};
@@ -67,15 +68,20 @@ public:
 		Point<int> start, end;
 	};
 
-	struct DeselectionCommand
+	struct DeselectCommand
 	{
-		bool left = false, right = true;
+		bool left = true, right = true;
 	};
 
 	struct CrewSelectionCommand
 	{
 		std::vector<int> crew;
-		bool exclusive = true;
+	};
+
+	struct SendCrewCommand
+	{
+		int room = -1;
+		bool self = false;
 	};
 
 	struct Command
@@ -87,18 +93,22 @@ public:
 			// Basic types
 			Mouse, Keyboard, TextInput, TextEvent, Cheat,
 			
-			// Helper stuff
+			// In-game helper stuff
 			Pause, EventChoice,
 			PowerSystem, PowerWeapon, PowerDrone,
 			Deselect, SelectWeapon, SelectCrew,
 			Autofire,
+			TeleportSend, TeleportReturn,
+			Cloak, Battery, MindControl,
+			SetupHack, Hack,
 			Door, OpenAllDoors, CloseAllDoors,
 			Aim, AimBeam,
-			SaveStations, LoadStations
+			SendCrew, SaveStations, LoadStations
 		};
 
 		Type type = Type::None;
 		double time = 0.0;
+		uintmax_t id = 0;
 
 		std::variant<
 			std::monostate,
@@ -114,15 +124,16 @@ public:
 			DroneCommand,
 			DoorCommand,
 			AimCommand,
-			DeselectionCommand,
-			CrewSelectionCommand
+			CrewSelectionCommand,
+			DeselectCommand,
+			SendCrewCommand
 		> args;
 
-		// Commands with higher times are sorted first
-		// That way the ones that come sooner are popped off a max heap first
-		bool operator<(const Command& other)
+		bool operator<(const Command& other) const
 		{
-			return this->time > other.time;
+			return
+				this->time < other.time ||
+				(this->time == other.time && this->id < other.id);
 		}
 	};
 
@@ -141,6 +152,7 @@ public:
 		{
 			auto lowerBound = Reader::now() - 500.0;
 			auto upperBound = Reader::now();
+
 
 			if (this->top().time > upperBound) break;
 
@@ -176,15 +188,23 @@ public:
 					case Command::Type::PowerSystem: this->powerSystem(std::get<PowerCommand>(cmd.args)); break;
 					case Command::Type::PowerWeapon: this->powerWeapon(std::get<WeaponCommand>(cmd.args)); break;
 					case Command::Type::PowerDrone: this->powerDrone(std::get<DroneCommand>(cmd.args)); break;
-					case Command::Type::Deselect: this->deselect(std::get<DeselectionCommand>(cmd.args)); break;
+					case Command::Type::Deselect: this->deselect(std::get<DeselectCommand>(cmd.args)); break;
 					case Command::Type::SelectWeapon: this->selectWeapon(std::get<WeaponCommand>(cmd.args)); break;
 					case Command::Type::SelectCrew: this->selectCrew(std::get<CrewSelectionCommand>(cmd.args)); break;
 					case Command::Type::Autofire: this->autofire(std::get<bool>(cmd.args)); break;
+					case Command::Type::TeleportSend: this->teleportSend(); break;
+					case Command::Type::TeleportReturn:this->teleportReturn(); break;
+					case Command::Type::Cloak: this->cloak(); break;
+					case Command::Type::Battery: this->battery(); break;
+					case Command::Type::MindControl: this->mindControl(); break;
+					case Command::Type::SetupHack: this->setupHack(); break;
+					case Command::Type::Hack: this->hack(); break;
 					case Command::Type::Door: this->doorToggle(std::get<DoorCommand>(cmd.args)); break;
 					case Command::Type::OpenAllDoors: this->openAllDoors(std::get<bool>(cmd.args)); break;
 					case Command::Type::CloseAllDoors: this->closeAllDoors(); break;
 					case Command::Type::Aim: this->aim(std::get<AimCommand>(cmd.args)); break;
 					case Command::Type::AimBeam: this->aimBeam(std::get<AimCommand>(cmd.args)); break;
+					case Command::Type::SendCrew: this->sendCrew(std::get<SendCrewCommand>(cmd.args)); break;
 					case Command::Type::SaveStations: this->saveStations(); break;
 					case Command::Type::LoadStations: this->loadStations(); break;
 					}
@@ -208,11 +228,15 @@ public:
 			? Reader::now() 
 			: this->immediate;
 
-		if (this->immediate > 0.0)
-			float_util::increment(this->immediate);
+		Command copy = cmd;
+		copy.time = t;
+		copy.id = this->idCounter++;
 
-		this->queue.emplace_back(cmd).time = t;
-		std::push_heap(this->queue.begin(), this->queue.end());
+		auto it = this->queue.emplace(
+			std::upper_bound(this->queue.begin(), this->queue.end(), copy),
+			copy
+		);
+
 		return { t };
 	}
 
@@ -235,7 +259,6 @@ public:
 			return false;
 
 		this->queue.erase(it);
-		std::make_heap(this->queue.begin(), this->queue.end());
 
 		return true;
 	}
@@ -283,9 +306,10 @@ public:
 
 private:
 	friend class Input;
-	using Queue = std::vector<Command>;
+	using Queue = std::list<Command>;
 	Queue queue;
-	double immediate = 0.0, startImmediate = 0.0;
+	double immediate = 0.0;
+	uintmax_t idCounter = 0;
 
 	static constexpr uintptr_t SHIFT_STATE_ADDR = 0x178BE0;
 
@@ -306,13 +330,17 @@ private:
 	void setImmediate(double t)
 	{
 		this->immediate = t;
-		this->startImmediate = Reader::now();
 	}
 
 	void resetImmediate()
 	{
 		this->immediate = 0.0;
-		this->startImmediate = 0.0;
+	}
+
+	void incImmediate()
+	{
+		if (this->immediate != 0.0)
+			float_util::increment(this->immediate);
 	}
 
 	// Search for input
@@ -338,8 +366,7 @@ private:
 
 	void pop()
 	{
-		std::pop_heap(this->queue.begin(), this->queue.end());
-		this->queue.pop_back();
+		this->queue.pop_front();
 	}
 
 	// Forces shift to be held, regardless of player input
@@ -363,7 +390,7 @@ private:
 	void mouseInput(const MouseCommand& mouse)
 	{
 		auto&& mrs = Reader::getRawState({});
-		Point<int> pos = mouse.position;
+		Point<int> pos = mouse.pos;
 		Point<int> old = Reader::getState().ui.mouse.position;
 
 		// Position is invalid (intentionally or not), don't move
@@ -490,6 +517,16 @@ private:
 		if (pause.menu || pause.event) throw WrongMenu(what);
 	}
 
+	void preDeselect(const DeselectCommand& cmd = {})
+	{
+		this->push({
+		   .type = Impl::Command::Type::Deselect,
+		   .args = cmd
+		});
+
+		this->incImmediate();
+	}
+
 	// Generic function to try a hotkey and fallback to clicking
 	void hotkeyOr(const char* hotkey, Point<int> fallback)
 	{
@@ -502,6 +539,7 @@ private:
 			return;
 		}
 
+		this->preDeselect();
 		Input::mouseClick(MouseButton::Left, fallback, false);
 	}
 
@@ -561,7 +599,7 @@ private:
 	}
 
 	// Assumes a bunch of other checks have already been made
-	void useCrewSingle(const Crew& crew, bool exclusive = true)
+	void useCrewSingle(const Crew& crew, bool exclusive)
 	{
 		// Try to use a hotkey
 		auto hotkey = this->crewHotkey(crew.id);
@@ -584,9 +622,7 @@ private:
 	// Assumes a bunch of other checks have already been made
 	// Assumes crew list is sorted by ui box order already
 	// Always uses mouse
-	void useCrewMany(
-		const CrewRefList& crew,
-		bool exclusive = true)
+	void useCrewMany(const CrewRefList& crew, bool exclusive)
 	{
 		auto&& crewBoxes = Reader::getState().ui.game->crewBoxes;
 
@@ -603,7 +639,7 @@ private:
 		if (!state.game) throw GameNotRunning("pausing");
 
 		// nothing to do
-		if (state.game->pause.any == on) return;
+		if (state.game->pause.normal == on) return;
 
 		// middle mouse is always available, no need to check for hotkey
 		Input::mouseClick(MouseButton::Middle, { -1, -1 }, false);
@@ -658,6 +694,7 @@ private:
 
 		this->checkInGame("powering a system");
 
+		this->preDeselect();
 		auto&& state = Reader::getState();
 		auto&& system = state.game->playerShip->getSystem(type);
 
@@ -755,6 +792,7 @@ private:
 	// Assumes a bunch of other checks have already been made
 	void useWeapon(const Weapon& weapon, bool powerOff = false)
 	{
+		this->preDeselect();
 		auto&& hotkeys = Input::hotkeys();
 
 		// Try to use a hotkey
@@ -849,6 +887,7 @@ private:
 	// Assumes a bunch of other checks have already been made
 	void useDrone(const Drone& drone, bool powerOff = false)
 	{
+		this->preDeselect();
 		auto&& hotkeys = Input::hotkeys();
 
 		// Try to use a hotkey
@@ -957,11 +996,33 @@ private:
 		return { Input::GAME_WIDTH - 1, Input::GAME_HEIGHT - 1 };
 	}
 
-	void deselect(const DeselectionCommand& cmd)
+	void deselect(const DeselectCommand& cmd)
 	{
 		this->checkInGame("deselection");
-		if (cmd.left) Input::mouseClick(MouseButton::Left, this->nopSpot(), false);
-		if (cmd.right) Input::mouseClick(MouseButton::Right, this->nopSpot(), false);
+
+		auto&& state = Reader::getState();
+
+		if (cmd.left)
+		{
+			auto&& crew = state.game->playerCrew;
+			bool anyCrew = false;
+			for (auto&& c : crew)
+			{
+				if (c.selectionId != -1)
+				{
+					anyCrew = true;
+					break;
+				}
+			}
+
+			if (anyCrew) Input::mouseClick(MouseButton::Left, this->nopSpot(), false);
+		}
+
+		if (cmd.right)
+		{
+			bool aiming = !std::holds_alternative<std::monostate>(state.ui.mouse.aiming);
+			if (aiming) Input::mouseClick(MouseButton::Right, this->nopSpot(), false);
+		}
 	}
 
 	void selectWeapon(const WeaponCommand& cmd)
@@ -987,15 +1048,14 @@ private:
 	void selectCrew(const CrewSelectionCommand& cmd)
 	{
 		auto&& crew = cmd.crew;
-		bool exclusive = cmd.exclusive;
 
 		this->checkInGame("selecting crew");
 
 		auto&& state = Reader::getState();
+		this->preDeselect({.left = false});
 
-		if (crew.empty() && exclusive)
+		if (crew.empty())
 		{
-			Input::deselectCrew();
 			return;
 		}
 
@@ -1016,6 +1076,7 @@ private:
 		CrewRefList group;
 		group.reserve(crew.size());
 		int prev = crew[0] - 1;
+		bool exclusive = true;
 
 		for (size_t i = 0; i < crew.size(); i++)
 		{
@@ -1025,9 +1086,7 @@ private:
 				if (group.size() == 1) this->useCrewSingle(group[0], exclusive);
 				else this->useCrewMany(group, exclusive);
 
-				// stop being exclusive after first selection
 				exclusive = false;
-
 				group.clear();
 			}
 
@@ -1074,6 +1133,136 @@ private:
 		this->hotkeyOr("autofire", state.ui.game->autofire->center());
 	}
 
+	void teleportSend()
+	{
+		this->checkInGame("aiming teleport send");
+		auto&& state = Reader::getState();
+		this->preDeselect();
+
+		if (!state.game->playerShip->teleporter)
+		{
+			throw SystemNotInstalled(SystemType::Teleporter);
+		}
+
+		auto&& tele = *state.game->playerShip->teleporter;
+		if (!tele.operable()) throw SystemInoperable(tele);
+		if (!tele.canSend) throw SystemInoperable(tele, "it cannot send crew right now");
+
+		this->hotkeyOr("send_tele", state.ui.game->teleportSend->center());
+	}
+
+	void teleportReturn()
+	{
+		this->checkInGame("aiming teleport return");
+		auto&& state = Reader::getState();
+		this->preDeselect();
+
+		if (!state.game->playerShip->teleporter)
+		{
+			throw SystemNotInstalled(SystemType::Teleporter);
+		}
+
+		auto&& tele = *state.game->playerShip->teleporter;
+		if (!tele.operable()) throw SystemInoperable(tele);
+		if (!tele.canReceive) throw SystemInoperable(tele, "it cannot receive crew right now");
+
+		this->hotkeyOr("ret_tele", state.ui.game->teleportSend->center());
+	}
+
+	void cloak()
+	{
+		this->checkInGame("cloaking");
+		auto&& state = Reader::getState();
+		this->preDeselect();
+
+		if (!state.game->playerShip->cloaking)
+		{
+			throw SystemNotInstalled(SystemType::Cloaking);
+		}
+
+		auto&& cloak = *state.game->playerShip->teleporter;
+		if (!cloak.operable()) throw SystemInoperable(cloak);
+
+		this->hotkeyOr("activate_cloak", state.ui.game->startCloak->center());
+	}
+
+	void battery()
+	{
+		this->checkInGame("activating battery");
+		auto&& state = Reader::getState();
+		this->preDeselect();
+
+		if (!state.game->playerShip->battery)
+		{
+			throw SystemNotInstalled(SystemType::Battery);
+		}
+
+		auto&& battery = *state.game->playerShip->battery;
+		if (!battery.operable()) throw SystemInoperable(battery);
+
+		this->hotkeyOr("activate_battery", state.ui.game->startBattery->center());
+	}
+
+	void mindControl()
+	{
+		this->checkInGame("activating mind control");
+		auto&& state = Reader::getState();
+		this->preDeselect();
+
+		if (!state.game->playerShip->mindControl)
+		{
+			throw SystemNotInstalled(SystemType::MindControl);
+		}
+
+		auto&& mindControl = *state.game->playerShip->mindControl;
+		if (!mindControl.operable()) throw SystemInoperable(mindControl);
+
+		this->hotkeyOr("mindControl", state.ui.game->startMindControl->center());
+	}
+
+	void setupHack()
+	{
+		this->checkInGame("setting up hacking");
+		auto&& state = Reader::getState();
+		this->preDeselect();
+
+		if (!state.game->playerShip->hacking)
+		{
+			throw SystemNotInstalled(SystemType::Hacking);
+		}
+
+		auto&& hacking = *state.game->playerShip->hacking;
+		if (!hacking.operable()) throw SystemInoperable(hacking);
+
+		if (hacking.drone.setUp)
+		{
+			throw InvalidHackingInput(false, "the drone is already set up");
+		}
+
+		this->hotkeyOr("start_hacking", state.ui.game->startHack->center());
+	}
+
+	void hack()
+	{
+		this->checkInGame("hacking");
+		auto&& state = Reader::getState();
+
+		if (!state.game->playerShip->hacking)
+		{
+			throw SystemNotInstalled(SystemType::Hacking);
+		}
+
+		auto&& hacking = *state.game->playerShip->hacking;
+		if (!hacking.operable()) throw SystemInoperable(hacking);
+
+		if (!hacking.drone.setUp)
+		{
+			throw InvalidHackingInput(false, "the drone is not set up");
+		}
+
+		this->hotkeyOr("start_hacking", state.ui.game->startHack->center());
+	}
+
 	void doorToggle(const DoorCommand& cmd)
 	{
 		auto&& [id, open] = cmd;
@@ -1086,7 +1275,7 @@ private:
 		if (size_t(id) >= state.game->playerShip->doors.size()) throw std::range_error("door has invalid id");
 		auto&& door = state.game->playerShip->doors[id];
 
-		if (!doors->operable()) throw DoorInoperable(door, "the door system is hacked or too damaged");
+		if (!doors->operable()) throw DoorInoperable(door, "the door system is inoperable");
 		if (!door.player) throw DoorInoperable(door, "it does not belong to the player");
 		if (door.openFake) throw DoorInoperable(door, "has crew standing in it");
 
@@ -1107,7 +1296,7 @@ private:
 		auto&& doorControl = state.game->playerShip->doorControl;
 
 		if (!doorControl) throw SystemNotInstalled(SystemType::Doors);
-		if (!doorControl->operable()) throw DoorInoperable("it is either hacked or damaged");
+		if (!doorControl->operable()) throw SystemInoperable(*doorControl);
 
 		bool onlyAirlocksClosed = true;
 
@@ -1145,7 +1334,7 @@ private:
 		auto&& doorControl = state.game->playerShip->doorControl;
 
 		if (!doorControl) throw SystemNotInstalled(SystemType::Doors);
-		if (!doorControl->operable()) throw DoorInoperable("it is either hacked or damaged");
+		if (!doorControl->operable()) throw SystemInoperable(*doorControl);
 
 		bool allClosed = true;
 
@@ -1167,6 +1356,48 @@ private:
 		this->hotkeyOr("close", state.ui.game->closeAllDoors->center());
 	}
 
+	void sendCrew(const SendCrewCommand& cmd)
+	{
+		auto&& [id, self] = cmd;
+
+		this->checkInGame("sending crew to a room");
+		auto&& state = Reader::getState();
+
+		if (self && size_t(id) >= state.game->playerShip->rooms.size())
+		{
+			throw std::range_error("room has invalid id");
+		}
+
+		auto&& enemy = state.game->enemyShip;
+		if (!self && (!enemy || size_t(id) >= enemy->rooms.size()))
+		{
+			throw std::range_error("enemy room has invalid id");
+		}
+
+		const Room& room = self
+			? state.game->playerShip->rooms[id]
+			: state.game->enemyShip->rooms[id];
+
+		bool anyCrew = false;
+		for (auto&& c : state.game->playerCrew)
+		{
+			if (c.selectionId >= 0)
+			{
+				anyCrew = true;
+				break;
+			}
+
+			if (c.onPlayerShip != self)
+			{
+				throw InvalidCrewChoice(c, "they're on the wrong ship");
+			}
+		}
+
+		if (!anyCrew) throw NotSelected("crewmember");
+
+		Input::mouseClick(MouseButton::Right, room.rect.center(), false);
+	}
+
 	void aim(const AimCommand& aim)
 	{
 		auto&& id = aim.room;
@@ -1180,9 +1411,10 @@ private:
 			throw std::range_error("room has invalid id");
 		}
 
-		if (!self && size_t(id) >= state.game->enemyShip->rooms.size())
+		auto&& enemy = state.game->enemyShip;
+		if (!self && (!enemy || size_t(id) >= enemy->rooms.size()))
 		{
-			throw std::range_error("room has invalid id");
+			throw std::range_error("enemy room has invalid id");
 		}
 
 		const Room& room = self
@@ -1206,27 +1438,9 @@ private:
 				}
 				else
 				{
-					bool selfMind = false;
-
-					for (auto&& c : room.crew)
+					if (!room.mindControllable())
 					{
-						if (selfMind) break;
-
-						if ((c->player && c->mindControlled) || !c->player)
-							selfMind = true;
-					}
-
-					for (auto&& c : room.crewMoving)
-					{
-						if (selfMind) break;
-
-						if ((c->player && c->mindControlled) || !c->player)
-							selfMind = true;
-					}
-
-					if (!selfMind)
-					{
-						throw InvalidSelfAim("mind control requires enemy crew or mind controlled player crew");
+						throw InvalidSelfAim("mind control requires a visible room with intruding crew");
 					}
 				}
 			}
@@ -1257,9 +1471,10 @@ private:
 			throw std::range_error("room has invalid id");
 		}
 
-		if (!self && size_t(id) >= state.game->enemyShip->rooms.size())
+		auto&& enemy = state.game->enemyShip;
+		if (!self && (!enemy || size_t(id) >= enemy->rooms.size()))
 		{
-			throw std::range_error("room has invalid id");
+			throw std::range_error("enemy room has invalid id");
 		}
 
 		const Room& room = self
@@ -1445,27 +1660,28 @@ Input::Ret Input::dummy()
 	return {};
 }
 
-Input::Ret Input::mouseMove(const Point<int>& position)
+Input::Ret Input::mouseMove(const Point<int>& pos)
 {
 	return impl.push({
 		.type = Impl::Command::Type::Mouse,
 		.args = Impl::MouseCommand{
-			.position = position
+			.button = MouseButton::None,
+			.pos = pos
 		},
 	});
 }
 
 Input::Ret Input::mouseDown(
 	MouseButton button,
-	const Point<int>& position,
+	const Point<int>& pos,
 	bool shift)
 {
-	mouseMove(position);
+	mouseMove(pos);
 	return impl.push({
 		.type = Impl::Command::Type::Mouse,
 		.args = Impl::MouseCommand{
 			.button = button,
-			.position = position,
+			.pos = pos,
 			.shift = shift,
 			.direction = InputDirection::Down
 		}
@@ -1474,15 +1690,15 @@ Input::Ret Input::mouseDown(
 
 Input::Ret Input::mouseUp(
 	MouseButton button,
-	const Point<int>& position,
+	const Point<int>& pos,
 	bool shift)
 {
-	mouseMove(position);
+	mouseMove(pos);
 	return impl.push({
 		.type = Impl::Command::Type::Mouse,
 		.args = Impl::MouseCommand{
 			.button = button,
-			.position = position,
+			.pos = pos,
 			.shift = shift,
 			.direction = InputDirection::Up
 		}
@@ -1491,16 +1707,16 @@ Input::Ret Input::mouseUp(
 
 Input::Ret Input::mouseClick(
 	MouseButton button,
-	const Point<int>& position,
+	const Point<int>& pos,
 	bool shift)
 {
-	mouseMove(position);
+	mouseMove(pos);
 
 	impl.push({
 		.type = Impl::Command::Type::Mouse,
 		.args = Impl::MouseCommand{
 			.button = button,
-			.position = position,
+			.pos = pos,
 			.shift = shift,
 			.direction = InputDirection::Down
 		}
@@ -1510,7 +1726,7 @@ Input::Ret Input::mouseClick(
 		.type = Impl::Command::Type::Mouse,
 		.args = Impl::MouseCommand{
 			.button = button,
-			.position = position,
+			.pos = pos,
 			.shift = shift,
 			.direction = InputDirection::Up
 		}
@@ -1730,13 +1946,63 @@ Input::Ret Input::selectWeapon(int weapon)
 	});
 }
 
-Input::Ret Input::selectCrew(const std::vector<int>& crew, bool exclusive)
+Input::Ret Input::selectCrew(const std::vector<int>& crew)
 {
 	return impl.push({
 		.type = Impl::Command::Type::SelectCrew,
 		.args = Impl::CrewSelectionCommand{
 			.crew = crew
 		}
+	});
+}
+
+Input::Ret Input::autofire(bool on)
+{
+	return impl.push({
+		.type = Impl::Command::Type::Autofire,
+		.args = on
+	});
+}
+
+Input::Ret Input::teleportSend()
+{
+	return impl.push({
+		.type = Impl::Command::Type::TeleportSend
+	});
+}
+
+Input::Ret Input::teleportReturn()
+{
+	return impl.push({
+		.type = Impl::Command::Type::TeleportReturn
+	});
+}
+
+Input::Ret Input::cloak()
+{
+	return impl.push({
+		.type = Impl::Command::Type::Cloak
+	});
+}
+
+Input::Ret Input::mindControl()
+{
+	return impl.push({
+		.type = Impl::Command::Type::MindControl
+	});
+}
+
+Input::Ret Input::setupHack()
+{
+	return impl.push({
+		.type = Impl::Command::Type::SetupHack
+	});
+}
+
+Input::Ret Input::hack()
+{
+	return impl.push({
+		.type = Impl::Command::Type::Hack
 	});
 }
 
@@ -1763,14 +2029,6 @@ Input::Ret Input::doorAll(bool open, bool airlocks)
 
 	return impl.push({
 		.type = Impl::Command::Type::CloseAllDoors,
-	});
-}
-
-Input::Ret Input::autofire(bool on)
-{
-	return impl.push({
-		.type = Impl::Command::Type::Autofire,
-		.args = on
 	});
 }
 
@@ -1801,24 +2059,24 @@ Input::Ret Input::aim(
 	});
 }
 
-Input::Ret Input::quitAiming()
+Input::Ret Input::deselect()
 {
 	return impl.push({
 		.type = Impl::Command::Type::Deselect,
-		.args = Impl::DeselectionCommand{
-			.left = false,
+		.args = Impl::DeselectCommand{
+			.left = true,
 			.right = true
 		}
 	});
 }
 
-Input::Ret Input::deselectCrew()
+Input::Ret Input::sendCrew(int room, bool self)
 {
 	return impl.push({
-		.type = Impl::Command::Type::Deselect,
-		.args = Impl::DeselectionCommand{
-			.left = true,
-			.right = false
+		.type = Impl::Command::Type::SendCrew,
+		.args = Impl::SendCrewCommand{
+			.room = room,
+			.self = self
 		}
 	});
 }

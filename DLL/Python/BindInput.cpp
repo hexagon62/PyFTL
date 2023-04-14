@@ -240,7 +240,7 @@ void bindInput(py::module_& module)
 	sub.def(
 		"mouse_move",
 		&Input::mouseMove,
-		py::arg("position"),
+		py::arg("pos"),
 		py::kw_only(),
 		"Queue a command to move the mouse."
 	);
@@ -249,33 +249,33 @@ void bindInput(py::module_& module)
 		"mouse_down",
 		&Input::mouseDown,
 		py::arg("button") = MouseButton::Left,
-		py::arg("position") = Point<int>(-1, -1),
+		py::arg("pos") = Point<int>(-1, -1),
 		py::kw_only(),
 		py::arg("shift") = false,
 		"Queue a command to hold a mouse button down.\n"
-		"Calls mouse_move before clicking. Default 'position' argument makes mouse not move."
+		"Calls mouse_move before clicking. Default 'pos' argument makes mouse not move."
 	);
 
 	sub.def(
 		"mouse_up",
 		&Input::mouseUp,
 		py::arg("button") = MouseButton::Left,
-		py::arg("position") = Point<int>(-1, -1),
+		py::arg("pos") = Point<int>(-1, -1),
 		py::kw_only(),
 		py::arg("shift") = false,
 		"Queue a command to release a mouse button.\n"
-		"Calls mouse_move before releasing. Default 'position' argument makes mouse not move."
+		"Calls mouse_move before releasing. Default 'pos' argument makes mouse not move."
 	);
 
 	sub.def(
 		"mouse_click",
 		&Input::mouseClick,
 		py::arg("button") = MouseButton::Left,
-		py::arg("position") = Point<int>(-1, -1),
+		py::arg("pos") = Point<int>(-1, -1),
 		py::kw_only(),
 		py::arg("shift") = false,
 		"Calls mouse_move, mouse_down, and then mouse_up.\n"
-		"Calls mouse_move before releasing. Default 'position' argument makes mouse not move."
+		"Calls mouse_move before releasing. Default 'pos' argument makes mouse not move."
 	);
 
 	sub.def(
@@ -469,10 +469,62 @@ void bindInput(py::module_& module)
 		"select_crew",
 		&Input::selectCrew,
 		py::arg("crew"),
-		py::arg("exclusive") = true,
 		"Queue a command to select a group of crew members.\n"
-		"Set 'exclusive' to False to not reset the selection.\n"
 		"Note that the order of the list you pass in matters!"
+	);
+
+	sub.def(
+		"autofire",
+		&Input::autofire,
+		py::arg("on") = false,
+		"Queue a command to toggle auto-firing.\n"
+		"If not in the desired state, it tries the hotkey, then clicks the button."
+	);
+
+	sub.def(
+		"teleport_send",
+		&Input::teleportSend,
+		"Queue a command to select the teleport send function.\n"
+		"If not already selected, it tries the hotkey, then clicks the button.\n"
+		"This does not activate the teleporter immediately. Use the aim function."
+	);
+
+	sub.def(
+		"teleport_return",
+		&Input::teleportReturn,
+		"Queue a command to select the teleport return function.\n"
+		"If not already selected, it tries the hotkey, then clicks the button.\n"
+		"This does not activate the teleporter immediately. Use the aim function."
+	);
+
+	sub.def(
+		"cloak",
+		&Input::cloak,
+		"Queue a command to activate cloaking.\n"
+		"It tries the hotkey, then clicks the button."
+	);
+
+	sub.def(
+		"mind_control",
+		&Input::mindControl,
+		"Queue a command to select the mind control function.\n"
+		"If not already selected, it tries the hotkey, then clicks the button.\n"
+		"This does not activate mind control immediately. Use the aim function."
+	);
+
+	sub.def(
+		"setup_hack",
+		&Input::setupHack,
+		"Queue a command to begin picking a room to hack.\n"
+		"If not already selected, it tries the hotkey, then clicks the button.\n"
+		"This does not send the hacking drone immediately. Use the aim function."
+	);
+
+	sub.def(
+		"hack",
+		&Input::hack,
+		"Queue a command to begin hacking.\n"
+		"If not already selected, it tries the hotkey, then clicks the button."
 	);
 
 	sub.def(
@@ -496,20 +548,13 @@ void bindInput(py::module_& module)
 	);
 
 	sub.def(
-		"autofire",
-		&Input::autofire,
-		py::arg("on") = false,
-		"Queue a command to toggle auto-firing.\n"
-		"If not in the desired state, it tries the hotkey, then clicks the button."
-	);
-
-	sub.def(
 		"aim",
 		py::overload_cast<int, bool>(&Input::aim),
 		py::arg("room"),
 		py::arg("self") = false,
 		"Queue a command to aim a weapon/system at a room.\n"
-		"This simply left clicks on a room, generally speaking."
+		"This simply left clicks on a room, generally speaking.\n"
+		"You can target your own ship by setting 'self' to True."
 	);
 
 	sub.def(
@@ -525,17 +570,19 @@ void bindInput(py::module_& module)
 	);
 
 	sub.def(
-		"quit_aiming",
-		&Input::quitAiming,
-		"Queue a command to deselect currently selected weapon/system.\n"
-		"What it actually does is it right clicks in a spot that does nothing."
+		"deselect",
+		&Input::deselect,
+		"Queue a command to deselect weapons/systems/crew.\n"
+		"What it actually does is it left/right clicks in a spot that does nothing."
 	);
 
 	sub.def(
-		"deselect_crew",
-		&Input::deselectCrew,
-		"Queue a command to stop giving crewmembers tasks.\n"
-		"What it actually does is it left clicks in a spot that does nothing."
+		"send_crew",
+		&Input::sendCrew,
+		py::arg("room"),
+		py::arg("self") = true,
+		"Queue a command to send the currently selected crew to a room.\n"
+		"You can target the enemy ship by setting 'self' to False."
 	);
 
 	sub.def(

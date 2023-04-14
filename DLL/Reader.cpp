@@ -197,6 +197,9 @@ void readTeleporterSystemGeneric(
 		if (teleporter.room == crew[i].room && !crew[i].moving)
 			teleporter.crewPresent.push_back(&crew[i]);
 	}
+
+	teleporter.canSend = raw.bCanSend;
+	teleporter.canReceive = raw.bCanReceive;
 }
 
 void readBlueprint(Blueprint& blueprint, const raw::Blueprint& raw)
@@ -738,6 +741,7 @@ void readMindControlSystem(MindControlSystem& mindControl, const raw::MindSystem
 	mindControl.timer.second = raw.controlTimer.second;
 	mindControl.targetRoom = raw.iQueuedTarget;
 	mindControl.targetingPlayerShip = raw.iQueuedShip == 0;
+	mindControl.canUse = raw.bCanUse;
 }
 
 void readHackingSystem(
@@ -752,6 +756,7 @@ void readHackingSystem(
 	readDrone(hacking.drone, raw.drone, playerShipPos, enemyShipPos);
 
 	hacking.on = raw.bHacking;
+	hacking.canUse = raw.bCanHack;
 	hacking.timer.first = raw.effectTimer.second - raw.effectTimer.first;
 	hacking.timer.second = raw.effectTimer.second;
 	hacking.target = SystemType(raw.currentSystem ? raw.currentSystem->iSystemType : -1);
@@ -2417,7 +2422,8 @@ void Reader::read()
 				game.playerCrew,
 				rs.app->gui->crewControl.crewBoxes,
 				playerShipPos, enemyShipPos,
-				playerArriving, playerLeaving);
+				playerArriving, playerLeaving,
+				&rs.app->gui->crewControl);
 
 			readCrewList(
 				game.enemyCrew,

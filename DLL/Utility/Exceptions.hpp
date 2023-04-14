@@ -115,15 +115,27 @@ public:
 	{}
 };
 
-class DoorInoperable final : public std::runtime_error
+class SystemInoperable final : public std::runtime_error
 {
 public:
-	DoorInoperable(const std::string& why)
+	SystemInoperable(const System& system)
 		: std::runtime_error(
-			"tried to operate the door system but " + why
+			"tried to operate " + systemName(system.type) +
+			" (@" + std::to_string(system.uiBox) + ") but it's in an inoperable state"
 		)
 	{}
 
+	SystemInoperable(const System& system, const std::string& why)
+		: std::runtime_error(
+			"tried to operate " + systemName(system.type) +
+			" (@" + std::to_string(system.uiBox) + ") but " + why
+		)
+	{}
+};
+
+class DoorInoperable final : public std::runtime_error
+{
+public:
 	DoorInoperable(const Door& door, const std::string& why)
 		: std::runtime_error(
 			"tried to operate door #" + std::to_string(door.id) + " but " + why
@@ -159,7 +171,7 @@ class InvalidCrewChoice final : public std::invalid_argument
 public:
 	InvalidCrewChoice(const Crew& crew, const std::string& why)
 		: std::invalid_argument(
-			"tried to select crewmember " + crew.blueprint.name +
+			"tried to use crewmember " + crew.blueprint.name +
 			" (@" + std::to_string(crew.id) + ") but " + why
 		)
 	{}
@@ -170,13 +182,13 @@ class InvalidCrewBoxChoice final : public std::out_of_range
 public:
 	InvalidCrewBoxChoice(int which)
 		: std::out_of_range(
-			"tried to select crewmember #" + std::to_string(which) + " which is invalid"
+			"tried to use crewmember #" + std::to_string(which) + " which is invalid"
 		)
 	{}
 
 	InvalidCrewBoxChoice(int which, int count)
 		: std::out_of_range(
-			"tried to select crewmember #" + std::to_string(which) +
+			"tried to use crewmember #" + std::to_string(which) +
 			" but there's only " + std::to_string(count) + " selectable crew"
 		)
 	{}
@@ -198,6 +210,16 @@ public:
 	InvalidSelfAim(const std::string& why)
 		: std::runtime_error(
 			"tried to aim at the player's own ship but " + why
+		)
+	{}
+};
+
+class InvalidHackingInput final : public std::runtime_error
+{
+public:
+	InvalidHackingInput(bool setup, const std::string& why)
+		: std::runtime_error(
+			"tried to " + std::string(setup ? "hack" : "send hacking drone") + " but " + why
 		)
 	{}
 };

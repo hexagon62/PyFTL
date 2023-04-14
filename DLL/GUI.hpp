@@ -102,15 +102,14 @@ public:
 
     void render()
     {
-        if (!this->unrecoverable.empty())
+        auto& io = ImGui::GetIO();
+        io.MouseDrawCursor = this->wantInput() || !Input::humanMouseAllowed();
+
+        if (this->unrecoverableOpen())
         {
             this->unrecoverableWindow();
             return;
         }
-
-        auto& io = ImGui::GetIO();
-
-        io.MouseDrawCursor = this->wantInput() || !Input::humanMouseAllowed();
 
         // Use alt+` to activate/deactivate the main menu
         if (ImGui::IsKeyDown(ImGuiKey_ModAlt) && ImGui::IsKeyPressed(ImGuiKey_GraveAccent, false))
@@ -223,14 +222,29 @@ public:
         }
     }
 
-    bool unrecoverableAcknowledged() const
+    enum class UnrecoverableResponse
     {
-        return this->unrecoverableAck;
+        None, OK, Reload
+    };
+
+    bool unrecoverableOpen() const
+    {
+        return
+            !this->unrecoverable.empty() &&
+            this->unrecoverableResponse == UnrecoverableResponse::None;
     }
 
-    void setUnrecoverable(const std::string& str)
+    UnrecoverableResponse getUnrecoverableResponse() const
     {
+        return this->unrecoverableResponse;
+    }
+
+    void setUnrecoverable(const std::string& str, bool offerReload = false)
+    {
+        this->unrecoverableResponse = UnrecoverableResponse::None;
         this->unrecoverable = str;
+        this->offerReload = offerReload;
+        while (this->unrecoverableOpen());
     }
 
     void output(const std::string& str, TextOutputType type = TextOutputType::Default)
@@ -270,7 +284,8 @@ private:
     py::object scope;
     std::deque<HistoryEntry> history;
     std::string unrecoverable;
-    bool unrecoverableAck = false;
+    UnrecoverableResponse unrecoverableResponse = UnrecoverableResponse::None;
+    bool offerReload = false;
 
     bool demoGui = false;
 
@@ -343,8 +358,6 @@ private:
 
     void unrecoverableWindow()
     {
-        if (this->unrecoverableAck) return;
-
         if (Input::ready())
         {
             Input::allowHumanMouse(false);
@@ -361,29 +374,52 @@ private:
         ImGui::Begin("Unrecoverable error", nullptr, FLAGS);
         {
             ImGui::Text(
-                "Well, looks like we couldn't start things up fully."
+                "Well, looks like a really bad error happened."
                 "\n\n"
             );
 
+            ImGui::BeginChild("error", {640.f, 180.f}, true);
             ImGui::TextColored(RED, unrecoverable.c_str());
+            ImGui::EndChild();
 
-            ImGui::Text(
-                "\n"
-                "PyFTL is still attached to the process but won't run any Python code.\n"
-                "You will need to re-attach the DLL using the launcher.\n"
-                "In the future you will be able to click a button to reload your Python code from here."
-                "\n\n"
+            ImGui::Text("\nNote that:");
+            ImGui::BulletText("PyFTL is still attached to the process but won't run any Python code.");
+            ImGui::BulletText("To restart PyFTL, you need to restart the game.");
+            if(this->offerReload) ImGui::BulletText(
+                "This error originated from the Python code that was running.\n"
+                "You can try to reload the main module of it with the below button.\n"
+                "This does not recursively reload other modules it may have imported."
             );
 
+            ImGui::PushItemWidth(160.f);
             if (ImGui::Button("OK"))
             {
-                this->unrecoverableAck = true;
+                this->unrecoverableResponse = UnrecoverableResponse::OK;
 
                 if (Input::ready())
                 {
                     Input::allowHumanMouse(true);
                     Input::allowHumanKeyboard(true);
                 }
+            }
+            ImGui::PopItemWidth();
+
+            if (this->offerReload)
+            {
+                ImGui::SameLine();
+                ImGui::PushItemWidth(479.f);
+                if (ImGui::Button("Reload Main Python Module"))
+                {
+                    this->unrecoverableResponse = UnrecoverableResponse::Reload;
+                    Reader::reload();
+
+                    if (Input::ready())
+                    {
+                        Input::allowHumanMouse(true);
+                        Input::allowHumanKeyboard(true);
+                    }
+                }
+                ImGui::PopItemWidth();
             }
         }
         ImGui::End();

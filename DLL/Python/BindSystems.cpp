@@ -82,6 +82,8 @@ void bindSystems(py::module_& module)
 		.def_readonly("crew_present", &TeleporterSystem::crewPresent, "If crew are present in the teleporter room")
 		.def_readonly("sending", &TeleporterSystem::sending, "If the teleporter is sending crew")
 		.def_readonly("receiving", &TeleporterSystem::receiving, "If the teleporter is returning crew")
+		.def_readonly("can_send", &TeleporterSystem::canSend, "If the teleporter can currently send crew")
+		.def_readonly("can_receive", &TeleporterSystem::canReceive, "If the teleporter can currently receive crew")
 		;
 
 	py::class_<CloakingSystem, System>(module, "CloakingSystem", "The cloaking system")
@@ -96,9 +98,10 @@ void bindSystems(py::module_& module)
 
 	py::class_<MindControlSystem, System>(module, "MindControlSystem", "The mind control system")
 		.def_readonly("on", &MindControlSystem::on, "If mind control is activated")
+		.def_readonly("targeting_player_ship", &MindControlSystem::targetingPlayerShip, "If targeting the player ship")
+		.def_readonly("can_use", &MindControlSystem::canUse, "If mind control can currently be activated")
 		.def_readonly("timer", &MindControlSystem::timer, "The time left before mind control deactivates")
 		.def_readonly("target_room", &MindControlSystem::targetRoom, "The targeted room")
-		.def_readonly("targeting_player_ship", &MindControlSystem::targetingPlayerShip, "If targeting the player ship")
 		;
 
 	py::enum_<HackLevel>(module, "HackLevel", "Used to store the state of something being hacked")
@@ -110,6 +113,7 @@ void bindSystems(py::module_& module)
 
 	py::class_<HackingSystem, System>(module, "HackingSystem", "The hacking system")
 		.def_readonly("on", &HackingSystem::on, "If hacking is activated")
+		.def_readonly("can_use", &HackingSystem::canUse, "If hacking is usable")
 		.def_readonly("timer", &HackingSystem::timer, "The time left before hacking deactivates")
 		.def_readonly("target", &HackingSystem::target, "The targeted system")
 		.def_readonly("queued", &HackingSystem::queued, "The system that is selected for targeting")

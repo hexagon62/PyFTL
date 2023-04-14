@@ -57,19 +57,19 @@ public:
 
 	static Ret mouseDown(
 		MouseButton button = MouseButton::Left,
-		const Point<int>& position = { -1, -1 },
+		const Point<int>& pos = { -1, -1 },
 		bool shift = false
 	);
 
 	static Ret mouseUp(
 		MouseButton button = MouseButton::Left,
-		const Point<int>& position = { -1, -1 },
+		const Point<int>& pos = { -1, -1 },
 		bool shift = false
 	);
 
 	static Ret mouseClick(
 		MouseButton button = MouseButton::Left,
-		const Point<int>& position = { -1, -1 },
+		const Point<int>& pos = { -1, -1 },
 		bool shift = false
 	);
 
@@ -103,23 +103,30 @@ public:
 	static Ret powerDrone(int drone, bool on = true);
 
 	static Ret selectWeapon(int weapon);
-	static Ret selectCrew(const std::vector<int>& crew, bool exclusive = true);
+	static Ret selectCrew(const std::vector<int>& crew);
+
+	static Ret autofire(bool on = false);
+	static Ret teleportSend();
+	static Ret teleportReturn();
+	static Ret cloak();
+	static Ret battery();
+	static Ret mindControl();
+	static Ret setupHack();
+	static Ret hack();
 
 	static Ret door(int door, bool open);
 	static Ret doorAll(bool open, bool airlocks = false);
 
-	static Ret autofire(bool on = false);
-
-	static Ret aim(int room, bool self);
+	static Ret aim(int room, bool self = false);
 	static Ret aim(
 		int room,
 		const Point<int>& start,
 		const Point<int>& end
 	);
 
-	static Ret quitAiming();
-	static Ret deselectCrew();
+	static Ret deselect();
 
+	static Ret sendCrew(int room, bool self = true);
 	static Ret saveStations();
 	static Ret loadStations();
 

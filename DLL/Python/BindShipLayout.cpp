@@ -55,7 +55,8 @@ void bindShipLayout(py::module_& module)
 		.def_readonly("slots_occupiable", &Room::slotsOccupiable, "Number of slots that can be occupied normally by crew")
 		.def_readonly("slots", &Room::slots, "The number of slots the room has overall")
 		.def("slot_at", py::overload_cast<const Point<int>&>(&Room::slotAt, py::const_), "Gets the slot at the specified point", py::return_value_policy::reference)
-		.def("slot_id_at", py::overload_cast<const Point<int>&>(&Room::slotIdAt, py::const_), "Gets id of the slot at the specified point")
+		.def("slot_id_at", &Room::slotIdAt, "Gets id of the slot at the specified point")
+		.def("mind_controllable", &Room::mindControllable, py::arg("ignore_visibility") = false, "Checks if the room is a valid mind control target")
 		;
 
 	py::class_<Door>(module, "Door", "A door in the ship")

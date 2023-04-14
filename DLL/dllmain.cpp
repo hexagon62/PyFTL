@@ -86,9 +86,9 @@ void PyFTLErr(Ts&&... args)
     ss.str("");
 }
 
-constexpr char PYTFTL_FOLDER[] = "pyftl";
-constexpr char PYTFTL_MAIN_MODULE[] = "main";
-constexpr char PYTFTL_EXTENSION[] = ".py";
+constexpr char PYFTL_FOLDER[] = "pyftl";
+constexpr char PYFTL_MAIN_MODULE[] = "main";
+constexpr char PYFTL_EXTENSION[] = ".py";
 
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
 
@@ -157,54 +157,58 @@ std::condition_variable g_readerCV;
 
 BOOL __stdcall wglSwapBuffers_hook(HDC hDc)
 {
-    std::lock_guard lock(g_readerMutex);
+    if (g_quit) return true;
 
-    if (!g_imguiInit)
     {
-        // Get the window handle
-        g_hGameWindow = WindowFromDC(hDc);
+        std::lock_guard lock(g_readerMutex);
 
-        // Save old wndProc function
-        g_hGameWindowProcOld =
-            reinterpret_cast<WNDPROC>(GetWindowLongPtr(g_hGameWindow, GWLP_WNDPROC));
+        if (!g_imguiInit)
+        {
+            // Get the window handle
+            g_hGameWindow = WindowFromDC(hDc);
 
-        // Overwrite the wndProc function
-        g_hGameWindowProc =
-            reinterpret_cast<WNDPROC>(
-                SetWindowLongPtr(
-                    g_hGameWindow, GWLP_WNDPROC,
-                    reinterpret_cast<LONG_PTR>(windowProc_hook)));
+            // Save old wndProc function
+            g_hGameWindowProcOld =
+                reinterpret_cast<WNDPROC>(GetWindowLongPtr(g_hGameWindow, GWLP_WNDPROC));
 
-        Input::setReady();
+            // Overwrite the wndProc function
+            g_hGameWindowProc =
+                reinterpret_cast<WNDPROC>(
+                    SetWindowLongPtr(
+                        g_hGameWindow, GWLP_WNDPROC,
+                        reinterpret_cast<LONG_PTR>(windowProc_hook)));
 
-        glewInit();
-        static auto* context = ImGui::CreateContext();
-        ImGui::SetCurrentContext(context);
-        ImGui_ImplWin32_Init(g_hGameWindow);
-        ImGui_ImplOpenGL3_Init();
-        ImGui::CaptureMouseFromApp();
+            Input::setReady();
 
-        g_imguiInit = true;
-    }
+            glewInit();
+            static auto* context = ImGui::CreateContext();
+            ImGui::SetCurrentContext(context);
+            ImGui_ImplWin32_Init(g_hGameWindow);
+            ImGui_ImplOpenGL3_Init();
+            ImGui::CaptureMouseFromApp();
 
-    if (g_imguiInit && ImGui::GetCurrentContext())
-    {
-        ImGui_ImplOpenGL3_NewFrame();
-        ImGui_ImplWin32_NewFrame();
-        ImGui::NewFrame();
-        g_gui.render();
-        ImGui::Render();
+            g_imguiInit = true;
+        }
 
-        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-    }
+        if (g_imguiInit && ImGui::GetCurrentContext())
+        {
+            ImGui_ImplOpenGL3_NewFrame();
+            ImGui_ImplWin32_NewFrame();
+            ImGui::NewFrame();
+            g_gui.render();
+            ImGui::Render();
 
-    try
-    {
-        Reader::poll();
-    }
-    catch (const std::exception& e)
-    {
-        PyFTLErr("Unhandled exception: ", e.what());
+            ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+        }
+
+        try
+        {
+            Reader::poll();
+        }
+        catch (const std::exception& e)
+        {
+            PyFTLErr("Unhandled exception: ", e.what());
+        }
     }
 
     g_readerCV.notify_all();
@@ -224,7 +228,8 @@ bool hookRenderer()
 
 bool unhookRenderer()
 {
-    std::lock_guard lock(g_readerMutex);
+    std::unique_lock lock(g_readerMutex);
+
     g_glHook.unhook();
     Input::setReady(false);
 
@@ -238,9 +243,8 @@ bool unhookRenderer()
     return true;
 }
 
-py::module initPython()
+void initPython(py::module& pyMain)
 {
-    py::module result;
     py::gil_scoped_acquire gil;
 
     try
@@ -253,13 +257,22 @@ py::module initPython()
         sys.attr("stderr") = PyWriter{};
         sys.attr("stdin") = PyReader{};
 
-        PyFTLOut("Python initialized.");
-
-        auto path = std::filesystem::current_path() / PYTFTL_FOLDER;
+        auto path = std::filesystem::current_path() / PYFTL_FOLDER;
         sys.attr("path").attr("insert")(0, path.string());
-        result = py::module::import(PYTFTL_MAIN_MODULE);
+
+        if (pyMain)
+        {
+            pyMain.reload();
+        }
+        else
+        {
+            pyMain = py::module::import(PYFTL_MAIN_MODULE);
+        }
+
         sys.attr("path").attr("remove")(path.string());
-        g_gui.setScope(result.attr("__dict__"));
+        g_gui.setScope(pyMain.attr("__dict__"));
+
+        PyFTLOut("Python initialized.");
     }
     catch (const std::exception& e)
     {
@@ -279,30 +292,22 @@ py::module initPython()
 
     try
     {
-        if (py::hasattr(result, "on_start"))
+        if (py::hasattr(pyMain, "on_start"))
         {
-            result.attr("on_start")();
+            pyMain.attr("on_start")();
         }
     }
     catch (const std::exception& e)
     {
         PyFTLErr("Python exception: ", e.what());
     }
-
-    return result;
 }
 
 void mainLoop(py::module& pyMain)
 {
-    static double last = Reader::now();
-
     try
     {
         py::gil_scoped_acquire gil;
-
-        double now = Reader::now();
-        double timeEllapsed = now - last;
-        last = now;
 
         if (g_gui.requestedPythonCode())
         {
@@ -311,7 +316,7 @@ void mainLoop(py::module& pyMain)
 
         if (py::hasattr(pyMain, "on_update"))
         {
-            pyMain.attr("on_update")(timeEllapsed);
+            pyMain.attr("on_update")();
         }
     }
     catch (const std::exception& e)
@@ -322,9 +327,25 @@ void mainLoop(py::module& pyMain)
     if (Reader::reloadRequested())
     {
         PyFTLOut("Reloading Python...");
-        pyMain = initPython();
+        initPython(pyMain);
         Reader::finishReload();
     }
+}
+
+template<typename F>
+bool tryAndAllowReload(F f)
+{
+    try
+    {
+        f();
+    }
+    catch (const std::exception& e)
+    {
+        PyFTLErr(e.what());
+        g_gui.setUnrecoverable(e.what(), true);
+    }
+
+    return g_gui.getUnrecoverableResponse() == GUIHelper::UnrecoverableResponse::Reload;
 }
 
 void patcherThread(std::stop_token stop)
@@ -335,9 +356,18 @@ void patcherThread(std::stop_token stop)
 
         py::scoped_interpreter pyInterpreter{};
         py::gil_scoped_release gil;
-        py::module pyMain = initPython();
+        py::module pyMain;
+        bool py = false;
 
-        while (!stop.stop_requested() && !g_quit)
+        while(!py && !stop.stop_requested() && !g_quit)
+        {
+            bool res = tryAndAllowReload([&] {
+                initPython(pyMain);
+                py = true;
+            });
+        }
+
+        while (py && !stop.stop_requested() && !g_quit)
         {
             std::unique_lock lock(g_readerMutex);
             g_readerCV.wait(lock);
@@ -347,9 +377,11 @@ void patcherThread(std::stop_token stop)
     }
     catch (const std::exception& e)
     {
+        PyFTLErr(e.what());
         g_gui.setUnrecoverable(e.what());
     }
 
+    if (g_glHook.hooked()) unhookRenderer();
     g_quit = true;
 }
 
@@ -373,7 +405,6 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         break;
     case DLL_PROCESS_DETACH:
         g_quit = true;
-        if (g_glHook.hooked()) unhookRenderer();
         if (g_patcher.joinable())
         {
             g_patcher.request_stop();

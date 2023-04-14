@@ -53,4 +53,15 @@ struct Room
 
 		return relPos.x + this->tiles.x * relPos.y;
 	}
+
+	bool mindControllable(bool ignoreVisibility = false) const
+	{
+		if (visible || ignoreVisibility || !this->intruders.empty())
+			return true;
+
+		for (auto&& c : this->crewMoving)
+			if (c->intruder) return true;
+
+		return false;
+	}
 };
