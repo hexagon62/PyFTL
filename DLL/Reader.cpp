@@ -43,7 +43,7 @@ void readPower(Power& power, const raw::ShipSystem& raw)
 		raw.iTempDividePower);
 
 	power.ionLevel = raw.iLockCount;
-	power.ionTimer.first = raw.lockTimer.currTime;
+	power.ionTimer.first = raw.lockTimer.currGoal-raw.lockTimer.currTime;
 	power.ionTimer.second = raw.lockTimer.currGoal;
 
 	power.restoreTo = raw.lastUserPower;
@@ -299,7 +299,8 @@ void readWeapon(Weapon& weapon, const raw::ProjectileFactory& raw, const Point<i
 	weapon.power.ionTimer = { 0.f, 0.f };
 	weapon.power.restoreTo = 0;
 
-	weapon.cooldown = raw.cooldown;
+	weapon.cooldown.first = raw.cooldown.second - raw.cooldown.first;
+	weapon.cooldown.second = raw.cooldown.second;
 
 	weapon.autofire = raw.autoFiring;
 	weapon.fireWhenReady = raw.fireWhenReady;
@@ -318,7 +319,7 @@ void readWeapon(Weapon& weapon, const raw::ProjectileFactory& raw, const Point<i
 	weapon.charge.first = raw.chargeLevel;
 	weapon.charge.second = raw.goalChargeLevel;
 
-	weapon.shotTimer.first = raw.weaponVisual.anim.tracker.current_time;
+	weapon.shotTimer.first = raw.weaponVisual.anim.tracker.time-raw.weaponVisual.anim.tracker.current_time;
 	weapon.shotTimer.second = raw.weaponVisual.anim.tracker.time;
 
 	weapon.targetPoints.clear();
@@ -676,7 +677,7 @@ void readCloakingSystem(CloakingSystem& cloaking, const raw::CloakingSystem& raw
 	cloaking.blueprint = Reader::getState().blueprints.systemBlueprints.at("cloaking");
 
 	cloaking.on = raw.bTurnedOn;
-	cloaking.timer.first = raw.timer.currTime;
+	cloaking.timer.first = raw.timer.currGoal - raw.timer.currTime;
 	cloaking.timer.second = raw.timer.currGoal;
 }
 
@@ -721,7 +722,7 @@ void readBatterySystem(BatterySystem& battery, const raw::BatterySystem& raw)
 	battery.blueprint = Reader::getState().blueprints.systemBlueprints.at("battery");
 
 	battery.on = raw.bTurnedOn;
-	battery.timer.first = raw.timer.currTime;
+	battery.timer.first = raw.timer.currGoal - raw.timer.currTime;
 	battery.timer.second = raw.timer.currGoal;
 	battery.provides = raw.powerState.first * 2;
 	battery.providing = battery.on ? battery.provides : 0;
@@ -733,7 +734,8 @@ void readMindControlSystem(MindControlSystem& mindControl, const raw::MindSystem
 	mindControl.blueprint = Reader::getState().blueprints.systemBlueprints.at("mind");
 
 	mindControl.on = raw.controlTimer.first < raw.controlTimer.second;
-	mindControl.timer = raw.controlTimer;
+	mindControl.timer.first = raw.controlTimer.second - raw.controlTimer.first;
+	mindControl.timer.second = raw.controlTimer.second;
 	mindControl.targetRoom = raw.iQueuedTarget;
 	mindControl.targetingPlayerShip = raw.iQueuedShip == 0;
 }
@@ -750,7 +752,8 @@ void readHackingSystem(
 	readDrone(hacking.drone, raw.drone, playerShipPos, enemyShipPos);
 
 	hacking.on = raw.bHacking;
-	hacking.timer = raw.effectTimer;
+	hacking.timer.first = raw.effectTimer.second - raw.effectTimer.first;
+	hacking.timer.second = raw.effectTimer.second;
 	hacking.target = SystemType(raw.currentSystem ? raw.currentSystem->iSystemType : -1);
 	hacking.queued = SystemType(raw.queuedSystem ? raw.queuedSystem->iSystemType : -1);
 	hacking.drone.start = raw.drone.startingPosition;
@@ -874,12 +877,14 @@ void readRoomSlots(
 
 	for (auto&& slot : room.slots)
 	{
+		slot.room = &room;
 		slot.crewMoving.clear();
 		slot.crew = nullptr;
 		slot.intruder = nullptr;
 		slot.fire.reset();
 		slot.breach.reset();
 		slot.occupiable = true;
+		slot.player = room.player;
 	}
 
 	room.slotsOccupiable = slotCount;
@@ -944,7 +949,7 @@ void readRoomSlots(
 		{
 			auto&& cell = row[yt];
 			if (cell.fDamage <= 0.f || cell.roomId != room.id) continue;
-			auto&& slot = room.slotAt({ cell.pLoc.x, cell.pLoc.y });
+			auto&& slot = room.slotAt(offset + Point<int>{ cell.pLoc.x, cell.pLoc.y });
 
 			room.fireRepair += cell.fDamage / 100.f;
 
@@ -991,8 +996,11 @@ void readDoor(
 	door.ioned = raw.bIoned;
 	door.vertical = raw.bVertical;
 	door.airlock = airlock; // game stores airlocks in different array rather than flagging doors
-	door.position = offset + Point<int>{ raw.x, raw.y };
-	door.dimensions = Point<int>{ raw.width, raw.height };
+	door.player = raw.iShipId == 0;
+	door.rect.w = raw.width;
+	door.rect.h = raw.height;
+	door.rect.x = offset.x + raw.x - raw.width / 2;
+	door.rect.y = offset.y + raw.y - raw.height / 2;
 }
 
 void readGenericShipStuff(
@@ -1071,7 +1079,6 @@ void readGenericShipStuff(
 
 	// Doors
 	ship.doors.clear();
-
 	for (size_t i = 0; i < raw.ship.vDoorList.size(); i++)
 	{
 		readDoor(ship.doors.emplace_back(), *raw.ship.vDoorList[i], position);
@@ -1383,9 +1390,10 @@ void readCrewTeleportInfo(
 	{
 		auto&& anim = ptr->crewAnim->anims[0][6].tracker;
 
-		crew.teleportTimer.first = anim.reverse
-			? anim.time*2.f - anim.current_time
-			: anim.current_time;
+		crew.teleportTimer.first = crew.teleportTimer.second -
+			anim.reverse
+				? anim.time*2.f - anim.current_time
+				: anim.current_time;
 
 		crew.teleportTimer.second = anim.time*2.f;
 	}
@@ -1467,7 +1475,7 @@ void readCrewList(
 		readCrew(crew.emplace_back(), *ptrs[i], offset);
 		if constexpr (player)
 		{
-			crew.back().uiBox = int(i);
+			crew.back().id = int(i);
 			auto it = selectionIndices.find(ptrs[i]);
 			crew.back().selectionId = it != selectionIndices.end() ? it->second : -1;
 		}
@@ -2196,13 +2204,13 @@ void readUI(State& state, const raw::State& raw)
 				break;
 			case EventChoiceSelection::BriefDelay:
 				ui.game->event->openTime = {
-					openTime,
+					EventUIState::HARDCODED_BRIEF_DELAY_TIME-openTime,
 					EventUIState::HARDCODED_BRIEF_DELAY_TIME
 				};
 				break;
 			default: // no hotkeys
 				ui.game->event->openTime = {
-					openTime,
+					std::numeric_limits<float>::infinity(),
 					std::numeric_limits<float>::infinity()
 				};
 				break;
@@ -2226,10 +2234,14 @@ void readUI(State& state, const raw::State& raw)
 		{
 			auto&& mouse = *raw.mouseControl;
 
+			ui.mouse.autofire.reset();
+
 			// What is currently being aimed
 			if (mouse.aiming_required > 0 && ship.weapons)
 			{
-				ui.mouse.aiming = std::cref(ship.weapons->list[mouse.aiming_required-1]);
+				int mod = ship.weapons->autoFire ? 4 : 0;
+				ui.mouse.autofire = ship.weapons->autoFire;
+				ui.mouse.aiming = std::cref(ship.weapons->list[mouse.aiming_required-1+mod]);
 			}
 			else if (mouse.iTeleporting != 0 && ship.teleporter)
 			{

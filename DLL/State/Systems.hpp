@@ -58,6 +58,12 @@ struct TeleporterSystem : System
 	std::vector<Crew*> crewPresent;
 	bool sending = false;
 	bool receiving = false;
+
+	bool operable() const
+	{
+		return this->System::operable() &&
+			this->power.ionLevel == 0;
+	}
 };
 
 struct CloakingSystem : System
@@ -66,6 +72,13 @@ struct CloakingSystem : System
 
 	bool on = false;
 	std::pair<float, float> timer{ 0.f, 0.f };
+
+	bool operable() const
+	{
+		return this->System::operable() &&
+			this->power.ionLevel == 0 &&
+			this->timer.first <= 0.f;
+	}
 };
 
 struct ArtillerySystem : System
@@ -79,6 +92,13 @@ struct MindControlSystem : System
 	std::pair<float, float> timer{ 0.f, 0.f };
 	int targetRoom = -1;
 	bool targetingPlayerShip = false;
+
+	bool operable() const
+	{
+		return this->System::operable() &&
+			this->power.ionLevel == 0 &&
+			this->timer.first <= 0.f;
+	}
 };
 
 struct HackingSystem : System
@@ -87,6 +107,13 @@ struct HackingSystem : System
 	std::pair<float, float> timer{ 0.f, 0.f };
 	SystemType target = SystemType::None, queued = SystemType::None;
 	HackingDrone drone;
+
+	bool operable() const
+	{
+		return this->System::operable() &&
+			this->power.ionLevel == 0 &&
+			this->timer.first <= 0.f;
+	}
 };
 
 struct WeaponSystem : System
@@ -122,4 +149,11 @@ struct BatterySystem : System
 	bool on = false;
 	std::pair<float, float> timer{ 0.f, 0.f };
 	int provides = 0, providing = 0;
+
+	bool operable() const
+	{
+		return this->System::operable() &&
+			this->power.ionLevel == 0 &&
+			this->timer.first <= 0.f;
+	}
 };

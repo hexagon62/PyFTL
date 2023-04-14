@@ -29,6 +29,8 @@ struct System
 	float damageProgress = 0.f;
 	float repairProgress = 0.f;
 
+	virtual ~System() = default;
+
 	bool subsystem() const
 	{
 		return
@@ -50,6 +52,13 @@ struct System
 
 		// cap from events/environment is already stored in total.second
 		return { std::min(this->power.zoltan, cap), cap };
+	}
+
+	virtual bool operable() const
+	{
+		return
+			this->power.total.first >= this->power.required &&
+			this->hackLevel != HackLevel::Active;
 	}
 };
 

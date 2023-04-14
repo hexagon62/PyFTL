@@ -1,13 +1,15 @@
 #include "Input.hpp"
 #include "Utility/Memory.hpp"
 #include "Utility/Exceptions.hpp"
+#include "Utility/Float.hpp"
+#include "Python/Bind.hpp"
 
 #include <array>
 #include <vector>
+#include <deque>
 #include <algorithm>
-
-extern HWND g_hGameWindow;
-extern WNDPROC g_hGameWindowProc;
+#include <tuple>
+#include <variant>
 
 class Input::Impl
 {
@@ -29,24 +31,92 @@ public:
 		InputDirection direction = InputDirection::Unchanged;
 	};
 
+	struct CheatCommand
+	{
+		std::string command;
+	};
+
+	struct PowerCommand
+	{
+		SystemType system = SystemType::None;
+		int set = 0;
+	};
+
+	struct WeaponCommand
+	{
+		int weapon = -1;
+		bool on = false;
+	};
+
+	struct DroneCommand
+	{
+		int drone = -1;
+		bool on = false;
+	};
+
+	struct DoorCommand
+	{
+		int door = -1;
+		bool open = false;
+	};
+
+	struct AimCommand
+	{
+		int room = -1;
+		bool self = false;
+		Point<int> start, end;
+	};
+
+	struct DeselectionCommand
+	{
+		bool left = false, right = true;
+	};
+
+	struct CrewSelectionCommand
+	{
+		std::vector<int> crew;
+		bool exclusive = true;
+	};
+
 	struct Command
 	{
 		enum class Type
 		{
-			Mouse, Keyboard, TextInput, TextEvent
+			None = -1,
+			
+			// Basic types
+			Mouse, Keyboard, TextInput, TextEvent, Cheat,
+			
+			// Helper stuff
+			Pause, EventChoice,
+			PowerSystem, PowerWeapon, PowerDrone,
+			Deselect, SelectWeapon, SelectCrew,
+			Autofire,
+			Door, OpenAllDoors, CloseAllDoors,
+			Aim, AimBeam,
+			SaveStations, LoadStations
 		};
 
-		Type type;
-		double time;
-		uintmax_t id = uintmax_t(-1);
+		Type type = Type::None;
+		double time = 0.0;
 
-		union
-		{
-			MouseCommand mouse;
-			KeyboardCommand keyboard;
-			char textInput;
-			raw::TextEvent textEvent;
-		};
+		std::variant<
+			std::monostate,
+			MouseCommand,
+			KeyboardCommand,
+			char,
+			raw::TextEvent,
+			CheatCommand,
+			bool,
+			int,
+			PowerCommand,
+			WeaponCommand,
+			DroneCommand,
+			DoorCommand,
+			AimCommand,
+			DeselectionCommand,
+			CrewSelectionCommand
+		> args;
 
 		// Commands with higher times are sorted first
 		// That way the ones that come sooner are popped off a max heap first
@@ -77,37 +147,73 @@ public:
 			// stale/old inputs get ignored
 			//if (this->top().time >= lowerBound)
 			{
-				auto&& cmd = this->top();
-
-				switch (cmd.type)
+				try
 				{
-				case Command::Type::Mouse:
-					this->mouseInput(cmd.mouse);
-					break;
-				case Command::Type::Keyboard:
-					this->keyboardInput(cmd.keyboard);
-					break;
-				case Command::Type::TextInput:
-					this->textInput(cmd.textInput);
-					break;
-				case Command::Type::TextEvent:
-					this->textEvent(cmd.textEvent);
-					break;
-				}
+					auto&& cmd = this->top();
+					this->setImmediate(cmd.time);
 
-				inputsMade++;
+					switch (cmd.type)
+					{
+					case Command::Type::Mouse:
+						this->mouseInput(std::get<MouseCommand>(cmd.args));
+						inputsMade++;
+						break;
+					case Command::Type::Keyboard:
+						this->keyboardInput(std::get<KeyboardCommand>(cmd.args));
+						inputsMade++;
+						break;
+					case Command::Type::TextInput:
+						this->textInput(std::get<char>(cmd.args));
+						inputsMade++;
+						break;
+					case Command::Type::TextEvent:
+						this->textEvent(std::get<raw::TextEvent>(cmd.args));
+						inputsMade++;
+						break;
+					case Command::Type::Cheat: this->cheat(std::get<CheatCommand>(cmd.args)); break;
+					case Command::Type::Pause: this->pause(std::get<bool>(cmd.args)); break;
+					case Command::Type::EventChoice: this->eventChoice(std::get<int>(cmd.args)); break;
+					case Command::Type::PowerSystem: this->powerSystem(std::get<PowerCommand>(cmd.args)); break;
+					case Command::Type::PowerWeapon: this->powerWeapon(std::get<WeaponCommand>(cmd.args)); break;
+					case Command::Type::PowerDrone: this->powerDrone(std::get<DroneCommand>(cmd.args)); break;
+					case Command::Type::Deselect: this->deselect(std::get<DeselectionCommand>(cmd.args)); break;
+					case Command::Type::SelectWeapon: this->selectWeapon(std::get<WeaponCommand>(cmd.args)); break;
+					case Command::Type::SelectCrew: this->selectCrew(std::get<CrewSelectionCommand>(cmd.args)); break;
+					case Command::Type::Autofire: this->autofire(std::get<bool>(cmd.args)); break;
+					case Command::Type::Door: this->doorToggle(std::get<DoorCommand>(cmd.args)); break;
+					case Command::Type::OpenAllDoors: this->openAllDoors(std::get<bool>(cmd.args)); break;
+					case Command::Type::CloseAllDoors: this->closeAllDoors(); break;
+					case Command::Type::Aim: this->aim(std::get<AimCommand>(cmd.args)); break;
+					case Command::Type::AimBeam: this->aimBeam(std::get<AimCommand>(cmd.args)); break;
+					case Command::Type::SaveStations: this->saveStations(); break;
+					case Command::Type::LoadStations: this->loadStations(); break;
+					}
+				}
+				catch (const std::exception& e)
+				{
+					this->resetImmediate();
+					this->pop();
+					throw e;
+				}
 			}
 
+			this->resetImmediate();
 			this->pop();
 		}
 	}
 
 	Input::Ret push(const Command& cmd)
 	{
-		this->queue.push_back(cmd);
-		this->queue.back().id = ++this->idCounter;
+		double t = this->immediate == 0.0
+			? Reader::now() 
+			: this->immediate;
+
+		if (this->immediate > 0.0)
+			float_util::increment(this->immediate);
+
+		this->queue.emplace_back(cmd).time = t;
 		std::push_heap(this->queue.begin(), this->queue.end());
-		return { this->idCounter, cmd.time };
+		return { t };
 	}
 
 	bool empty() const
@@ -115,27 +221,14 @@ public:
 		return this->queue.empty();
 	}
 
-	bool emptyWithin(double time) const
+	bool queued(const Input::Ret& ret) const
 	{
-		double now = Reader::now();
-
-		return 
-			this->queue.end() == std::find_if(
-				this->queue.begin(), this->queue.end(),
-				[&](auto& cmd) {
-					return cmd.time-now <= time;
-				}
-			);
+		return this->search(ret) != this->queue.end();
 	}
 
-	bool queued(uintmax_t id) const
+	bool remove(const Input::Ret& ret)
 	{
-		return this->search(id) != this->queue.end();
-	}
-
-	bool remove(uintmax_t id)
-	{
-		auto it = this->search(id);
+		auto it = this->search(ret);
 
 		// Not in queue
 		if (it == this->queue.end())
@@ -164,37 +257,35 @@ public:
 			p.y < 0 || p.y >= Input::GAME_HEIGHT;
 	}
 
-	void cheat(const std::string& cmd)
+	Command& get(const Input::Ret& ret)
 	{
-		static constexpr uintptr_t CONSOLE_ADDR = 0x0011B4A0;
-		auto* gui = Reader::getRawState({}).app->gui;
-		uintptr_t funcAddr = Reader::getRealAddress(CONSOLE_ADDR, {});
-		auto* func = reinterpret_cast<void(__thiscall*)(raw::CommandGui*, raw::gcc::string&)>(funcAddr);
+		return *this->search(ret);
+	}
 
-		// The one time we will ever have to do this conversion
-		raw::gcc::string str;
-		str.len = cmd.size();
+	Command& top()
+	{
+		return this->queue.front();
+	}
 
-		if (str.len <= raw::gcc::string::SMALL_STRING_OPTIMIZATION_LEN)
+	Key getHotkey(const std::string& k)
+	{
+		try
 		{
-			// small string optimization, copy it like this
-			strcpy_s(str.local_data, cmd.data());
-			str.local_data[raw::gcc::string::SMALL_STRING_OPTIMIZATION_LEN] = '\0';
-			str.str = str.local_data;
-			func(gui, str);
+			Key key = Input::hotkeys().at(k);
+
+			return key;
 		}
-		else
+		catch (const std::out_of_range&)
 		{
-			// not using const_cast just to be safe
-			std::string copy = cmd;
-			str.str = copy.data();
-			func(gui, str);
+			throw InvalidHotkey(k);
 		}
 	}
 
 private:
 	friend class Input;
 	using Queue = std::vector<Command>;
+	Queue queue;
+	double immediate = 0.0, startImmediate = 0.0;
 
 	static constexpr uintptr_t SHIFT_STATE_ADDR = 0x178BE0;
 
@@ -212,25 +303,43 @@ private:
 	// and replace them with the above if we want to force them down
 	mem::Hook shiftStateHook;
 
-	// Search for input with this id
-	Queue::iterator search(uintmax_t id)
+	void setImmediate(double t)
+	{
+		this->immediate = t;
+		this->startImmediate = Reader::now();
+	}
+
+	void resetImmediate()
+	{
+		this->immediate = 0.0;
+		this->startImmediate = 0.0;
+	}
+
+	// Search for input
+	Queue::iterator search(const Input::Ret& ret)
 	{
 		return std::find_if(
 			this->queue.begin(), this->queue.end(),
-			[&id](auto&& cmd) {
-				return cmd.id == id;
+			[&ret](auto&& cmd) {
+				return cmd.time == ret.time;
 			}
 		);
 	}
 
-	Queue::const_iterator search(uintmax_t id) const
+	Queue::const_iterator search(const Input::Ret& ret) const
 	{
 		return std::find_if(
 			this->queue.cbegin(), this->queue.cend(),
-			[&id](auto&& cmd) {
-				return cmd.id == id;
+			[&ret](auto&& cmd) {
+				return cmd.time == ret.time;
 			}
 		);
+	}
+
+	void pop()
+	{
+		std::pop_heap(this->queue.begin(), this->queue.end());
+		this->queue.pop_back();
 	}
 
 	// Forces shift to be held, regardless of player input
@@ -342,20 +451,874 @@ private:
 		mrs.app->OnTextEvent(event);
 	}
 
-	Command& top()
+	void cheat(const CheatCommand& cheat)
 	{
-		return this->queue.front();
+		auto&& cmd = cheat.command;
+
+		static constexpr uintptr_t CONSOLE_ADDR = 0x0011B4A0;
+		auto* gui = Reader::getRawState({}).app->gui;
+		uintptr_t funcAddr = Reader::getRealAddress(CONSOLE_ADDR, {});
+		auto* func = reinterpret_cast<void(__thiscall*)(raw::CommandGui*, raw::gcc::string&)>(funcAddr);
+
+		// The one time we will ever have to do this conversion
+		raw::gcc::string str;
+		str.len = cmd.size();
+
+		if (str.len <= raw::gcc::string::SMALL_STRING_OPTIMIZATION_LEN)
+		{
+			// small string optimization, copy it like this
+			strcpy_s(str.local_data, cmd.data());
+			str.local_data[raw::gcc::string::SMALL_STRING_OPTIMIZATION_LEN] = '\0';
+			str.str = str.local_data;
+			func(gui, str);
+		}
+		else
+		{
+			// not using const_cast just to be safe
+			std::string copy = cmd;
+			str.str = copy.data();
+			func(gui, str);
+		}
 	}
 
-	void pop()
+	void checkInGame(const char* what)
 	{
-		std::pop_heap(this->queue.begin(), this->queue.end());
-		this->queue.pop_back();
+		auto&& state = Reader::getState();
+		if (!state.game) throw GameNotRunning(what);
+
+		auto&& pause = state.game->pause;
+		if (pause.menu || pause.event) throw WrongMenu(what);
 	}
 
-	Queue queue;
+	// Generic function to try a hotkey and fallback to clicking
+	void hotkeyOr(const char* hotkey, Point<int> fallback)
+	{
+		// Use if hotkey possible
+		auto k = this->getHotkey(hotkey);
 
-	uintmax_t idCounter = 0;
+		if (k != Key::Unknown)
+		{
+			Input::keyPress(k, false);
+			return;
+		}
+
+		Input::mouseClick(MouseButton::Left, fallback, false);
+	}
+
+	struct PowerHotkey
+	{
+		Key key = Key::Unknown;
+		bool shift = false;
+	};
+
+	// Find any working keyboard combo to (un)power the system
+	PowerHotkey workingPowerHotkey(
+		const System& sys,
+		bool unpower)
+	{
+		Key k;
+
+		if (unpower)
+		{
+			// Try to get the direct unpower key
+			k = this->getHotkey(systemUnpowerHotkey(sys.type));
+			if (k != Key::Unknown) return { k, false };
+
+			// Then, fallback to direct power key + shift
+			k = this->getHotkey(systemPowerHotkey(sys.type));
+			if (k != Key::Unknown) return { k, true };
+
+			// Then, fallback to positional unpower key
+			int id = sys.uiBox + 1;
+			k = this->getHotkey("un_power_" + std::to_string(id));
+			if (k != Key::Unknown) return { k, false };
+
+			// Then, fallback to positional power key + shift
+			k = this->getHotkey("power_" + std::to_string(id));
+			if (k != Key::Unknown) return { k, true };
+
+			// Otherwise, there's no hotkey for it
+			return { k, false };
+		}
+
+		// Try to get direct power key
+		k = this->getHotkey(systemPowerHotkey(sys.type));
+		if (k != Key::Unknown) return { k, false };
+
+		// Then, fallback to positional power 
+		int id = sys.uiBox + 1;
+		k = this->getHotkey("power_" + std::to_string(id));
+		if (k != Key::Unknown) return { k, false };
+
+		// Otherwise, there's no hotkey for it
+		return { k, false };
+	}
+
+
+	Key crewHotkey(int which)
+	{
+		return this->getHotkey("crew" + std::to_string(which + 1));
+	}
+
+	// Assumes a bunch of other checks have already been made
+	void useCrewSingle(const Crew& crew, bool exclusive = true)
+	{
+		// Try to use a hotkey
+		auto hotkey = this->crewHotkey(crew.id);
+
+		if (hotkey == Key::Unknown)
+		{
+			// If there is none, use the mouse
+			auto&& crewBoxes = Reader::getState().ui.game->crewBoxes;
+			auto pos = crewBoxes[crew.id].box.center();
+
+			Input::mouseClick(MouseButton::Left, pos, !exclusive);
+			return;
+		}
+
+		Input::keyPress(hotkey, !exclusive);
+	}
+
+	using CrewRefList = std::vector<std::reference_wrapper<const Crew>>;
+
+	// Assumes a bunch of other checks have already been made
+	// Assumes crew list is sorted by ui box order already
+	// Always uses mouse
+	void useCrewMany(
+		const CrewRefList& crew,
+		bool exclusive = true)
+	{
+		auto&& crewBoxes = Reader::getState().ui.game->crewBoxes;
+
+		Point<int> first = crewBoxes[crew.front().get().id].box.center();
+		Point<int> last = crewBoxes[crew.back().get().id].box.center();
+
+		Input::mouseDown(MouseButton::Left, first, !exclusive);
+		Input::mouseUp(MouseButton::Left, last, !exclusive);
+	}
+
+	void pause(bool on)
+	{
+		auto&& state = Reader::getState();
+		if (!state.game) throw GameNotRunning("pausing");
+
+		// nothing to do
+		if (state.game->pause.any == on) return;
+
+		// middle mouse is always available, no need to check for hotkey
+		Input::mouseClick(MouseButton::Middle, { -1, -1 }, false);
+	}
+
+	void eventChoice(int which)
+	{
+		auto&& state = Reader::getState();
+		if (!state.game) throw GameNotRunning("picking an event choice");
+		if (!state.game->event || !state.game->pause.event) throw NoEvent();
+
+		auto&& event = state.ui.game->event;
+		auto&& choices = event->choices;
+
+		if (size_t(which) >= choices.size())
+		{
+			throw InvalidEventChoice(which, int(choices.size()));
+		}
+
+		// Hotkeys disabled, must click...
+		bool noHotkeys = state.settings.eventChoiceSelection != EventChoiceSelection::DisableHotkeys;
+		bool delay = state.settings.eventChoiceSelection != EventChoiceSelection::BriefDelay;
+		if (noHotkeys || (delay && event->openTime.first > 0.f))
+		{
+			auto&& choice = choices.at(which);
+			bool topCenter = !impl.offScreen(choice.box.topCenter());
+
+			if (!topCenter)
+			{
+				throw InvalidEventChoice(which, "hotkeys are disabled/delayed and the choice is off-screen");
+			}
+
+			bool center = !impl.offScreen(choice.box.center());
+
+			Input::mouseClick(
+				MouseButton::Left,
+				center ? choice.box.center() : choice.box.topCenter(),
+				false);
+
+			return;
+		}
+
+		Input::keyPress(Key(int(Key::Num1) + which), false);
+	}
+
+	// Setting the system power is quite complicated and has many edge cases
+	// Mostly due to shields and zoltan power...
+	// So yeah, I'll be real glad this helper function exists if it works
+	void powerSystem(const PowerCommand& power)
+	{
+		auto&& [type, set] = power;
+
+		this->checkInGame("powering a system");
+
+		auto&& state = Reader::getState();
+		auto&& system = state.game->playerShip->getSystem(type);
+
+		int required = system.power.required;
+
+		if (required <= 0 || required > 2)
+		{
+			throw InvalidPowerRequest(system, "this function can't handle that system");
+		}
+
+		if (system.subsystem())
+		{
+			throw InvalidPowerRequest(system, "subsystem power cannot be controlled");
+		}
+
+		int current = system.power.total.first;
+
+		// Nothing to do
+		if (current == set) return;
+
+		int delta = set - current;
+
+		auto range = system.powerRange();
+		if (set < range.first || set > range.second)
+		{
+			throw InvalidPowerRequest(system, set, range);
+		}
+
+		int mod = set % required;
+		int zoltan = system.power.zoltan;
+
+		// Power must be between a multiple and a multiple + zoltan power present
+		if (mod > zoltan)
+		{
+			throw InvalidPowerRequest(system, set, required);
+		}
+
+		int upInputs = 0;
+		int downInputs = 0;
+
+		if (set < current)
+		{
+			downInputs = -delta;
+
+			if (!zoltan)
+			{
+				// assuming we're already set to a multiple
+				downInputs /= system.power.required;
+			}
+		}
+		else
+		{
+			int start = required > 1 ? (current / required) * required : current;
+			int end = required > 1 ? ((set + 1) / required) * required : set;
+			upInputs = (end - start) / required;
+			if (mod != 0) downInputs = 1;
+
+			if (end - current > state.game->playerShip->reactor.total.first)
+			{
+				 throw InvalidPowerRequest(system, "there isn't enough power in the reactor");
+			}
+		}
+
+		auto doInput = [&](const PowerHotkey& k, bool depower) {
+			auto&& [key, shift] = k;
+
+			if (key != Key::Unknown) // hotkey found
+			{
+				Input::keyDown(key, shift);
+			}
+			else // must click instead
+			{
+				auto&& ship = *state.game->playerShip;
+				auto&& point = state.ui.game->getSystem(system.type, system.discriminator).bottomCenter();
+				Input::mouseClick(
+					depower ? MouseButton::Right : MouseButton::Left,
+					point, false
+				);
+			}
+		};
+
+		if (upInputs > 0)
+		{
+			auto k = this->workingPowerHotkey(system, false);
+			for (int i = 0; i < upInputs; i++) doInput(k, false);
+		}
+
+		if (downInputs > 0)
+		{
+			auto k = this->workingPowerHotkey(system, true);
+			for (int i = 0; i < downInputs; i++) doInput(k, true);
+		}
+	}
+
+	// Assumes a bunch of other checks have already been made
+	void useWeapon(const Weapon& weapon, bool powerOff = false)
+	{
+		auto&& hotkeys = Input::hotkeys();
+
+		// Try to use a hotkey
+		auto hotkey = getHotkey("weapon" + std::to_string(weapon.slot + 1));
+
+		// If there is none, use the mouse
+		if (hotkey == Key::Unknown)
+		{
+			auto&& weaponBoxes = Reader::getState().ui.game->weaponBoxes;
+			auto pos = weaponBoxes[weapon.slot].center();
+			auto button = powerOff ? MouseButton::Right : MouseButton::Left;
+
+			if (powerOff)
+			{
+				Input::mouseClick(button, pos, false);
+				return;
+			}
+
+			Input::mouseUp(button, pos, false);
+			return;
+		}
+
+		Input::keyPress(hotkey, powerOff);
+		return;
+	}
+
+	void powerWeapon(const WeaponCommand& cmd)
+	{
+		auto&& [slot, on] = cmd;
+
+		this->checkInGame("powering a weapon");
+
+		auto&& state = Reader::getState();
+		if (!state.game->playerShip->weapons) throw SystemNotInstalled(SystemType::Weapons);
+
+		auto&& weapSys = *state.game->playerShip->weapons;
+		auto slots = int(weapSys.list.size());
+		if (slot < 0) throw InvalidSlotChoice("weapon", slot);
+		if (slot >= slots) throw InvalidSlotChoice("weapon", slot, slots);
+		auto&& weapon = weapSys.list[slot];
+
+		auto range = weapSys.powerRange();
+		int current = weapon.power.total.first;
+		if (range.first == range.second)
+		{
+			int desired = current + weapon.power.required * (on ? 1 : -1);
+			throw InvalidPowerRequest(weapSys, desired, range);
+		}
+
+		if (on)
+		{
+			int needs = weapon.power.required - current;
+
+			// Nothing needs to be done
+			if (needs == 0) return;
+
+			// Need missiles
+			int missiles = state.game->playerShip->cargo.missiles;
+			int neededMissiles = weapon.blueprint.missiles;
+			if (missiles < neededMissiles)
+			{
+				throw InvalidSlotChoice("weapon", weapon.slot, "there isn't enough missiles");
+			}
+
+			if (needs > state.game->playerShip->reactor.total.first)
+			{
+				throw InvalidPowerRequest(weapon, "there isn't enough power in the reactor");
+			}
+
+			int remaining = weapSys.power.total.second - weapSys.power.total.first;
+			if (needs > remaining)
+			{
+				throw InvalidPowerRequest(weapon, "there isn't enough power in the weapon system");
+			}
+		}
+		else
+		{
+			int del = current - weapon.power.zoltan;
+
+			// Nothing needs to be done
+			if (del == 0) return;
+
+			if (weapon.power.zoltan >= weapon.power.required)
+			{
+				throw InvalidPowerRequest(weapon, "it is fully powered by zoltan crew");
+			}
+		}
+
+		this->useWeapon(weapon, !on);
+	}
+
+	// Assumes a bunch of other checks have already been made
+	void useDrone(const Drone& drone, bool powerOff = false)
+	{
+		auto&& hotkeys = Input::hotkeys();
+
+		// Try to use a hotkey
+		auto hotkey = getHotkey("drone" + std::to_string(drone.slot + 1));
+
+		// If there is none, use the mouse
+		if (hotkey == Key::Unknown)
+		{
+			auto&& droneBoxes = Reader::getState().ui.game->droneBoxes;
+			auto pos = droneBoxes[drone.slot].center();
+			auto button = powerOff ? MouseButton::Right : MouseButton::Left;
+
+			if (powerOff)
+			{
+				Input::mouseClick(button, pos, false);
+				return;
+			}
+
+			Input::mouseUp(button, pos, false);
+			return;
+		}
+
+		Input::keyPress(hotkey, powerOff);
+	}
+
+	void powerDrone(const DroneCommand& cmd)
+	{
+		auto&& [slot, on] = cmd;
+
+		this->checkInGame("powering a drone");
+
+		auto&& state = Reader::getState();
+		if (!state.game->playerShip->drones) throw SystemNotInstalled(SystemType::Drones);
+
+		auto&& droneSys = *state.game->playerShip->drones;
+		auto slots = int(droneSys.list.size());
+		if (slot < 0) throw InvalidSlotChoice("drone", slot);
+		if (slot >= slots) throw InvalidSlotChoice("drone",slot, slots);
+		auto&& drone = droneSys.list[slot];
+
+		auto range = droneSys.powerRange();
+		int current = drone.power.total.first;
+		if (range.first == range.second)
+		{
+			int desired = current + drone.power.required * (on ? 1 : -1);
+			throw InvalidPowerRequest(droneSys, desired, range);
+		}
+
+		if (on)
+		{
+			int needs = drone.power.required - current;
+
+			// Nothing needs to be done
+			if (needs == 0) return;
+
+			// Need drone parts
+			int droneParts = state.game->playerShip->cargo.droneParts;
+			if (droneParts < 1)
+			{
+				throw InvalidSlotChoice("drone", drone.slot, "there isn't enough drone parts");
+			}
+
+			// Need to not be destroyed
+			if (drone.dead)
+			{
+				throw InvalidSlotChoice("drone", drone.slot, "it is destroyed or on cooldown");
+			}
+
+			// Various drone types need an enemy ship
+			bool enemy = state.game->enemyShip.has_value();
+			if (drone.needsEnemy() && !enemy)
+			{
+				throw InvalidSlotChoice("drone", drone.slot, "it needs an enemy to function");
+			}
+
+			if (needs > state.game->playerShip->reactor.total.first)
+			{
+				throw InvalidPowerRequest(drone, "there isn't enough power in the reactor");
+			}
+
+			int remaining = droneSys.power.total.second - droneSys.power.total.first;
+			if (needs > remaining)
+			{
+				throw InvalidPowerRequest(drone, "there isn't enough power in the drone system");
+			}
+		}
+		else
+		{
+			int del = current - drone.power.zoltan;
+
+			// Nothing needs to be done
+			if (del == 0) return;
+
+			if (drone.power.zoltan >= drone.power.required)
+			{
+				throw InvalidPowerRequest(drone, "it is fully powered by zoltan crew");
+			}
+		}
+
+		this->useDrone(drone, !on);
+	}
+
+	// Some arbitrary spot that should have no UI elements
+	Point<int> nopSpot()
+	{
+		return { Input::GAME_WIDTH - 1, Input::GAME_HEIGHT - 1 };
+	}
+
+	void deselect(const DeselectionCommand& cmd)
+	{
+		this->checkInGame("deselection");
+		if (cmd.left) Input::mouseClick(MouseButton::Left, this->nopSpot(), false);
+		if (cmd.right) Input::mouseClick(MouseButton::Right, this->nopSpot(), false);
+	}
+
+	void selectWeapon(const WeaponCommand& cmd)
+	{
+		auto&& slot = cmd.weapon;
+
+		this->checkInGame("selecting a weapon");
+
+		auto&& state = Reader::getState();
+		if (!state.game->playerShip->weapons) throw SystemNotInstalled(SystemType::Weapons);
+
+		auto&& weapSys = *state.game->playerShip->weapons;
+		auto slots = int(weapSys.list.size());
+		if (slot < 0) throw InvalidSlotChoice("weapon", slot);
+		if (slot >= slots) throw InvalidSlotChoice("weapon", slot, slots);
+		auto&& weapon = weapSys.list[slot];
+
+		if (!weapon.powered()) throw InvalidSlotChoice("weapon", weapon.slot, "it is not powered");
+
+		useWeapon(weapon, false);
+	}
+
+	void selectCrew(const CrewSelectionCommand& cmd)
+	{
+		auto&& crew = cmd.crew;
+		bool exclusive = cmd.exclusive;
+
+		this->checkInGame("selecting crew");
+
+		auto&& state = Reader::getState();
+
+		if (crew.empty() && exclusive)
+		{
+			Input::deselectCrew();
+			return;
+		}
+
+		auto count = int(state.game->playerCrew.size());
+
+		for(auto&& box : crew)
+		{
+			if (box < 0) throw InvalidCrewBoxChoice(box);
+			if (box > count) throw InvalidCrewBoxChoice(box, count);
+
+			auto&& c = state.game->playerCrew[box];
+
+			if (c.dead) throw InvalidCrewChoice(c, "they're dead");
+			if (c.drone) throw InvalidCrewChoice(c, "they're a drone");
+			if (!c.player) throw InvalidCrewChoice(c, "they're an enemy");
+		}
+
+		CrewRefList group;
+		group.reserve(crew.size());
+		int prev = crew[0] - 1;
+
+		for (size_t i = 0; i < crew.size(); i++)
+		{
+			// If not contiguous, input and clear group
+			if (!group.empty() && prev != crew[i] - 1)
+			{
+				if (group.size() == 1) this->useCrewSingle(group[0], exclusive);
+				else this->useCrewMany(group, exclusive);
+
+				// stop being exclusive after first selection
+				exclusive = false;
+
+				group.clear();
+			}
+
+			group.push_back(state.game->playerCrew[crew[i]]);
+			prev = crew[i];
+		}
+
+		// Final group
+		if (!group.empty())
+		{
+			if (group.size() == state.ui.game->crewBoxes.size())
+			{
+				// Selecting all crew in order, use if hotkey possible
+				auto hotkey = this->getHotkey("crew_all");
+
+				if (hotkey != Key::Unknown)
+				{
+					Input::keyPress(hotkey, false);
+					return;
+				}
+			}
+
+			if (group.size() == 1) this->useCrewSingle(group[0], exclusive);
+			else this->useCrewMany(group, exclusive);
+		}
+	}
+
+	void autofire(bool on)
+	{
+		this->checkInGame("toggling auto-fire");
+		auto&& state = Reader::getState();
+
+		if (!state.game->playerShip->weapons)
+		{
+			throw SystemNotInstalled(SystemType::Weapons);
+		}
+
+		if (state.game->playerShip->weapons->autoFire == on)
+		{
+			// Nothing to do
+			return;
+		}
+
+		this->hotkeyOr("autofire", state.ui.game->autofire->center());
+	}
+
+	void doorToggle(const DoorCommand& cmd)
+	{
+		auto&& [id, open] = cmd;
+
+		this->checkInGame("toggling a door");
+		auto&& state = Reader::getState();
+
+		auto&& doors = state.game->playerShip->doorControl;
+		if (!doors) throw SystemNotInstalled(SystemType::Doors);
+		if (size_t(id) >= state.game->playerShip->doors.size()) throw std::range_error("door has invalid id");
+		auto&& door = state.game->playerShip->doors[id];
+
+		if (!doors->operable()) throw DoorInoperable(door, "the door system is hacked or too damaged");
+		if (!door.player) throw DoorInoperable(door, "it does not belong to the player");
+		if (door.openFake) throw DoorInoperable(door, "has crew standing in it");
+
+		if (door.open == open)
+		{
+			// nothing to do
+			return;
+		}
+
+		Input::mouseClick(MouseButton::Left, door.rect.center(), false);
+	}
+
+	void openAllDoors(bool airlocks)
+	{
+		this->checkInGame("opening all doors");
+
+		auto&& state = Reader::getState();
+		auto&& doorControl = state.game->playerShip->doorControl;
+
+		if (!doorControl) throw SystemNotInstalled(SystemType::Doors);
+		if (!doorControl->operable()) throw DoorInoperable("it is either hacked or damaged");
+
+		bool onlyAirlocksClosed = true;
+
+		for (auto&& door : state.game->playerShip->doors)
+		{
+			if (!door.airlock && !door.open)
+			{
+				onlyAirlocksClosed = false;
+				break;
+			}
+		}
+
+		if (!airlocks && onlyAirlocksClosed)
+		{
+			// Nothing to do
+			return;
+		}
+
+		auto p = state.ui.game->openAllDoors->center();
+
+		if (airlocks && !onlyAirlocksClosed)
+		{
+			// Tap the button again
+			this->hotkeyOr("open", p);
+		}
+
+		this->hotkeyOr("open", p);
+	}
+
+	void closeAllDoors()
+	{
+		this->checkInGame("closing all doors");
+
+		auto&& state = Reader::getState();
+		auto&& doorControl = state.game->playerShip->doorControl;
+
+		if (!doorControl) throw SystemNotInstalled(SystemType::Doors);
+		if (!doorControl->operable()) throw DoorInoperable("it is either hacked or damaged");
+
+		bool allClosed = true;
+
+		for (auto&& door : state.game->playerShip->doors)
+		{
+			if (door.open)
+			{
+				allClosed = false;
+				break;
+			}
+		}
+
+		if (allClosed)
+		{
+			// Nothing to do
+			return;
+		}
+
+		this->hotkeyOr("close", state.ui.game->closeAllDoors->center());
+	}
+
+	void aim(const AimCommand& aim)
+	{
+		auto&& id = aim.room;
+		auto&& self = aim.self;
+
+		this->checkInGame("aiming weapon/system");
+		auto&& state = Reader::getState();
+
+		if (self && size_t(id) >= state.game->playerShip->rooms.size())
+		{
+			throw std::range_error("room has invalid id");
+		}
+
+		if (!self && size_t(id) >= state.game->enemyShip->rooms.size())
+		{
+			throw std::range_error("room has invalid id");
+		}
+
+		const Room& room = self
+			? state.game->playerShip->rooms[id]
+			: state.game->enemyShip->rooms[id];
+
+		if (std::holds_alternative<std::monostate>(state.ui.mouse.aiming))
+		{
+			throw NotSelected("weapon/system");
+		}
+
+		if (std::holds_alternative<SystemUIRef>(state.ui.mouse.aiming))
+		{
+			auto&& system = std::get<SystemUIRef>(state.ui.mouse.aiming).get();
+
+			if (room.player)
+			{
+				if (system.type != SystemType::MindControl)
+				{
+					throw InvalidSelfAim("only mind control can do that");
+				}
+				else
+				{
+					bool selfMind = false;
+
+					for (auto&& c : room.crew)
+					{
+						if (selfMind) break;
+
+						if ((c->player && c->mindControlled) || !c->player)
+							selfMind = true;
+					}
+
+					for (auto&& c : room.crewMoving)
+					{
+						if (selfMind) break;
+
+						if ((c->player && c->mindControlled) || !c->player)
+							selfMind = true;
+					}
+
+					if (!selfMind)
+					{
+						throw InvalidSelfAim("mind control requires enemy crew or mind controlled player crew");
+					}
+				}
+			}
+		}
+
+		if (std::holds_alternative<WeaponUIRef>(state.ui.mouse.aiming))
+		{
+			auto&& weapon = std::get<WeaponUIRef>(state.ui.mouse.aiming).get();
+
+			if (room.player && weapon.blueprint.type != WeaponType::Bomb)
+			{
+				throw InvalidSelfAim("only bomb weapons can do that");
+			}
+		}
+
+		Input::mouseClick(MouseButton::Left, room.rect.center(), false);
+	}
+
+	void aimBeam(const AimCommand& aim)
+	{
+		auto&& [id, self, start, end] = aim;
+
+		this->checkInGame("aiming beam");
+		auto&& state = Reader::getState();
+
+		if (self && size_t(id) >= state.game->playerShip->rooms.size())
+		{
+			throw std::range_error("room has invalid id");
+		}
+
+		if (!self && size_t(id) >= state.game->enemyShip->rooms.size())
+		{
+			throw std::range_error("room has invalid id");
+		}
+
+		const Room& room = self
+			? state.game->playerShip->rooms[id]
+			: state.game->enemyShip->rooms[id];
+
+		if (!std::holds_alternative<WeaponUIRef>(state.ui.mouse.aiming))
+		{
+			throw NotSelected("beam weapon");
+		}
+
+		auto&& weapon = std::get<WeaponUIRef>(state.ui.mouse.aiming).get();
+
+		if (weapon.blueprint.type != WeaponType::Beam)
+		{
+			throw NotSelected("beam weapon");
+		}
+
+		if (room.player) throw InvalidSelfAim("only bomb weapons can do that");
+
+		bool notInside =
+			start.x < 1 || start.y < 1 ||
+			start.x >= room.rect.w || start.y >= room.rect.h;
+
+		if (notInside)
+		{
+			throw std::invalid_argument("tried to aim a beam from a position not inside a room");
+		}
+
+		Point<int> diff = end - start;
+		int offsetMagnitudeSquared = diff.x * diff.x + diff.y * diff.y;
+		constexpr int MIN_DIST = Weapon::HARDCODED_MINIMUM_BEAM_AIM_DISTANCE;
+		constexpr int MIN_DIST_SQUARED = MIN_DIST * MIN_DIST;
+
+		if (offsetMagnitudeSquared < MIN_DIST_SQUARED)
+		{
+			throw std::invalid_argument(
+				"the two beam aiming points must be at least " +
+				std::to_string(MIN_DIST) + " pixels apart"
+			);
+		}
+
+		Input::mouseClick(MouseButton::Left, room.rect.topLeft() + start, false);
+		Input::mouseClick(MouseButton::Left, room.rect.topLeft() + end, false);
+	}
+
+	void saveStations()
+	{
+		this->checkInGame("saving crew stations");
+		auto&& state = Reader::getState();
+		this->hotkeyOr("savePositions", state.ui.game->saveStations.center());
+	}
+
+	void loadStations()
+	{
+		this->checkInGame("loading crew stations");
+		auto&& state = Reader::getState();
+		this->hotkeyOr("loadPositions", state.ui.game->loadStations.center());
+	}
 };
 
 Input::Impl Input::impl;
@@ -366,137 +1329,13 @@ bool Input::humanKeyboard = true;
 namespace
 {
 
-bool validateInGame(const State& s, bool nothrow = false)
-{
-	if (!s.game || !s.game->playerShip)
-	{
-		if (!nothrow) throw GameNotRunning();
-		else return false;
-	}
-
-	return true;
-}
-
-void validateDelay(double d)
-{
-	if (d < 0.0)
-	{
-		throw InvalidTime("we can't send commands to the past to undo our mistakes");
-	}
-
-	if (d > 8640.0)
-	{
-		throw InvalidTime("this would send a command over a day from now; are you marathoning?");
-	}
-}
-
-Key getHotkey(
-	const decltype(Settings::hotkeys)& map,
-	const std::string& k)
-{
-	try
-	{
-		Key key = map.at(k);
-
-		return key;
-	}
-	catch (const std::out_of_range&)
-	{
-		throw InvalidHotkey(k);
-	}
-}
-
-struct PowerHotkey
-{
-	Key key = Key::Unknown;
-	bool shift = false;
-};
-
-// Find any working keyboard combo to (un)power the system
-PowerHotkey workingPowerHotkey(
-	const System& sys,
-	const decltype(Settings::hotkeys)& hotkeys,
-	bool unpower)
-{
-	Key k;
-
-	if (unpower)
-	{
-		// Try to get the direct unpower key
-		k = getHotkey(hotkeys, systemUnpowerHotkey(sys.type));
-		if (k != Key::Unknown) return { k, false };
-
-		// Then, fallback to direct power key + shift
-		k = getHotkey(hotkeys, systemPowerHotkey(sys.type));
-		if (k != Key::Unknown) return { k, true };
-
-		// Then, fallback to positional unpower key
-		int id = sys.uiBox + 1;
-		k = getHotkey(hotkeys, "un_power_" + std::to_string(id));
-		if (k != Key::Unknown) return { k, false };
-
-		// Then, fallback to positional power key + shift
-		k = getHotkey(hotkeys, "power_" + std::to_string(id));
-		if (k != Key::Unknown) return { k, true };
-
-		// Otherwise, there's no hotkey for it
-		return { k, false };
-	}
-
-	// Try to get direct power key
-	k = getHotkey(hotkeys, systemPowerHotkey(sys.type));
-	if (k != Key::Unknown) return { k, false };
-
-	// Then, fallback to positional power 
-	int id = sys.uiBox + 1;
-	k = getHotkey(hotkeys, "power_" + std::to_string(id));
-	if (k != Key::Unknown) return { k, false };
-
-	// Otherwise, there's no hotkey for it
-	return { k, false };
-}
-
-// Some arbitrary spot that should have no UI elements
-Point<int> nopSpot()
-{
-	return { Input::GAME_WIDTH - 1, Input::GAME_HEIGHT - 1 };
-}
-
-// Assumes a bunch of other checks have already been made
-Input::Ret useWeapon(
-	const Weapon& weapon,
-	const std::map<std::string, Key>& hotkeys,
-	bool powerOff = false,
-	double delay = 0.0)
-{
-	// Try to use a hotkey
-	auto hotkey = getHotkey(hotkeys, "weapon" + std::to_string(weapon.slot + 1));
-
-	// If there is none, use the mouse
-	if (hotkey == Key::Unknown)
-	{
-		auto&& weaponBoxes = Reader::getState().ui.game->weaponBoxes;
-		auto pos = weaponBoxes[weapon.slot].center();
-		auto button = powerOff ? MouseButton::Right : MouseButton::Left;
-
-		if (powerOff)
-		{
-			return Input::mouseClick(button, pos, false, delay);
-		}
-
-		return Input::mouseUp(button, pos, false, delay);
-	}
-
-	return Input::keyPress(hotkey, powerOff, delay);
-}
-
-const Weapon* weaponAt(int which, bool suppress = false)
+const Weapon* weaponAt(int which, bool suppressExceptions = false)
 {
 	auto&& opt = Reader::getState().game->playerShip->weapons;
 
 	if (!opt)
 	{
-		if (!suppress) throw SystemNotInstalled(SystemType::Weapons);
+		if (!suppressExceptions) throw SystemNotInstalled(SystemType::Weapons);
 		else return nullptr;
 	}
 
@@ -505,48 +1344,20 @@ const Weapon* weaponAt(int which, bool suppress = false)
 
 	if (which < 0 || which >= size)
 	{
-		if (!suppress) throw InvalidSlotChoice("weapon", which, size);
+		if (!suppressExceptions) throw InvalidSlotChoice("weapon", which, size);
 		else return nullptr;
 	}
 
 	return &weapons.list.at(which);
 }
 
-// Assumes a bunch of other checks have already been made
-Input::Ret useDrone(
-	const Drone& drone,
-	const std::map<std::string, Key>& hotkeys,
-	bool powerOff = false,
-	double delay = 0.0)
-{
-	// Try to use a hotkey
-	auto hotkey = getHotkey(hotkeys, "drone" + std::to_string(drone.slot + 1));
-
-	// If there is none, use the mouse
-	if (hotkey == Key::Unknown)
-	{
-		auto&& droneBoxes = Reader::getState().ui.game->droneBoxes;
-		auto pos = droneBoxes[drone.slot].center();
-		auto button = powerOff ? MouseButton::Right : MouseButton::Left;
-
-		if (powerOff)
-		{
-			return Input::mouseClick(button, pos, false, delay);
-		}
-
-		return Input::mouseUp(button, pos, false, delay);
-	}
-
-	return Input::keyPress(hotkey, powerOff, delay);
-}
-
-const Drone* droneAt(int which, bool suppress = false)
+const Drone* droneAt(int which, bool suppressExceptions = false)
 {
 	auto&& opt = Reader::getState().game->playerShip->drones;
 
 	if (!opt)
 	{
-		if (!suppress) throw SystemNotInstalled(SystemType::Drones);
+		if (!suppressExceptions) throw SystemNotInstalled(SystemType::Drones);
 		else return nullptr;
 	}
 
@@ -555,115 +1366,11 @@ const Drone* droneAt(int which, bool suppress = false)
 
 	if (which < 0 || which >= size)
 	{
-		if (!suppress) throw InvalidSlotChoice("drone", which, size);
+		if (!suppressExceptions) throw InvalidSlotChoice("drone", which, size);
 		else return nullptr;
 	}
 
 	return &drones.list.at(which);
-}
-
-void validateCrew(const Crew& crew, const std::vector<Crew>& list)
-{
-	if (crew.dead)
-	{
-		throw InvalidCrewChoice(crew, "they're dead");
-	}
-
-	if (crew.drone)
-	{
-		throw InvalidCrewChoice(crew, "they're a drone");
-	}
-
-	if (!crew.player)
-	{
-		throw InvalidCrewChoice(crew, "they're an enemy");
-	}
-
-	int count = int(list.size());
-
-	if (crew.uiBox < 0)
-	{
-		throw InvalidCrewBoxChoice(crew.uiBox);
-	}
-
-	if (crew.uiBox > count)
-	{
-		throw InvalidCrewBoxChoice(crew.uiBox, count);
-	}
-}
-
-Key crewHotkey(int which, const std::map<std::string, Key>& hotkeys)
-{
-	return getHotkey(hotkeys, "crew" + std::to_string(which + 1));
-}
-
-// Assumes a bunch of other checks have already been made
-Input::Ret useCrewSingle(
-	const Crew& crew,
-	const std::map<std::string, Key>& hotkeys,
-	bool exclusive = true,
-	double delay = 0.0)
-{
-	// Try to use a hotkey
-	auto hotkey = crewHotkey(crew.uiBox, hotkeys);
-
-	if (hotkey == Key::Unknown)
-	{
-		// If there is none, use the mouse
-		auto&& crewBoxes = Reader::getState().ui.game->crewBoxes;
-		auto pos = crewBoxes[crew.uiBox].box.center();
-
-		return Input::mouseClick(MouseButton::Left, pos, !exclusive, delay);
-	}
-
-	return Input::keyPress(hotkey, !exclusive, delay);
-}
-
-// Assumes a bunch of other checks have already been made
-// Assumes crew list is sorted by ui box order already
-// Always uses mouse
-Input::Ret useCrewMany(
-	const Input::CrewRefList& crew,
-	bool exclusive = true,
-	double delay = 0.0)
-{
-	auto&& crewBoxes = Reader::getState().ui.game->crewBoxes;
-
-	Point<int> first = crewBoxes[crew.front().get().uiBox].box.center();
-	Point<int> last = crewBoxes[crew.back().get().uiBox].box.center();
-
-	Input::mouseDown(MouseButton::Left, first, !exclusive, delay);
-	return Input::mouseUp(MouseButton::Left, last, !exclusive, delay);
-}
-
-// Generic function to try a hotkey and fallback to clicking
-Input::Ret hotkeyOr(
-	const char* what,
-	const char* hotkey,
-	const std::map<std::string, Key>& hotkeys,
-	Point<int> fallback,
-	bool suppress,
-	double delay)
-{
-	auto&& state = Reader::getState();
-	if (!validateInGame(state, suppress)) return {};
-
-	if (state.game->pause.menu)
-	{
-		if (!suppress) throw WrongMenu(what);
-		else return {};
-	}
-
-	// Use if hotkey possible
-	auto k = getHotkey(hotkeys, hotkey);
-
-	if (k != Key::Unknown)
-	{
-		return Input::keyPress(k, false, delay);
-	}
-
-	return Input::mouseClick(MouseButton::Left, fallback, false, delay);
-
 }
 
 }
@@ -678,19 +1385,14 @@ bool Input::empty()
 	return impl.empty();
 }
 
-bool Input::emptyWithin(double time)
+bool Input::queued(const Input::Ret& input)
 {
-	return impl.emptyWithin(time);
+	return impl.queued(input);
 }
 
-bool Input::queued(uintmax_t id)
+bool Input::pop(const Input::Ret& input)
 {
-	return impl.queued(id);
-}
-
-bool Input::pop(uintmax_t id)
-{
-	return impl.remove(id);
+	return impl.remove(input);
 }
 
 bool Input::ready()
@@ -733,15 +1435,21 @@ void Input::clear()
 	impl.clear();
 }
 
-Input::Ret Input::mouseMove(
-	const Point<int>& position,
-	double delay)
+Input::Ret::operator bool() const
 {
-	validateDelay(delay);
-	return impl.push(Impl::Command{
+	return queued(*this);
+}
+
+Input::Ret Input::dummy()
+{
+	return {};
+}
+
+Input::Ret Input::mouseMove(const Point<int>& position)
+{
+	return impl.push({
 		.type = Impl::Command::Type::Mouse,
-		.time = Reader::now() + delay,
-		.mouse = {
+		.args = Impl::MouseCommand{
 			.position = position
 		},
 	});
@@ -750,15 +1458,12 @@ Input::Ret Input::mouseMove(
 Input::Ret Input::mouseDown(
 	MouseButton button,
 	const Point<int>& position,
-	bool shift,
-	double delay)
+	bool shift)
 {
-	validateDelay(delay);
-	mouseMove(position, delay);
-	return impl.push(Impl::Command{
+	mouseMove(position);
+	return impl.push({
 		.type = Impl::Command::Type::Mouse,
-		.time = Reader::now() + delay,
-		.mouse = {
+		.args = Impl::MouseCommand{
 			.button = button,
 			.position = position,
 			.shift = shift,
@@ -770,15 +1475,12 @@ Input::Ret Input::mouseDown(
 Input::Ret Input::mouseUp(
 	MouseButton button,
 	const Point<int>& position,
-	bool shift,
-	double delay)
+	bool shift)
 {
-	validateDelay(delay);
-	mouseMove(position, delay);
-	return impl.push(Impl::Command{
+	mouseMove(position);
+	return impl.push({
 		.type = Impl::Command::Type::Mouse,
-		.time = Reader::now() + delay,
-		.mouse = {
+		.args = Impl::MouseCommand{
 			.button = button,
 			.position = position,
 			.shift = shift,
@@ -790,15 +1492,13 @@ Input::Ret Input::mouseUp(
 Input::Ret Input::mouseClick(
 	MouseButton button,
 	const Point<int>& position,
-	bool shift,
-	double delay)
+	bool shift)
 {
-	mouseMove(position, delay);
+	mouseMove(position);
 
-	impl.push(Impl::Command{
+	impl.push({
 		.type = Impl::Command::Type::Mouse,
-		.time = Reader::now() + delay,
-		.mouse = {
+		.args = Impl::MouseCommand{
 			.button = button,
 			.position = position,
 			.shift = shift,
@@ -806,10 +1506,9 @@ Input::Ret Input::mouseClick(
 		}
 	});
 
-	return impl.push(Impl::Command{
+	return impl.push({
 		.type = Impl::Command::Type::Mouse,
-		.time = Reader::now() + delay,
-		.mouse = {
+		.args = Impl::MouseCommand{
 			.button = button,
 			.position = position,
 			.shift = shift,
@@ -820,14 +1519,11 @@ Input::Ret Input::mouseClick(
 
 Input::Ret Input::keyDown(
 	Key key,
-	bool shift,
-	double delay)
+	bool shift)
 {
-	validateDelay(delay);
-	return impl.push(Impl::Command{
+	return impl.push({
 		.type = Impl::Command::Type::Keyboard,
-		.time = Reader::now() + delay,
-		.keyboard = {
+		.args = Impl::KeyboardCommand{
 			.key = key,
 			.shift = shift,
 			.direction = InputDirection::Down
@@ -837,14 +1533,11 @@ Input::Ret Input::keyDown(
 
 Input::Ret Input::keyUp(
 	Key key,
-	bool shift,
-	double delay)
+	bool shift)
 {
-	validateDelay(delay);
-	return impl.push(Impl::Command{
+	return impl.push({
 		.type = Impl::Command::Type::Keyboard,
-		.time = Reader::now() + delay,
-		.keyboard = {
+		.args = Impl::KeyboardCommand{
 			.key = key,
 			.shift = shift,
 			.direction = InputDirection::Up
@@ -854,38 +1547,34 @@ Input::Ret Input::keyUp(
 
 Input::Ret Input::keyPress(
 	Key key,
-	bool shift,
-	double delay)
+	bool shift)
 {
-	keyDown(key, shift, delay);
-	return keyUp(key, false, Reader::now() + delay);
+	keyDown(key, shift);
+	return keyUp(key, false);
 }
 
 Input::Ret Input::hotkeyDown(
 	const std::string& hotkey,
-	bool shift,
-	double delay)
+	bool shift)
 {
-	Key key = getHotkey(hotkeys(), hotkey);
-	return keyDown(key, shift, delay);
+	Key key = impl.getHotkey(hotkey);
+	return keyDown(key, shift);
 }
 
 Input::Ret Input::hotkeyUp(
 	const std::string& hotkey,
-	bool shift,
-	double delay)
+	bool shift)
 {
-	Key key = getHotkey(hotkeys(), hotkey);
-	return keyUp(key, shift, delay);
+	Key key = impl.getHotkey(hotkey);
+	return keyUp(key, shift);
 }
 
 Input::Ret Input::hotkeyPress(
 	const std::string& hotkey,
-	bool shift,
-	double delay)
+	bool shift)
 {
-	Key key = getHotkey(hotkeys(), hotkey);
-	return keyPress(key, shift, delay);
+	Key key = impl.getHotkey(hotkey);
+	return keyPress(key, shift);
 }
 
 const decltype(Settings::hotkeys)& Input::hotkeys()
@@ -893,807 +1582,257 @@ const decltype(Settings::hotkeys)& Input::hotkeys()
 	return Reader::getState().settings.hotkeys;
 }
 
-Input::Ret Input::text(char ch, double delay)
+Input::Ret Input::text(char ch)
 {
-	validateDelay(delay);
-	return impl.push(Impl::Command{
+	return impl.push({
 		.type = Impl::Command::Type::TextInput,
-		.time = Reader::now() + delay,
-		.textInput = ch
+		.args = ch
 	});
 }
 
-Input::Ret Input::text(const std::string& str, double delay)
+Input::Ret Input::text(const std::string& str)
 {
 	Input::Ret last;
-	for (auto&& c : str) last = text(c, delay);
+	for (auto&& c : str) last = text(c);
 	return last;
 }
 
-Input::Ret Input::textConfirm(double delay)
+Input::Ret Input::textConfirm()
 {
-	validateDelay(delay);
-	return impl.push(Impl::Command{
+	return impl.push({
 		.type = Impl::Command::Type::TextEvent,
-		.time = Reader::now() + delay,
-		.textEvent = raw::TEXT_CONFIRM
+		.args = raw::TEXT_CONFIRM
 	});
 }
 
-Input::Ret Input::textClear(double delay)
+Input::Ret Input::textClear()
 {
-	validateDelay(delay);
-	return impl.push(Impl::Command{
+	return impl.push({
 		.type = Impl::Command::Type::TextEvent,
-		.time = Reader::now() + delay,
-		.textEvent = raw::TEXT_CLEAR
+		.args = raw::TEXT_CLEAR
 	});
 }
 
-Input::Ret Input::textBackspace(double delay)
+Input::Ret Input::textBackspace()
 {
-	validateDelay(delay);
-	return impl.push(Impl::Command{
+	return impl.push({
 		.type = Impl::Command::Type::TextEvent,
-		.time = Reader::now() + delay,
-		.textEvent = raw::TEXT_BACKSPACE
+		.args = raw::TEXT_BACKSPACE
 	});
 }
 
-Input::Ret Input::textDelete(double delay)
+Input::Ret Input::textDelete()
 {
-	validateDelay(delay);
-	return impl.push(Impl::Command{
+	return impl.push({
 		.type = Impl::Command::Type::TextEvent,
-		.time = Reader::now() + delay,
-		.textEvent = raw::TEXT_DELETE
+		.args = raw::TEXT_DELETE
 	});
 }
 
-Input::Ret Input::textLeft(double delay)
+Input::Ret Input::textLeft()
 {
-	validateDelay(delay);
-	return impl.push(Impl::Command{
+	return impl.push({
 		.type = Impl::Command::Type::TextEvent,
-		.time = Reader::now() + delay,
-		.textEvent = raw::TEXT_LEFT
+		.args = raw::TEXT_LEFT
 	});
 }
 
-Input::Ret Input::textRight(double delay)
+Input::Ret Input::textRight()
 {
-	validateDelay(delay);
-	return impl.push(Impl::Command{
+	return impl.push({
 		.type = Impl::Command::Type::TextEvent,
-		.time = Reader::now() + delay,
-		.textEvent = raw::TEXT_RIGHT
+		.args = raw::TEXT_RIGHT
 	});
 }
 
-Input::Ret Input::textHome(double delay)
+Input::Ret Input::textHome()
 {
-	validateDelay(delay);
-	return impl.push(Impl::Command{
+	return impl.push({
 		.type = Impl::Command::Type::TextEvent,
-		.time = Reader::now() + delay,
-		.textEvent = raw::TEXT_HOME
+		.args = raw::TEXT_HOME
 	});
 }
 
-Input::Ret Input::textEnd(double delay)
+Input::Ret Input::textEnd()
 {
-	validateDelay(delay);
-	return impl.push(Impl::Command{
+	return impl.push({
 		.type = Impl::Command::Type::TextEvent,
-		.time = Reader::now() + delay,
-		.textEvent = raw::TEXT_END
+		.args = raw::TEXT_END
 	});
 }
 
-void Input::cheat(const std::string& command, bool suppress)
+Input::Ret Input::cheat(const std::string& command)
 {
-	auto&& state = Reader::getState();
-	if (!validateInGame(state, suppress)) return;
-
-	impl.cheat(command);
+	return impl.push({
+		.type = Impl::Command::Type::Cheat,
+		.args = Impl::CheatCommand{
+			.command = command
+		}
+	});
 }
 
-Input::Ret Input::pause(
-	bool on,
-	bool suppress,
-	double delay)
+Input::Ret Input::pause(bool on)
 {
-	auto&& state = Reader::getState();
-	if (!validateInGame(state, suppress)) return {};
-	auto&& pause = state.game->pause;
-	
-	if (pause.menu && !pause.event)
-	{
-		if (!suppress) throw WrongMenu("pausing");
-		else return {};
-	}
-
-	// nothing to do
-	if (pause.any == on) return {};
-
-	// middle mouse is always available, no need to check for hotkey
-	return mouseClick(MouseButton::Left, { -1, -1 }, false, delay);
+	return impl.push({
+		.type = Impl::Command::Type::Pause,
+		.args = on
+	});
 }
 
-Input::Ret Input::eventChoice(
-	int which,
-	bool suppress,
-	double delay)
+Input::Ret Input::choice(int which)
 {
-	auto&& state = Reader::getState();
-	if (!validateInGame(state, suppress)) return {};
-
-	auto&& game = state.game;
-
-	if(!game->event || !game->pause.event)
-	{
-		if (!suppress) throw NoEvent();
-		else return {};
-	}
-
-	auto&& event = state.ui.game->event;
-	auto&& choices = event->choices;
-		
-	if (size_t(which) >= choices.size())
-	{
-		if (!suppress) throw InvalidEventChoice(which, int(choices.size()));
-		else return {};
-	}
-
-	// Hotkeys disabled, must click...
-	if (state.settings.eventChoiceSelection == EventChoiceSelection::DisableHotkeys)
-	{
-		auto&& choice = choices.at(which);
-		bool topCenter = !impl.offScreen(choice.box.topCenter());
-
-		if (!topCenter)
-		{
-			if (!suppress) throw InvalidEventChoice(which, "hotkeys are disabled and the choice is off-screen");
-			else return {};
-		}
-
-		bool center = !impl.offScreen(choice.box.center());
-
-		return mouseClick(
-			MouseButton::Left,
-			center ? choice.box.center() : choice.box.topCenter(),
-			false, delay);
-	}
-
-	// Make sure delay is long enough so input doesn't get ate
-	double diff = event->openTime.second - event->openTime.first;
-	if (delay < diff) delay = diff;
-
-	return keyPress(Key(int(Key::Num1) + which), false, delay);
+	return impl.push({
+		.type = Impl::Command::Type::EventChoice,
+		.args = which
+	});
 }
 
-// Setting the system power is quite complicated and has many edge cases
-// Mostly due to shields and zoltan power...
-// So yeah, I'll be real glad this helper function exists if it works
-Input::Ret Input::systemPower(
-	const System& system,
-	int set, int delta,
-	bool suppress,
-	double delay)
+Input::Ret Input::powerSystem(SystemType system, int set)
 {
-	auto&& state = Reader::getState();
-	if (!validateInGame(state, suppress)) return {};
-
-	if (state.game->pause.menu)
-	{
-		if (!suppress) throw WrongMenu("powering a system");
-		else return {};
-	}
-
-	if (delta != 0 && set > 0)
-	{
-		if (!suppress) throw InvalidPowerRequest(system, "delta and set cannot both be non-zero");
-		else return {};
-	}
-
-	if (!system.player)
-	{
-		if (!suppress) throw InvalidPowerRequest(system, "it does not belong to player");
-		else return {};
-	}
-
-	int required = system.power.required;
-
-	if (required <= 0 || required > 2)
-	{
-		if (!suppress) throw InvalidPowerRequest(system, "this function can't handle that system");
-		else return {};
-	}
-
-	if (system.subsystem())
-	{
-		if (!suppress) throw InvalidPowerRequest(system, "subsystem power cannot be controlled");
-		else return {};
-	}
-
-	int current = system.power.total.first;
-	int desired = delta != 0 ? current + delta : set;
-
-	// Nothing to do
-	if (current == desired) return {};
-
-	if (delta == 0) delta = desired - current;
-
-	auto range = system.powerRange();
-	if (!suppress && (desired < range.first || desired > range.second))
-	{
-		throw InvalidPowerRequest(system, desired, range);
-	}
-
-	int mod = desired % required;
-	int zoltan = system.power.zoltan;
-
-	// Power must be between a multiple and a multiple + zoltan power present
-	if (!suppress && mod > zoltan)
-	{
-		throw InvalidPowerRequest(system, desired, required);
-	}
-
-	int upInputs = 0;
-	int downInputs = 0;
-
-	if (desired < current)
-	{
-		downInputs = -delta;
-
-		if (!zoltan)
-		{
-			// assuming we're already set to a multiple
-			downInputs /= system.power.required;
+	return impl.push({
+		.type = Impl::Command::Type::PowerSystem,
+		.args = Impl::PowerCommand{
+			.system = system,
+			.set = set
 		}
-	}
-	else
-	{
-		int start = required > 1 ? (current / required) * required : current;
-		int end = required > 1 ? ((desired + 1) / required) * required : desired;
-		upInputs = (end - start) / required;
-		if (mod != 0) downInputs = 1;
-
-		if (end - current > state.game->playerShip->reactor.total.first)
-		{
-			if (!suppress) throw InvalidPowerRequest(system, "there isn't enough power in the reactor");
-			else downInputs = 0; // just input upwards for the "not enough power" message
-		}
-	}
-
-	Ret last{ 0, Reader::now() + delay };
-
-	auto doInput = [&](const PowerHotkey& k, bool depower) {
-		auto&& [key, shift] = k;
-
-		if (key != Key::Unknown) // hotkey found
-		{
-			last = keyDown(key, shift, delay);
-		}
-		else // must click instead
-		{
-			auto&& ship = *state.game->playerShip;
-			auto&& point = state.ui.game->getSystem(system.type, system.discriminator).bottomCenter();
-			last = mouseClick(
-				depower ? MouseButton::Right : MouseButton::Left,
-				point, false, delay
-			);
-		}
-	};
-
-	if (upInputs > 0)
-	{
-		auto k = workingPowerHotkey(system, hotkeys(), false);
-		for (int i = 0; i < upInputs; i++) doInput(k, false);
-	}
-
-	if (downInputs > 0)
-	{
-		auto k = workingPowerHotkey(system, hotkeys(), true);
-		for (int i = 0; i < downInputs; i++) doInput(k, true);
-	}
-
-	return last;
+	});
 }
 
-Input::Ret Input::weaponPower(
-	const Weapon& weapon,
-	bool on,
-	bool suppress,
-	double delay)
+Input::Ret Input::powerWeapon(int weapon, bool on)
 {
-	auto&& state = Reader::getState();
-	if (!validateInGame(state, suppress)) return {};
-
-	if (state.game->pause.menu)
-	{
-		if (!suppress) throw WrongMenu("powering a weapon");
-		else return {};
-	}
-
-	if (!weapon.player)
-	{
-		if (!suppress) throw InvalidPowerRequest(weapon, "it does not belong to the player");
-		else return {};
-	}
-
-	if (!state.game->playerShip->weapons)
-	{
-		if (!suppress) throw SystemNotInstalled(SystemType::Weapons);
-		else return {};
-	}
-
-	auto&& weapSys = *state.game->playerShip->weapons;
-	auto slots = int(weapSys.list.size());
-
-	if (weapon.slot < 0)
-	{
-		if (!suppress) throw InvalidSlotChoice("weapon", weapon.slot);
-		else return {};
-	}
-
-	if (weapon.slot >= slots)
-	{
-		if (!suppress) throw InvalidSlotChoice("weapon", weapon.slot, slots);
-		else return {};
-	}
-
-	auto range = weapSys.powerRange();
-	int current = weapon.power.total.first;
-	if (range.first == range.second)
-	{
-		int desired = current + weapon.power.required * (on ? 1 : -1);
-		if (!suppress) throw InvalidPowerRequest(weapSys, desired, range);
-	}
-
-	if (on)
-	{
-		int needs = weapon.power.required - current;
-
-		// Nothing needs to be done
-		if (needs == 0) return {};
-
-		// Need missiles
-		int missiles = state.game->playerShip->cargo.missiles;
-		int neededMissiles = weapon.blueprint.missiles;
-		if (!suppress && missiles < neededMissiles)
-		{
-			throw InvalidSlotChoice("weapon", weapon.slot, "there isn't enough missiles");
+	return impl.push({
+		.type = Impl::Command::Type::PowerWeapon,
+		.args = Impl::WeaponCommand{
+			.weapon = weapon,
+			.on = on
 		}
-
-		if (!suppress && needs > state.game->playerShip->reactor.total.first)
-		{
-			throw InvalidPowerRequest(weapon, "there isn't enough power in the reactor");
-		}
-
-		int remaining = weapSys.power.total.second - weapSys.power.total.first;
-		if (!suppress && needs > remaining)
-		{
-			throw InvalidPowerRequest(weapon, "there isn't enough power in the weapon system");
-		}
-	}
-	else
-	{
-		int del = current - weapon.power.zoltan;
-
-		// Nothing needs to be done
-		if (del == 0) return {};
-
-		if (!suppress && weapon.power.zoltan >= weapon.power.required)
-		{
-			throw InvalidPowerRequest(weapon, "it is fully powered by zoltan crew");
-		}
-	}
-
-	return useWeapon(weapon, hotkeys(), !on, delay);
+	});
 }
 
-Input::Ret Input::weaponSelect(
-	const Weapon& weapon,
-	bool suppress,
-	double delay)
+Input::Ret Input::powerDrone(int drone, bool on)
 {
-	auto&& state = Reader::getState();
-	if (!validateInGame(state, suppress)) return {};
-
-	if (state.game->pause.menu)
-	{
-		if (!suppress) throw WrongMenu("selecting a weapon");
-		else return {};
-	}
-
-	if (!weapon.player)
-	{
-		if (!suppress) throw InvalidSlotChoice("weapon", weapon.slot, "it does not belong to the player");
-		else return {};
-	}
-
-	if (!weapon.powered()) weaponPower(weapon, true, suppress, delay);
-	return useWeapon(weapon, hotkeys(), false, delay);
+	return impl.push({
+		.type = Impl::Command::Type::PowerDrone,
+		.args = Impl::DroneCommand{
+			.drone = drone,
+			.on = on
+		}
+	});
 }
 
-Input::Ret Input::dronePower(
-	const Drone& drone,
-	bool on,
-	bool suppress,
-	double delay)
+Input::Ret Input::selectWeapon(int weapon)
 {
-	auto&& state = Reader::getState();
-	if (!validateInGame(state, suppress)) return {};
-
-	if (state.game->pause.menu)
-	{
-		if (!suppress) throw WrongMenu("powering a drone");
-		else return {};
-	}
-
-	if (!drone.player)
-	{
-		if (!suppress) throw InvalidPowerRequest(drone, "it does not belong to the player");
-		else return {};
-	}
-
-	if (!state.game->playerShip->drones)
-	{
-		if (!suppress) throw SystemNotInstalled(SystemType::Drones);
-		else return {};
-	}
-
-	auto&& droneSys = *state.game->playerShip->drones;
-	auto slots = int(droneSys.list.size());
-
-	if (drone.slot < 0)
-	{
-		if (!suppress) throw InvalidSlotChoice("drone", drone.slot);
-		else return {};
-	}
-
-	if (drone.slot >= slots)
-	{
-		if (!suppress) throw InvalidSlotChoice("drone", drone.slot, slots);
-		else return {};
-	}
-
-	auto range = droneSys.powerRange();
-	int current = drone.power.total.first;
-	if (range.first == range.second)
-	{
-		int desired = current + drone.power.required * (on ? 1 : -1);
-		if (!suppress) throw InvalidPowerRequest(droneSys, desired, range);
-	}
-
-	if (on)
-	{
-		int needs = drone.power.required - current;
-
-		// Nothing needs to be done
-		if (needs == 0) return {};
-
-		// Need drone parts
-		int droneParts = state.game->playerShip->cargo.droneParts;
-		if (!suppress && droneParts < 1)
-		{
-			throw InvalidSlotChoice("drone", drone.slot, "there isn't enough drone parts");
+	return impl.push({
+		.type = Impl::Command::Type::SelectWeapon,
+		.args = Impl::WeaponCommand{
+			.weapon = weapon
 		}
-
-		// Need to not be destroyed
-		if (!suppress && drone.dead)
-		{
-			throw InvalidSlotChoice("drone", drone.slot, "it is destroyed or on cooldown");
-		}
-
-		// Various drone types need an enemy ship
-		bool enemy = state.game->enemyShip.has_value();
-		if (!suppress && drone.needsEnemy() && !enemy)
-		{
-			throw InvalidSlotChoice("drone", drone.slot, "it needs an enemy to function");
-		}
-
-		if (!suppress && needs > state.game->playerShip->reactor.total.first)
-		{
-			throw InvalidPowerRequest(drone, "there isn't enough power in the reactor");
-		}
-
-		int remaining = droneSys.power.total.second - droneSys.power.total.first;
-		if (!suppress && needs > remaining)
-		{
-			throw InvalidPowerRequest(drone, "there isn't enough power in the drone system");
-		}
-	}
-	else
-	{
-		int del = current - drone.power.zoltan;
-
-		// Nothing needs to be done
-		if (del == 0) return {};
-
-		if (!suppress && drone.power.zoltan >= drone.power.required)
-		{
-			throw InvalidPowerRequest(drone, "it is fully powered by zoltan crew");
-		}
-	}
-
-	return useDrone(drone, hotkeys(), !on, delay);
+	});
 }
 
-Input::Ret Input::autofire(bool on, bool suppress, double delay)
+Input::Ret Input::selectCrew(const std::vector<int>& crew, bool exclusive)
 {
-	auto&& state = Reader::getState();
-	if (!validateInGame(state, suppress)) return {};
-
-	if (!state.game->playerShip->weapons)
-	{
-		if (!suppress) throw SystemNotInstalled(SystemType::Weapons);
-		else return {};
-	}
-
-	if (state.game->playerShip->weapons->autoFire == on)
-	{
-		// Nothing to do
-		return {};
-	}
-
-	return hotkeyOr(
-		"toggling auto-fire", "autofire", hotkeys(),
-		state.ui.game->autofire->center(), suppress, delay
-	);
-}
-
-Input::Ret Input::openAllDoors(bool airlocks, bool suppress, double delay)
-{
-	auto&& state = Reader::getState();
-	if (!validateInGame(state, suppress)) return {};
-
-	if (!state.game->playerShip->doorControl)
-	{
-		if (!suppress) throw SystemNotInstalled(SystemType::Doors);
-		else return {};
-	}
-
-	bool onlyAirlocksClosed = true;
-
-	for (auto&& door : state.game->playerShip->doors)
-	{
-		if (!door.airlock && !door.open)
-		{
-			onlyAirlocksClosed = false;
-			break;
+	return impl.push({
+		.type = Impl::Command::Type::SelectCrew,
+		.args = Impl::CrewSelectionCommand{
+			.crew = crew
 		}
-	}
-
-	if (!airlocks && onlyAirlocksClosed)
-	{
-		// Nothing to do
-		return {};
-	}
-
-	auto l = [&] {
-		return hotkeyOr(
-			"opening all doors", "open", hotkeys(),
-			state.ui.game->openAllDoors->center(), suppress, delay
-		);
-	};
-
-	if (airlocks && !onlyAirlocksClosed)
-	{
-		// Tap the button again
-		l();
-	}
-
-	return l();
+	});
 }
 
-Input::Ret Input::closeAllDoors(bool suppress, double delay)
+Input::Ret Input::door(int door, bool open)
 {
-	auto&& state = Reader::getState();
-	if (!validateInGame(state, suppress)) return {};
-
-	if (!state.game->playerShip->doorControl)
-	{
-		if (!suppress) throw SystemNotInstalled(SystemType::Doors);
-		else return {};
-	}
-
-	bool allClosed = true;
-
-	for (auto&& door : state.game->playerShip->doors)
-	{
-		if (door.open)
-		{
-			allClosed = false;
-			break;
+	return impl.push({
+		.type = Impl::Command::Type::Door,
+		.args = Impl::DoorCommand{
+			.door = door,
+			.open = open
 		}
-	}
-
-	if (allClosed)
-	{
-		// Nothing to do
-		return {};
-	}
-
-	return hotkeyOr(
-		"closing all doors", "close", hotkeys(),
-		state.ui.game->closeAllDoors->center(), suppress, delay
-	);
+	});
 }
 
-Input::Ret Input::aimCancel(bool suppress, double delay)
+Input::Ret Input::doorAll(bool open, bool airlocks)
 {
-	auto&& state = Reader::getState();
-	validateInGame(state, suppress);
-
-	if (state.game->pause.menu)
+	if (open)
 	{
-		if (!suppress) throw WrongMenu("cancelling aiming");
-		else return {};
+		return impl.push({
+			.type = Impl::Command::Type::OpenAllDoors,
+			.args = airlocks
+		});
 	}
 
-	return mouseClick(MouseButton::Right, nopSpot(), false, delay);
+	return impl.push({
+		.type = Impl::Command::Type::CloseAllDoors,
+	});
 }
 
-Input::Ret Input::crewSelect(
-	const Crew& crew,
-	bool exclusive,
-	bool suppress,
-	double delay)
+Input::Ret Input::autofire(bool on)
 {
-	auto&& state = Reader::getState();
-	if (!validateInGame(state, suppress)) return {};
-
-	if (state.game->pause.menu)
-	{
-		if (!suppress) throw WrongMenu("selecting crew");
-		else return {};
-	}
-
-	try
-	{
-		validateCrew(crew, state.game->playerCrew);
-	}
-	catch (const std::exception& e)
-	{
-		if (!suppress) throw e;
-	}
-
-	return useCrewSingle(crew, hotkeys(), exclusive, delay);
+	return impl.push({
+		.type = Impl::Command::Type::Autofire,
+		.args = on
+	});
 }
 
-Input::Ret Input::crewSelect(
-	const Input::CrewRefList& crew,
-	bool exclusive,
-	bool suppress,
-	double delay)
+Input::Ret Input::aim(int room, bool self)
 {
-
-	auto&& state = Reader::getState();
-	if (!validateInGame(state, suppress)) return {};
-
-	if (state.game->pause.menu)
-	{
-		if (!suppress) throw WrongMenu("selecting crew");
-		else return {};
-	}
-
-	if (crew.empty() && exclusive)
-	{
-		return crewCancel(delay);
-	}
-
-	Input::CrewRefList group;
-	group.reserve(crew.size());
-	int prev = crew[0].get().uiBox-1;
-	Input::Ret last;
-
-	for (size_t i = 0; i < crew.size(); i++)
-	{
-		// Skip dead crew
-		if (crew[i].get().dead) continue;
-
-		// If not contiguous, input and clear group
-		if (!group.empty() && prev != crew[i].get().uiBox-1)
-		{
-			if (group.size() == 1)
-			{
-				last = useCrewSingle(group[0], hotkeys(), exclusive, delay);
-			}
-			else
-			{
-				last = useCrewMany(group, exclusive, delay);
-			}
-
-			// stop being exclusive after first selection
-			exclusive = false;
-
-			group.clear();
+	return impl.push({
+		.type = Impl::Command::Type::Aim,
+		.args = Impl::AimCommand{
+			.room = room,
+			.self = self
 		}
+	});
+}
 
-		group.push_back(crew[i]);
-		prev = crew[i].get().uiBox;
-	}
-
-	// Final group
-	if (!group.empty())
-	{
-		if (group.size() == state.ui.game->crewBoxes.size())
-		{
-			// Selecting all crew in order, use if hotkey possible
-			auto hotkey = getHotkey(hotkeys(), "crew_all");
-
-			if (hotkey != Key::Unknown)
-			{
-				return Input::keyPress(hotkey, false, delay);
-			}
+Input::Ret Input::aim(
+	int room,
+	const Point<int>& start,
+	const Point<int>& end)
+{
+	return impl.push({
+		.type = Impl::Command::Type::AimBeam,
+		.args = Impl::AimCommand{
+			.room = room,
+			.self = false,
+			.start = start,
+			.end = end
 		}
+	});
+}
 
-		if (group.size() == 1)
-		{
-			last = useCrewSingle(group[0], hotkeys(), exclusive, delay);
+Input::Ret Input::quitAiming()
+{
+	return impl.push({
+		.type = Impl::Command::Type::Deselect,
+		.args = Impl::DeselectionCommand{
+			.left = false,
+			.right = true
 		}
-		else
-		{
-			last = useCrewMany(group, exclusive, delay);
+	});
+}
+
+Input::Ret Input::deselectCrew()
+{
+	return impl.push({
+		.type = Impl::Command::Type::Deselect,
+		.args = Impl::DeselectionCommand{
+			.left = true,
+			.right = false
 		}
-	}
-
-	return last;
+	});
 }
 
-Input::Ret Input::crewSelectAll(bool suppress, double delay)
+Input::Ret Input::saveStations()
 {
-	auto&& state = Reader::getState();
-	if (!validateInGame(state, suppress)) return {};
-
-	auto&& list = state.game->playerCrew;
-
-	Input::CrewRefList select;
-	select.reserve(list.size());
-
-	// Should already be sorted
-	for (size_t i = 0; i < list.size(); i++)
-	{
-		select.push_back(std::cref(list[i]));
-	}
-
-	return crewSelect(select, true, suppress, delay);
+	return impl.push({
+		.type = Impl::Command::Type::SaveStations
+	});
 }
 
-Input::Ret Input::crewCancel(bool suppress, double delay)
+Input::Ret Input::loadStations()
 {
-	auto&& state = Reader::getState();
-	if (!validateInGame(state, suppress)) return {};
-
-	if (state.game->pause.menu)
-	{
-		if (!suppress) throw WrongMenu("canceling crew selection");
-		else return {};
-	}
-
-	return mouseClick(MouseButton::Left, nopSpot(), false, delay);
-}
-
-Input::Ret Input::crewSaveStations(bool suppress, double delay)
-{
-	auto&& state = Reader::getState();
-	if (!validateInGame(state, suppress)) return {};
-
-	return hotkeyOr(
-		"saving crew stations", "savePositions", hotkeys(),
-		state.ui.game->saveStations.center(), suppress, delay
-	);
-}
-
-Input::Ret Input::crewLoadStations(bool suppress, double delay)
-{
-	auto&& state = Reader::getState();
-	if (!validateInGame(state, suppress)) return {};
-
-	return hotkeyOr(
-		"loading crew stations", "loadPositions", hotkeys(),
-		state.ui.game->loadStations.center(), suppress, delay
-	);
+	return impl.push({
+		.type = Impl::Command::Type::LoadStations
+	});
 }

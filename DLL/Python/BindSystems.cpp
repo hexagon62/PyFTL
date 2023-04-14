@@ -46,6 +46,7 @@ void bindSystems(py::module_& module)
 		.def_readonly("repair_progress", &System::repairProgress, "The progress towards repairing 1 bar")
 		.def("subsystem", &System::subsystem, "Returns if this is a subsystem")
 		.def("power_range", &System::powerRange, "Returns what the power of this system can currently be changed to")
+		.def("operable", &System::operable, "Returns if the system can perform its functions in its current state")
 		;
 
 	py::class_<ShieldSystem, System>(module, "ShieldSystem", "The shield system")

@@ -23,7 +23,7 @@ struct Drone;
 
 struct Crew
 {
-	int uiBox = -1;
+	int id = -1;
 	CrewBlueprint blueprint;
 	Point<float> position, goal;
 	std::pair<float, float> health{ 0.f, 0.f };

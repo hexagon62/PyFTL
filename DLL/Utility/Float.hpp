@@ -6,15 +6,15 @@ namespace float_util
 {
 
 template<std::floating_point T>
-T increment(T x)
+void increment(T& x)
 {
-	return std::nextafter(x, std::numeric_limits<T>::infinity());
+	x = std::nextafter(x, std::numeric_limits<T>::infinity());
 }
 
 template<std::floating_point T>
-T decrement(T x)
+void decrement(T& x)
 {
-	return std::nextafter(x, -std::numeric_limits<T>::infinity());
+	x = std::nextafter(x, -std::numeric_limits<T>::infinity());
 }
 
 }

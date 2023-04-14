@@ -26,6 +26,7 @@ struct Door
 	bool ioned = false;
 	bool vertical = false;
 	bool airlock = false;
+	bool player = false;
 
-	Point<int> position, dimensions;
+	Rect<int> rect;
 };

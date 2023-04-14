@@ -8,13 +8,17 @@
 #include <vector>
 #include <optional>
 
+struct Room;
+
 struct Slot
 {
 	int id = -1;
 	Rect<int> rect;
 	Point<int> position;
 	bool occupiable = true;
+	bool player = false;
 
+	Room* room = nullptr;
 	std::vector<Crew*> crewMoving;
 	Crew* crew = nullptr;
 	Crew* intruder = nullptr;

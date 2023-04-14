@@ -27,7 +27,7 @@ public:
     {
         for (auto&& c : str)
         {
-            if (c == '\n')
+            if (c == '\n' || c == '\r')
             {
                 this->flush();
             }
@@ -157,52 +157,57 @@ std::condition_variable g_readerCV;
 
 BOOL __stdcall wglSwapBuffers_hook(HDC hDc)
 {
-    if (!g_quit)
+    std::lock_guard lock(g_readerMutex);
+
+    if (!g_imguiInit)
     {
-        std::lock_guard lock(g_readerMutex);
+        // Get the window handle
+        g_hGameWindow = WindowFromDC(hDc);
 
-        if (!g_imguiInit)
-        {
-            // Get the window handle
-            g_hGameWindow = WindowFromDC(hDc);
+        // Save old wndProc function
+        g_hGameWindowProcOld =
+            reinterpret_cast<WNDPROC>(GetWindowLongPtr(g_hGameWindow, GWLP_WNDPROC));
 
-            // Save old wndProc function
-            g_hGameWindowProcOld =
-                reinterpret_cast<WNDPROC>(GetWindowLongPtr(g_hGameWindow, GWLP_WNDPROC));
+        // Overwrite the wndProc function
+        g_hGameWindowProc =
+            reinterpret_cast<WNDPROC>(
+                SetWindowLongPtr(
+                    g_hGameWindow, GWLP_WNDPROC,
+                    reinterpret_cast<LONG_PTR>(windowProc_hook)));
 
-            // Overwrite the wndProc function
-            g_hGameWindowProc =
-                reinterpret_cast<WNDPROC>(
-                    SetWindowLongPtr(
-                        g_hGameWindow, GWLP_WNDPROC,
-                        reinterpret_cast<LONG_PTR>(windowProc_hook)));
+        Input::setReady();
 
-            Input::setReady();
+        glewInit();
+        static auto* context = ImGui::CreateContext();
+        ImGui::SetCurrentContext(context);
+        ImGui_ImplWin32_Init(g_hGameWindow);
+        ImGui_ImplOpenGL3_Init();
+        ImGui::CaptureMouseFromApp();
 
-            glewInit();
-            static auto* context = ImGui::CreateContext();
-            ImGui::SetCurrentContext(context);
-            ImGui_ImplWin32_Init(g_hGameWindow);
-            ImGui_ImplOpenGL3_Init();
-            ImGui::CaptureMouseFromApp();
-
-            g_imguiInit = true;
-        }
-
-        if (g_imguiInit && ImGui::GetCurrentContext())
-        {
-            ImGui_ImplOpenGL3_NewFrame();
-            ImGui_ImplWin32_NewFrame();
-            ImGui::NewFrame();
-            g_gui.render();
-            ImGui::Render();
-
-            ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
-        }
-
-        Reader::poll();
-        g_readerCV.notify_all();
+        g_imguiInit = true;
     }
+
+    if (g_imguiInit && ImGui::GetCurrentContext())
+    {
+        ImGui_ImplOpenGL3_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        ImGui::NewFrame();
+        g_gui.render();
+        ImGui::Render();
+
+        ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
+    }
+
+    try
+    {
+        Reader::poll();
+    }
+    catch (const std::exception& e)
+    {
+        PyFTLErr("Unhandled exception: ", e.what());
+    }
+
+    g_readerCV.notify_all();
 
     return reinterpret_cast<wglSwapBuffers_t>(g_glHook.original())(hDc);
 }
@@ -299,6 +304,11 @@ void mainLoop(py::module& pyMain)
         double timeEllapsed = now - last;
         last = now;
 
+        if (g_gui.requestedPythonCode())
+        {
+            g_gui.runPythonCode();
+        }
+
         if (py::hasattr(pyMain, "on_update"))
         {
             pyMain.attr("on_update")(timeEllapsed);
@@ -368,7 +378,6 @@ BOOL APIENTRY DllMain( HMODULE hModule,
         {
             g_patcher.request_stop();
             g_patcher.join();
-            g_quit = true;
         }
         break;
     }

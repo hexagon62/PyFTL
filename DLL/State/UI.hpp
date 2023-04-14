@@ -184,16 +184,16 @@ struct GameUIState
 	}
 };
 
+using SystemUIRef = std::reference_wrapper<const System>;
+using WeaponUIRef = std::reference_wrapper<const Weapon>;
+
 struct MouseState
 {
 	Point<int> position, positionLast;
 	std::optional<Point<int>> dragFrom;
 
-	std::variant<
-		std::monostate,
-		std::reference_wrapper<const System>,
-		std::reference_wrapper<const Weapon>
-	> aiming;
+	std::variant<std::monostate, SystemUIRef, WeaponUIRef> aiming;
+	std::optional<bool> autofire;
 };
 
 struct UIState

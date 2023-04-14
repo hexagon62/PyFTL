@@ -164,6 +164,65 @@ public:
         return this->scope;
     }
 
+    bool requestedPythonCode() const
+    {
+        return this->wantsRunPython;
+    }
+
+    void runPythonCode()
+    {
+        this->wantsRunPython = false;
+        auto code = this->editor.GetText();
+
+        if (code.empty()) return;
+
+        if (!this->scope)
+        {
+            this->output("No Python module to run the code on!", TextOutputType::InternalError);
+        }
+        else
+        {
+            try
+            {
+                auto lines = this->editor.GetTextLines();
+                this->output(lines[0], TextOutputType::Command);
+
+                for (size_t i = 1; i < lines.size(); i++)
+                {
+                    this->output(lines[i], TextOutputType::CommandExtraLines);
+                }
+
+                try
+                {
+                    // try evaling first
+                    auto result = py::eval(code, this->scope);
+
+                    if (!result.is_none())
+                    {
+                        auto str = py::str(result);
+                        this->output(str, TextOutputType::CommandOutput);
+                    }
+                }
+                catch (const py::error_already_set& e)
+                {
+                    if (e.matches(PyExc_SyntaxError))
+                    {
+                        // try execing instead, don't catch next syntax error if user is actually wrong though
+                        py::exec(code, this->scope);
+                    }
+                    else
+                    {
+                        throw e;
+                    }
+                }
+            }
+            catch (const std::exception& e)
+            {
+                this->output(e.what(), TextOutputType::Error);
+            }
+        }
+    }
+
     bool unrecoverableAcknowledged() const
     {
         return this->unrecoverableAck;
@@ -176,26 +235,7 @@ public:
 
     void output(const std::string& str, TextOutputType type = TextOutputType::Default)
     {
-        if (type == TextOutputType::Command || type == TextOutputType::CommandOutput)
-        {
-            auto extra = type == TextOutputType::Command
-                ? TextOutputType::CommandExtraLines
-                : TextOutputType::CommandOutput;
-
-            for (size_t i = 0; i < str.size();)
-            {
-                size_t j = str.find('\n', i);
-
-                if(i == 0) this->history.emplace_back(str.substr(i, j), currentTime(), type);
-                else this->history.emplace_back(str.substr(i, j), currentTime(), extra);
-
-                i = j + int(j < str.size());
-            }
-        }
-        else
-        {
-            this->history.emplace_back(str, currentTime(), type);
-        }
+        this->history.emplace_back(str, currentTime(), type);
 
         while (this->history.size() > HISTORY_LIMIT)
         {
@@ -237,6 +277,7 @@ private:
     bool consoleGui = false;
     bool pythonGui = false;
     bool pythonHasFocus = false;
+    bool wantsRunPython = false;
     TextEditor editor;
     TextEditor::LanguageDefinition langDef;
 
@@ -432,50 +473,11 @@ private:
 
             auto code = this->editor.GetText();
 
-            auto runCmd = [&] {
-                if (code.empty()) return;
-
-                if (!this->scope)
-                {
-                    this->output("No Python module to run the code on!", TextOutputType::InternalError);
-                }
-                else
-                {
-                    try
-                    {
-                        py::gil_scoped_acquire gil;
-
-                        this->output(code, TextOutputType::Command);
-
-                        if (this->editor.GetTotalLines() > 1)
-                        {
-                            // multiple statements
-                            py::exec(code, this->scope);
-                        }
-                        else
-                        {
-                            // single statement
-                            auto result = py::eval(code, this->scope);
-
-                            if (!result.is_none())
-                            {
-                                auto str = py::str(result);
-                                this->output(str, TextOutputType::CommandOutput);
-                            }
-                        }
-                    }
-                    catch (const std::exception& e)
-                    {
-                        this->output(e.what(), TextOutputType::Error);
-                    }
-                }
-            };
-
             if (ImGui::BeginMenuBar())
             {
                 if (code.empty()) ImGui::BeginDisabled();
                 ImGui::PushItemWidth(-1.f);
-                if (ImGui::Button("Run!")) runCmd();
+                if (ImGui::Button("Run!")) this->wantsRunPython = true;
                 if (code.empty()) ImGui::EndDisabled();
                 ImGui::EndMenuBar();
             }

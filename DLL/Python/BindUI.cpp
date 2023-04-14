@@ -140,6 +140,7 @@ void bindUI(py::module_& module)
 		.def_readonly("position_last", &MouseState::positionLast, "The last position of the mouse")
 		.def_readonly("drag_from", &MouseState::dragFrom, "The starting position of the box when clicking+dragging to select crew")
 		.def_readonly("aiming", &MouseState::aiming, "The system/weapon currently being aimed")
+		.def_readonly("autofire", &MouseState::autofire, "If autofiring. Is None if not aiming a weapon.")
 		;
 
 	py::class_<UIState>(module, "UIState", "The state of the overall UI")

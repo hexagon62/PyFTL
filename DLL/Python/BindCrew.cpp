@@ -14,7 +14,7 @@ void bindCrew(py::module_& module)
 		;
 
 	py::class_<Crew>(module, "Crew", "A crewmember")
-		.def_readonly("ui_box", &Crew::uiBox, "The crewmember's box in the UI")
+		.def_readonly("id", &Crew::id, "The crewmember's box in the UI")
 		.def_readonly("blueprint", &Crew::blueprint, "The crewmember's blueprint")
 		.def_readonly("position", &Crew::position, "The crewmember's position")
 		.def_readonly("goal", &Crew::goal, "The crewmember's destination position")

@@ -29,9 +29,11 @@ class GameNotRunning final : public std::runtime_error
 {
 public:
 	GameNotRunning()
-		: std::runtime_error(
-			"tried to do an input that requires the game to be running"
-		)
+		: std::runtime_error("an input was attempted when the game wasn't running")
+	{}
+
+	GameNotRunning(const std::string& what)
+		: std::runtime_error(what + " was attempted when the game wasn't running")
 	{}
 };
 
@@ -113,25 +115,41 @@ public:
 	{}
 };
 
+class DoorInoperable final : public std::runtime_error
+{
+public:
+	DoorInoperable(const std::string& why)
+		: std::runtime_error(
+			"tried to operate the door system but " + why
+		)
+	{}
+
+	DoorInoperable(const Door& door, const std::string& why)
+		: std::runtime_error(
+			"tried to operate door #" + std::to_string(door.id) + " but " + why
+		)
+	{}
+};
+
 class InvalidSlotChoice final : public std::out_of_range
 {
 public:
 	InvalidSlotChoice(const std::string& what, int slot)
 		: std::out_of_range(
-			"tried to toggle a " + what + " in invalid slot #" + std::to_string(slot)
+			"tried to use a " + what + " in invalid slot #" + std::to_string(slot)
 		)
 	{}
 
 	InvalidSlotChoice(const std::string& what, int slot, int count)
 		: std::out_of_range(
-			"tried to toggle a " + what + " in slot #" + std::to_string(slot) +
+			"tried to use a " + what + " in slot #" + std::to_string(slot) +
 			" but there are only " + std::to_string(count) + " taken slots"
 		)
 	{}
 
 	InvalidSlotChoice(const std::string& what, int slot, const std::string& why)
 		: std::out_of_range(
-			"tried to toggle a " + what + " in slot #" + std::to_string(slot) + " but " + why
+			"tried to use a " + what + " in slot #" + std::to_string(slot) + " but " + why
 		)
 	{}
 };
@@ -142,7 +160,7 @@ public:
 	InvalidCrewChoice(const Crew& crew, const std::string& why)
 		: std::invalid_argument(
 			"tried to select crewmember " + crew.blueprint.name +
-			" (@" + std::to_string(crew.uiBox) + ") but " + why
+			" (@" + std::to_string(crew.id) + ") but " + why
 		)
 	{}
 };
@@ -160,6 +178,26 @@ public:
 		: std::out_of_range(
 			"tried to select crewmember #" + std::to_string(which) +
 			" but there's only " + std::to_string(count) + " selectable crew"
+		)
+	{}
+};
+
+class NotSelected final : public std::runtime_error
+{
+public:
+	NotSelected(const std::string& what)
+		: std::runtime_error(
+			"tried to do an action that requires a " + what + " to be selected"
+		)
+	{}
+};
+
+class InvalidSelfAim final : public std::runtime_error
+{
+public:
+	InvalidSelfAim(const std::string& why)
+		: std::runtime_error(
+			"tried to aim at the player's own ship but " + why
 		)
 	{}
 };

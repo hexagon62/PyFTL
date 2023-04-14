@@ -39,6 +39,7 @@ void bindWeapons(py::module_& module)
 		;
 
 	py::class_<Weapon>(module, "Weapon", "A weapon")
+		.def_readonly_static("HARDCODED_MINIMUM_BEAM_AIM_DISTANCE", &Weapon::HARDCODED_MINIMUM_BEAM_AIM_DISTANCE, "The minimum distance the two aiming points need to be apart for beam aiming to be valid")
 		.def_readonly("slot", &Weapon::slot, "The slot that the weapon is in, if applicable")
 		.def_readonly("cooldown", &Weapon::cooldown, "The time the weapon must wait to fire again, factoring in augments and manning")
 		.def_readonly("blueprint", &Weapon::blueprint, "The blueprint of the weapon")

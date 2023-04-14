@@ -34,12 +34,14 @@ struct Room
 
 	Slot& slotAt(const Point<int>& position)
 	{
-		return this->slots[this->slotIdAt(position)];
+		auto id = this->slotIdAt(position);
+		return this->slots[id];
 	}
 
 	const Slot& slotAt(const Point<int>& position) const
 	{
-		return this->slots[this->slotIdAt(position)];
+		auto id = this->slotIdAt(position);
+		return this->slots[id];
 	}
 
 	int slotIdAt(const Point<int>& position) const

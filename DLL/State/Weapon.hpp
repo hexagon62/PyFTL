@@ -7,6 +7,8 @@
 
 struct Weapon
 {
+	static constexpr int HARDCODED_MINIMUM_BEAM_AIM_DISTANCE = 11;
+
 	int slot = -1;
 	std::pair<float, float> cooldown{ 0.f, 0.f };
 	WeaponBlueprint blueprint;
@@ -27,6 +29,6 @@ struct Weapon
 
 	bool powered() const
 	{
-		return this->power.total.first == this->power.total.second;
+		return this->power.total.first >= this->power.required;
 	}
 };
