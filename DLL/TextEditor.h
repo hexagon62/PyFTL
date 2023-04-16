@@ -74,7 +74,20 @@ public:
 			assert(aLine >= 0);
 			assert(aColumn >= 0);
 		}
-		static Coordinates Invalid() { static Coordinates invalid(-1, -1); return invalid; }
+
+		static Coordinates Invalid()
+		{
+			// Note for PyFTL:
+			// bruh, before this would attempt to call the above constructor
+			// and fail its own assertions LMAO
+			// -hex
+
+			Coordinates invalid;
+			invalid.mLine = -1;
+			invalid.mColumn = -1;
+
+			return invalid;
+		}
 
 		bool operator ==(const Coordinates& o) const
 		{
@@ -219,7 +232,7 @@ public:
 	void SetCursorPosition(const Coordinates& aPosition);
 
 	inline void SetHandleMouseInputs    (bool aValue){ mHandleMouseInputs    = aValue;}
-	inline bool IsHandleMouseInputsEnabled() const { return mHandleKeyboardInputs; }
+	inline bool IsHandleMouseInputsEnabled() const { return mHandleMouseInputs; }
 
 	inline void SetHandleKeyboardInputs (bool aValue){ mHandleKeyboardInputs = aValue;}
 	inline bool IsHandleKeyboardInputsEnabled() const { return mHandleKeyboardInputs; }
@@ -251,6 +264,7 @@ public:
 	void SelectWordUnderCursor();
 	void SelectAll();
 	bool HasSelection() const;
+	bool Focused() const; // added by PyFTL
 
 	void Copy();
 	void Cut();
@@ -371,6 +385,7 @@ private:
 	bool mHandleMouseInputs;
 	bool mIgnoreImGuiChild;
 	bool mShowWhitespaces;
+	bool mFocused = false; // added by PyFTL to check if window is focused
 
 	Palette mPaletteBase;
 	Palette mPalette;

@@ -505,7 +505,7 @@ private:
         ImGui::Begin("Python", &this->pythonGui, ImGuiWindowFlags_MenuBar);
         {
             this->editor.Render("TextEditor");
-            this->pythonHasFocus = ImGui::IsItemFocused();
+            this->pythonHasFocus = this->editor.Focused();
 
             auto code = this->editor.GetText();
 

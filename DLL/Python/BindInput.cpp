@@ -172,31 +172,12 @@ void bindInput(py::module_& module)
 	//sub.attr("GAME_WIDTH").doc() = "The game's base width (1280 pixels)";
 	//sub.attr("GAME_HEIGHT").doc() = "The game's base height (720 pixels)";
 
-	py::class_<Input::Ret>(sub, "InputResult", "The result of calling an input function")
-		.def_readonly("time", &Input::Ret::time, "The time of the input in the queue")
-		.def("__bool__", &Input::Ret::operator bool)
-		;
-
 	sub.def(
 		"empty",
 		&Input::empty,
-		"Check if no inputs are queued."
-	);
-
-	sub.def(
-		"queued",
-		&Input::queued,
-		py::arg("input"),
-		"Check if an input is still queued.\n"
-		"'input' should be the result of one of the input functions."
-	);
-
-	sub.def(
-		"pop",
-		&Input::pop,
-		py::arg("input"),
-		"Dequeues an input; returns false if the input wasn't in the queue.\n"
-		"'input' should be the result of one of the input functions."
+		"Check if no inputs are queued.\n"
+		"This will always be the case if called in on_update.\n"
+		"Because PyFTL will not run on_update until the input queue is empty."
 	);
 
 	sub.def(
@@ -235,6 +216,13 @@ void bindInput(py::module_& module)
 		"dummy",
 		&Input::dummy,
 		"Returns the value you get when an input function does nothing."
+	);
+
+	sub.def(
+		"wait",
+		&Input::wait,
+		py::arg("time"),
+		"Queues a command to wait before subsequent inputs in the queue are executed."
 	);
 
 	sub.def(
@@ -474,6 +462,22 @@ void bindInput(py::module_& module)
 	);
 
 	sub.def(
+		"swap_weapons",
+		&Input::swapWeapons,
+		py::arg("slot_a"),
+		py::arg("slot_b"),
+		"Queue a command to swap two equipped weapons."
+	);
+
+	sub.def(
+		"swap_drones",
+		&Input::swapDrones,
+		py::arg("slot_a"),
+		py::arg("slot_b"),
+		"Queue a command to swap two equipped drones."
+	);
+
+	sub.def(
 		"autofire",
 		&Input::autofire,
 		py::arg("on") = false,
@@ -549,24 +553,32 @@ void bindInput(py::module_& module)
 
 	sub.def(
 		"aim",
-		py::overload_cast<int, bool>(&Input::aim),
+		py::overload_cast<int, bool, std::optional<bool>>(&Input::aim),
 		py::arg("room"),
 		py::arg("self") = false,
-		"Queue a command to aim a weapon/system at a room.\n"
+		py::arg("autofire") = std::nullopt,
+		"Queue a command to aim a weapon/system at a room.\n\n"
 		"This simply left clicks on a room, generally speaking.\n"
-		"You can target your own ship by setting 'self' to True."
+		"You can target your own ship by setting 'self' to True.\n\n"
+		"If aiming a weapon, you can specify 'autofire' to override the overall autofire toggle.\n"
+		"Otherwise, that toggle will be used to determine if the weapon autofires.\n"
+		"Specifying 'autofire' when not using a weapon will throw an exception"
 	);
 
 	sub.def(
 		"aim",
-		py::overload_cast<int, const Point<int>&, const Point<int>&>(&Input::aim),
+		py::overload_cast<int, const Point<int>&, const Point<int>&, std::optional<bool>>(&Input::aim),
 		py::arg("room"),
 		py::arg("start"),
 		py::arg("end"),
+		py::arg("autofire") = std::nullopt,
 		"Queue a command to aim a beam weapon at a room.\n"
-		"The offset is relative to the top left corner of the room.\n"
+		"Aiming anything else with this overload will raise an exception.\n\n"
+		"The start and end offsets are relative to the top left corner of the room.\n"
 		"Note that rooms have a 1 pixel margin on all sides that you can't aim from.\n"
-		"Trying to aim from there will raise an exception."
+		"Trying to start the beam path from there will raise an exception.\n\n"
+		"You can specify 'autofire' to override the overall autofire toggle.\n"
+		"Otherwise, that toggle will be used to determine if the weapon autofires."
 	);
 
 	sub.def(

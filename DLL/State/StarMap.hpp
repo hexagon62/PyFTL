@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Point.hpp"
+#include "Rect.hpp"
 #include "Ellipse.hpp"
 #include "Event.hpp"
 #include "EnvironmentType.hpp"

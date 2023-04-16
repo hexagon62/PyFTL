@@ -6,164 +6,172 @@
 
 #include <array>
 #include <vector>
-#include <vector>
-#include <deque>
+#include <list>
 #include <algorithm>
 #include <tuple>
 #include <variant>
+
+struct WaitCommand
+{
+	double time = 0.0;
+};
+
+struct MouseCommand
+{
+	MouseButton button;
+	Point<int> pos{ -1, -1 };
+	bool shift = false;
+	InputDirection direction = InputDirection::Unchanged;
+};
+
+struct KeyboardCommand
+{
+	Key key;
+	bool shift = false;
+	InputDirection direction = InputDirection::Unchanged;
+};
+
+struct CheatCommand
+{
+	std::string command;
+};
+
+struct PowerCommand
+{
+	SystemType system = SystemType::None;
+	int set = 0;
+};
+
+struct WeaponCommand
+{
+	int weapon = -1;
+	bool on = false;
+};
+
+struct DroneCommand
+{
+	int drone = -1;
+	bool on = false;
+};
+
+struct SwapCommand
+{
+	int slotA = -1, slotB = -1;
+};
+
+struct DoorCommand
+{
+	int door = -1;
+	bool open = false;
+};
+
+struct AimCommand
+{
+	int room = -1;
+	bool self = false;
+	std::optional<bool> autofire;
+	Point<int> start, end;
+};
+
+struct DeselectCommand
+{
+	bool left = true, right = true;
+};
+
+struct CrewSelectionCommand
+{
+	std::vector<int> crew;
+};
+
+struct SendCrewCommand
+{
+	int room = -1;
+	bool self = false;
+};
+
+struct Command
+{
+	enum class Type
+	{
+		None = -1,
+
+		// Basic types
+		Wait,
+		Mouse, Keyboard,
+		TextInput, TextEvent,
+		Cheat,
+
+		// In-game helper stuff
+		Pause, EventChoice,
+		PowerSystem, PowerWeapon, PowerDrone,
+		Deselect, SelectWeapon, SelectCrew,
+		SwapWeapons, SwapDrones,
+		Autofire,
+		TeleportSend, TeleportReturn,
+		Cloak, Battery, MindControl,
+		SetupHack, Hack,
+		Door, OpenAllDoors, CloseAllDoors,
+		Aim, AimBeam,
+		SendCrew, SaveStations, LoadStations,
+
+		// Menus opened directly from in-game
+		Jump, ConfirmLeaveCrew,
+		OpenUpgrades, OpenCrewManifest, OpenCargo,
+		OpenStore,
+		OpenMenu,
+
+		// Ship menu stuff
+		UpgradeSystem, UpgradeReactor, UndoUpgrades,
+		RenameCrew, DismissCrew,
+		StowWeapon, StowDrone,
+		Discard, DiscardWeapon, DiscardDrone, DiscardAugment,
+		CloseShipMenu,
+
+		// Store stuff
+		BuyItem,
+		BuyFuel, BuyMissiles, BuyDroneParts,
+		BuyRepair, BuyRepairAll,
+		ConfirmPurchase, CloseStore,
+
+		// Star map stuff
+		JumpToBeacon, CancelJump,
+		OpenSectors, CloseSectors, JumpToSector,
+	};
+
+	Type type = Type::None;
+	uintmax_t id = 0;
+
+	std::variant<
+		std::monostate,
+		WaitCommand,
+		MouseCommand,
+		KeyboardCommand,
+		char,
+		raw::TextEvent,
+		CheatCommand,
+		bool,
+		int,
+		PowerCommand,
+		WeaponCommand,
+		DroneCommand,
+		SwapCommand,
+		DoorCommand,
+		AimCommand,
+		CrewSelectionCommand,
+		DeselectCommand,
+		SendCrewCommand
+	> args;
+};
 
 class Input::Impl
 {
 public:
 	static constexpr int INPUT_CAP = 1;
 
-	struct MouseCommand
-	{
-		MouseButton button;
-		Point<int> pos{ -1, -1 };
-		bool shift = false;
-		InputDirection direction = InputDirection::Unchanged;
-	};
-
-	struct KeyboardCommand
-	{
-		Key key;
-		bool shift = false;
-		InputDirection direction = InputDirection::Unchanged;
-	};
-
-	struct CheatCommand
-	{
-		std::string command;
-	};
-
-	struct PowerCommand
-	{
-		SystemType system = SystemType::None;
-		int set = 0;
-	};
-
-	struct WeaponCommand
-	{
-		int weapon = -1;
-		bool on = false;
-	};
-
-	struct DroneCommand
-	{
-		int drone = -1;
-		bool on = false;
-	};
-
-	struct DoorCommand
-	{
-		int door = -1;
-		bool open = false;
-	};
-
-	struct AimCommand
-	{
-		int room = -1;
-		bool self = false;
-		Point<int> start, end;
-	};
-
-	struct DeselectCommand
-	{
-		bool left = true, right = true;
-	};
-
-	struct CrewSelectionCommand
-	{
-		std::vector<int> crew;
-	};
-
-	struct SendCrewCommand
-	{
-		int room = -1;
-		bool self = false;
-	};
-
-	struct Command
-	{
-		enum class Type
-		{
-			None = -1,
-			
-			// Basic types
-			Mouse, Keyboard, TextInput, TextEvent, Cheat,
-			
-			// In-game helper stuff
-			Pause, EventChoice,
-			PowerSystem, PowerWeapon, PowerDrone,
-			Deselect, SelectWeapon, SelectCrew,
-			SwapWeapon, SwapDrone,
-			Autofire,
-			TeleportSend, TeleportReturn,
-			Cloak, Battery, MindControl,
-			SetupHack, Hack,
-			Door, OpenAllDoors, CloseAllDoors,
-			Aim, AimBeam,
-			SendCrew, SaveStations, LoadStations,
-			
-			// Menus opened directly from in-game
-			Jump, ConfirmLeaveCrew,
-			OpenUpgrades, OpenCrewManifest, OpenCargo,
-			OpenStore,
-			OpenMenu,
-
-			// Ship menu stuff
-			UpgradeSystem, UpgradeReactor, UndoUpgrades,
-			RenameCrew, DismissCrew,
-			StowWeapon, StowDrone,
-			Discard, DiscardWeapon, DiscardDrone, DiscardAugment,
-			CloseShipMenu,
-
-			// Store stuff
-			BuyItem,
-			BuyFuel, BuyMissiles, BuyDroneParts,
-			BuyRepair, BuyRepairAll,
-			ConfirmPurchase, CloseStore,
-
-			// Star map stuff
-			JumpToBeacon, CancelJump,
-			OpenSectors, CloseSectors, JumpToSector,
-		};
-
-		Type type = Type::None;
-		double time = 0.0;
-		uintmax_t id = 0;
-
-		std::variant<
-			std::monostate,
-			MouseCommand,
-			KeyboardCommand,
-			char,
-			raw::TextEvent,
-			CheatCommand,
-			bool,
-			int,
-			PowerCommand,
-			WeaponCommand,
-			DroneCommand,
-			DoorCommand,
-			AimCommand,
-			CrewSelectionCommand,
-			DeselectCommand,
-			SendCrewCommand
-		> args;
-
-		bool operator<(const Command& other) const
-		{
-			return
-				this->time < other.time ||
-				(this->time == other.time && this->id < other.id);
-		}
-	};
-
 	Impl()
 	{
 		auto&& mrs = Reader::getRawState(MutableRawState{});
+		this->resetImmediate();
 	}
 
 	~Impl() = default;
@@ -174,117 +182,94 @@ public:
 
 		while (inputsMade < INPUT_CAP && !this->empty())
 		{
-			auto lowerBound = Reader::now() - 500.0;
-			auto upperBound = Reader::now();
-
-
-			if (this->top().time > upperBound) break;
-
-			// stale/old inputs get ignored
-			//if (this->top().time >= lowerBound)
+			try
 			{
-				try
-				{
-					auto&& cmd = this->top();
-					this->setImmediate(cmd.time);
+				this->setImmediate();
+				auto&& cmd = this->top();
 
-					switch (cmd.type)
-					{
-					case Command::Type::Mouse:
-						this->mouseInput(std::get<MouseCommand>(cmd.args));
-						inputsMade++;
-						break;
-					case Command::Type::Keyboard:
-						this->keyboardInput(std::get<KeyboardCommand>(cmd.args));
-						inputsMade++;
-						break;
-					case Command::Type::TextInput:
-						this->textInput(std::get<char>(cmd.args));
-						inputsMade++;
-						break;
-					case Command::Type::TextEvent:
-						this->textEvent(std::get<raw::TextEvent>(cmd.args));
-						inputsMade++;
-						break;
-					case Command::Type::Cheat: this->cheat(std::get<CheatCommand>(cmd.args)); break;
-					case Command::Type::Pause: this->pause(std::get<bool>(cmd.args)); break;
-					case Command::Type::EventChoice: this->eventChoice(std::get<int>(cmd.args)); break;
-					case Command::Type::PowerSystem: this->powerSystem(std::get<PowerCommand>(cmd.args)); break;
-					case Command::Type::PowerWeapon: this->powerWeapon(std::get<WeaponCommand>(cmd.args)); break;
-					case Command::Type::PowerDrone: this->powerDrone(std::get<DroneCommand>(cmd.args)); break;
-					case Command::Type::Deselect: this->deselect(std::get<DeselectCommand>(cmd.args)); break;
-					case Command::Type::SelectWeapon: this->selectWeapon(std::get<WeaponCommand>(cmd.args)); break;
-					case Command::Type::SelectCrew: this->selectCrew(std::get<CrewSelectionCommand>(cmd.args)); break;
-					case Command::Type::Autofire: this->autofire(std::get<bool>(cmd.args)); break;
-					case Command::Type::TeleportSend: this->teleportSend(); break;
-					case Command::Type::TeleportReturn:this->teleportReturn(); break;
-					case Command::Type::Cloak: this->cloak(); break;
-					case Command::Type::Battery: this->battery(); break;
-					case Command::Type::MindControl: this->mindControl(); break;
-					case Command::Type::SetupHack: this->setupHack(); break;
-					case Command::Type::Hack: this->hack(); break;
-					case Command::Type::Door: this->doorToggle(std::get<DoorCommand>(cmd.args)); break;
-					case Command::Type::OpenAllDoors: this->openAllDoors(std::get<bool>(cmd.args)); break;
-					case Command::Type::CloseAllDoors: this->closeAllDoors(); break;
-					case Command::Type::Aim: this->aim(std::get<AimCommand>(cmd.args)); break;
-					case Command::Type::AimBeam: this->aimBeam(std::get<AimCommand>(cmd.args)); break;
-					case Command::Type::SendCrew: this->sendCrew(std::get<SendCrewCommand>(cmd.args)); break;
-					case Command::Type::SaveStations: this->saveStations(); break;
-					case Command::Type::LoadStations: this->loadStations(); break;
-					}
-				}
-				catch (const std::exception& e)
+				switch (cmd.type)
 				{
-					this->resetImmediate();
-					this->pop();
-					throw e;
+				case Command::Type::Wait:
+					if (this->waiting(std::get<WaitCommand>(cmd.args)))
+					{
+						this->resetImmediate();
+						return;
+					}
+					break;
+				case Command::Type::Mouse:
+					this->mouseInput(std::get<MouseCommand>(cmd.args));
+					inputsMade++;
+					break;
+				case Command::Type::Keyboard:
+					this->keyboardInput(std::get<KeyboardCommand>(cmd.args));
+					inputsMade++;
+					break;
+				case Command::Type::TextInput:
+					this->textInput(std::get<char>(cmd.args));
+					inputsMade++;
+					break;
+				case Command::Type::TextEvent:
+					this->textEvent(std::get<raw::TextEvent>(cmd.args));
+					inputsMade++;
+					break;
+				case Command::Type::Cheat: this->cheat(std::get<CheatCommand>(cmd.args)); break;
+				case Command::Type::Pause: this->pause(std::get<bool>(cmd.args)); break;
+				case Command::Type::EventChoice: this->eventChoice(std::get<int>(cmd.args)); break;
+				case Command::Type::PowerSystem: this->powerSystem(std::get<PowerCommand>(cmd.args)); break;
+				case Command::Type::PowerWeapon: this->powerWeapon(std::get<WeaponCommand>(cmd.args)); break;
+				case Command::Type::PowerDrone: this->powerDrone(std::get<DroneCommand>(cmd.args)); break;
+				case Command::Type::Deselect: this->deselect(std::get<DeselectCommand>(cmd.args)); break;
+				case Command::Type::SelectWeapon: this->selectWeapon(std::get<WeaponCommand>(cmd.args)); break;
+				case Command::Type::SelectCrew: this->selectCrew(std::get<CrewSelectionCommand>(cmd.args)); break;
+				case Command::Type::SwapWeapons: this->swapWeapons(std::get<SwapCommand>(cmd.args)); break;
+				case Command::Type::SwapDrones: this->swapDrones(std::get<SwapCommand>(cmd.args)); break;
+				case Command::Type::Autofire: this->autofire(std::get<bool>(cmd.args)); break;
+				case Command::Type::TeleportSend: this->teleportSend(); break;
+				case Command::Type::TeleportReturn:this->teleportReturn(); break;
+				case Command::Type::Cloak: this->cloak(); break;
+				case Command::Type::Battery: this->battery(); break;
+				case Command::Type::MindControl: this->mindControl(); break;
+				case Command::Type::SetupHack: this->setupHack(); break;
+				case Command::Type::Hack: this->hack(); break;
+				case Command::Type::Door: this->doorToggle(std::get<DoorCommand>(cmd.args)); break;
+				case Command::Type::OpenAllDoors: this->openAllDoors(std::get<bool>(cmd.args)); break;
+				case Command::Type::CloseAllDoors: this->closeAllDoors(); break;
+				case Command::Type::Aim: this->aim(std::get<AimCommand>(cmd.args)); break;
+				case Command::Type::AimBeam: this->aimBeam(std::get<AimCommand>(cmd.args)); break;
+				case Command::Type::SendCrew: this->sendCrew(std::get<SendCrewCommand>(cmd.args)); break;
+				case Command::Type::SaveStations: this->saveStations(); break;
+				case Command::Type::LoadStations: this->loadStations(); break;
 				}
 			}
+			catch (const std::exception& e)
+			{
+				this->pop();
+				throw e;
+			}
 
-			this->resetImmediate();
 			this->pop();
 		}
 	}
 
 	Input::Ret push(const Command& cmd)
 	{
-		double t = this->immediate == 0.0
-			? Reader::now() 
-			: this->immediate;
+		if (this->immediate)
+		{
+			this->immediateIt++;
+			this->immediateIt = this->queue.insert(this->immediateIt, cmd);
+			this->immediateIt->id = ++this->idCounter;
+			return this->idCounter;
+		}
 
-		Command copy = cmd;
-		copy.time = t;
-		copy.id = this->idCounter++;
+		this->queue.push_back(cmd);
+		this->queue.back().id = ++this->idCounter;
 
-		auto it = this->queue.emplace(
-			std::upper_bound(this->queue.begin(), this->queue.end(), copy),
-			copy
-		);
-
-		return { t };
+		return this->idCounter;
 	}
 
 	bool empty() const
 	{
 		return this->queue.empty();
-	}
-
-	bool queued(const Input::Ret& ret) const
-	{
-		return this->search(ret) != this->queue.end();
-	}
-
-	bool remove(const Input::Ret& ret)
-	{
-		auto it = this->search(ret);
-
-		// Not in queue
-		if (it == this->queue.end())
-			return false;
-
-		this->queue.erase(it);
-
-		return true;
 	}
 
 	void clear()
@@ -302,11 +287,6 @@ public:
 		return
 			p.x < 0 || p.x >= Input::GAME_WIDTH ||
 			p.y < 0 || p.y >= Input::GAME_HEIGHT;
-	}
-
-	Command& get(const Input::Ret& ret)
-	{
-		return *this->search(ret);
 	}
 
 	Command& top()
@@ -332,7 +312,8 @@ private:
 	friend class Input;
 	using Queue = std::list<Command>;
 	Queue queue;
-	double immediate = 0.0;
+	bool immediate = false;
+	Queue::iterator immediateIt;
 	uintmax_t idCounter = 0;
 
 	static constexpr uintptr_t SHIFT_STATE_ADDR = 0x178BE0;
@@ -351,46 +332,32 @@ private:
 	// and replace them with the above if we want to force them down
 	mem::Hook shiftStateHook;
 
-	void setImmediate(double t)
+	void setImmediate()
 	{
-		this->immediate = t;
+		this->immediateIt = this->queue.begin();
+		this->immediate = true;
 	}
 
 	void resetImmediate()
 	{
-		this->immediate = 0.0;
-	}
-
-	void incImmediate()
-	{
-		if (this->immediate != 0.0)
-			float_util::increment(this->immediate);
-	}
-
-	// Search for input
-	Queue::iterator search(const Input::Ret& ret)
-	{
-		return std::find_if(
-			this->queue.begin(), this->queue.end(),
-			[&ret](auto&& cmd) {
-				return cmd.time == ret.time;
-			}
-		);
-	}
-
-	Queue::const_iterator search(const Input::Ret& ret) const
-	{
-		return std::find_if(
-			this->queue.cbegin(), this->queue.cend(),
-			[&ret](auto&& cmd) {
-				return cmd.time == ret.time;
-			}
-		);
+		this->immediateIt = this->queue.end();
+		this->immediate = false;
 	}
 
 	void pop()
 	{
 		this->queue.pop_front();
+		this->resetImmediate();
+	}
+
+	// Returns true if waiting
+	bool waiting(const WaitCommand& cmd)
+	{
+		static double base = 0.0;
+		if (base == 0.0) base = Reader::now();
+		bool res = Reader::now() < base + cmd.time;
+		if (!res) base = 0.0;
+		return res;
 	}
 
 	// Forces shift to be held, regardless of player input
@@ -541,16 +508,6 @@ private:
 		if (pause.menu || pause.event) throw WrongMenu(what);
 	}
 
-	void preDeselect(const DeselectCommand& cmd = {})
-	{
-		this->push({
-		   .type = Impl::Command::Type::Deselect,
-		   .args = cmd
-		});
-
-		this->incImmediate();
-	}
-
 	// Generic function to try a hotkey and fallback to clicking
 	void hotkeyOr(const char* hotkey, Point<int> fallback)
 	{
@@ -563,7 +520,6 @@ private:
 			return;
 		}
 
-		this->preDeselect();
 		Input::mouseClick(MouseButton::Left, fallback, false);
 	}
 
@@ -718,7 +674,6 @@ private:
 
 		this->checkInGame("powering a system");
 
-		this->preDeselect();
 		auto&& state = Reader::getState();
 		auto&& system = state.game->playerShip->getSystem(type);
 
@@ -782,6 +737,9 @@ private:
 			}
 		}
 
+		if (upInputs && downInputs) return;
+		this->deselect();
+
 		auto doInput = [&](const PowerHotkey& k, bool depower) {
 			auto&& [key, shift] = k;
 
@@ -816,8 +774,8 @@ private:
 	// Assumes a bunch of other checks have already been made
 	void useWeapon(const Weapon& weapon, bool powerOff = false)
 	{
-		this->preDeselect();
 		auto&& hotkeys = Input::hotkeys();
+		this->deselect();
 
 		// Try to use a hotkey
 		auto hotkey = getHotkey("weapon" + std::to_string(weapon.slot + 1));
@@ -911,8 +869,8 @@ private:
 	// Assumes a bunch of other checks have already been made
 	void useDrone(const Drone& drone, bool powerOff = false)
 	{
-		this->preDeselect();
 		auto&& hotkeys = Input::hotkeys();
+		this->deselect();
 
 		// Try to use a hotkey
 		auto hotkey = getHotkey("drone" + std::to_string(drone.slot + 1));
@@ -1020,7 +978,7 @@ private:
 		return { Input::GAME_WIDTH - 1, Input::GAME_HEIGHT - 1 };
 	}
 
-	void deselect(const DeselectCommand& cmd)
+	void deselect(const DeselectCommand& cmd = {})
 	{
 		this->checkInGame("deselection");
 
@@ -1076,7 +1034,7 @@ private:
 		this->checkInGame("selecting crew");
 
 		auto&& state = Reader::getState();
-		this->preDeselect({.left = false});
+		this->deselect({.left = false});
 
 		if (crew.empty())
 		{
@@ -1138,6 +1096,66 @@ private:
 		}
 	}
 
+	void swapWeapons(const SwapCommand& cmd)
+	{
+		auto&& [a, b] = cmd;
+
+		this->checkInGame("swapping equipped weapons");
+		auto&& state = Reader::getState();
+
+		if (!state.game->playerShip->weapons)
+		{
+			throw SystemNotInstalled(SystemType::Weapons);
+		}
+
+		auto&& weapons = state.ui.game->weaponBoxes;
+
+		if (a < 0 || a >= int(weapons.size()))
+		{
+			throw InvalidSlotChoice("weapon", a, "no weapon is there");
+		}
+
+		if (b < 0 || b >= int(weapons.size()))
+		{
+			throw InvalidSlotChoice("weapon", b, "no weapon is there");
+		}
+
+		if (a == b) return; // do nothing, no swap needed
+
+		Input::mouseDown(MouseButton::Left, weapons[a].center());
+		Input::mouseUp(MouseButton::Left, weapons[b].center());
+	}
+
+	void swapDrones(const SwapCommand& cmd)
+	{
+		auto&& [a, b] = cmd;
+
+		this->checkInGame("swapping equipped drones");
+		auto&& state = Reader::getState();
+
+		if (!state.game->playerShip->drones)
+		{
+			throw SystemNotInstalled(SystemType::Drones);
+		}
+
+		auto&& drones = state.ui.game->droneBoxes;
+
+		if (a < 0 || a >= int(drones.size()))
+		{
+			throw InvalidSlotChoice("drone", a, "no drone is there");
+		}
+
+		if (b < 0 || b >= int(drones.size()))
+		{
+			throw InvalidSlotChoice("drone", b, "no drone is there");
+		}
+
+		if (a == b) return; // do nothing, no swap needed
+
+		Input::mouseDown(MouseButton::Left, drones[a].center());
+		Input::mouseUp(MouseButton::Left, drones[b].center());
+	}
+
 	void autofire(bool on)
 	{
 		this->checkInGame("toggling auto-fire");
@@ -1161,7 +1179,6 @@ private:
 	{
 		this->checkInGame("aiming teleport send");
 		auto&& state = Reader::getState();
-		this->preDeselect();
 
 		if (!state.game->playerShip->teleporter)
 		{
@@ -1172,6 +1189,7 @@ private:
 		if (!tele.operable()) throw SystemInoperable(tele);
 		if (!tele.canSend) throw SystemInoperable(tele, "it cannot send crew right now");
 
+		this->deselect();
 		this->hotkeyOr("send_tele", state.ui.game->teleportSend->center());
 	}
 
@@ -1179,7 +1197,6 @@ private:
 	{
 		this->checkInGame("aiming teleport return");
 		auto&& state = Reader::getState();
-		this->preDeselect();
 
 		if (!state.game->playerShip->teleporter)
 		{
@@ -1190,6 +1207,7 @@ private:
 		if (!tele.operable()) throw SystemInoperable(tele);
 		if (!tele.canReceive) throw SystemInoperable(tele, "it cannot receive crew right now");
 
+		this->deselect();
 		this->hotkeyOr("ret_tele", state.ui.game->teleportSend->center());
 	}
 
@@ -1197,7 +1215,6 @@ private:
 	{
 		this->checkInGame("cloaking");
 		auto&& state = Reader::getState();
-		this->preDeselect();
 
 		if (!state.game->playerShip->cloaking)
 		{
@@ -1207,6 +1224,7 @@ private:
 		auto&& cloak = *state.game->playerShip->teleporter;
 		if (!cloak.operable()) throw SystemInoperable(cloak);
 
+		this->deselect();
 		this->hotkeyOr("activate_cloak", state.ui.game->startCloak->center());
 	}
 
@@ -1214,7 +1232,6 @@ private:
 	{
 		this->checkInGame("activating battery");
 		auto&& state = Reader::getState();
-		this->preDeselect();
 
 		if (!state.game->playerShip->battery)
 		{
@@ -1224,6 +1241,7 @@ private:
 		auto&& battery = *state.game->playerShip->battery;
 		if (!battery.operable()) throw SystemInoperable(battery);
 
+		this->deselect();
 		this->hotkeyOr("activate_battery", state.ui.game->startBattery->center());
 	}
 
@@ -1231,7 +1249,6 @@ private:
 	{
 		this->checkInGame("activating mind control");
 		auto&& state = Reader::getState();
-		this->preDeselect();
 
 		if (!state.game->playerShip->mindControl)
 		{
@@ -1241,6 +1258,7 @@ private:
 		auto&& mindControl = *state.game->playerShip->mindControl;
 		if (!mindControl.operable()) throw SystemInoperable(mindControl);
 
+		this->deselect();
 		this->hotkeyOr("mindControl", state.ui.game->startMindControl->center());
 	}
 
@@ -1248,7 +1266,6 @@ private:
 	{
 		this->checkInGame("setting up hacking");
 		auto&& state = Reader::getState();
-		this->preDeselect();
 
 		if (!state.game->playerShip->hacking)
 		{
@@ -1263,6 +1280,7 @@ private:
 			throw InvalidHackingInput(false, "the drone is already set up");
 		}
 
+		this->deselect();
 		this->hotkeyOr("start_hacking", state.ui.game->startHack->center());
 	}
 
@@ -1422,10 +1440,38 @@ private:
 		Input::mouseClick(MouseButton::Right, room.rect.center(), false);
 	}
 
+	// to: nullopt - inherit, true - on, false - off
+	// relase: undoes inversion if already done
+	void invertAutofire(std::optional<bool> to, bool release)
+	{
+		this->checkInGame("inverting autofire");
+		auto&& state = Reader::getState();
+
+		if (!to) return;
+
+		if (!state.ui.game->autofire)
+		{
+			throw SystemNotInstalled(SystemType::Weapons);
+		}
+
+		// Use if hotkey possible
+		auto k = this->getHotkey("force_autofire");
+
+		if (k != Key::Unknown)
+		{
+			if (release) Input::keyUp(k, false);
+			else Input::keyDown(k, false);
+			return;
+		}
+
+		Input::mouseClick(MouseButton::Left, state.ui.game->autofire->center(), false);
+	}
+
 	void aim(const AimCommand& aim)
 	{
 		auto&& id = aim.room;
 		auto&& self = aim.self;
+		auto&& autofire = aim.autofire;
 
 		this->checkInGame("aiming weapon/system");
 		auto&& state = Reader::getState();
@@ -1468,8 +1514,14 @@ private:
 					}
 				}
 			}
+
+			if (autofire)
+			{
+				throw std::invalid_argument("cannot specify autofire for a system");
+			}
 		}
 
+		bool aimingWeapon = false;
 		if (std::holds_alternative<WeaponUIRef>(state.ui.mouse.aiming))
 		{
 			auto&& weapon = std::get<WeaponUIRef>(state.ui.mouse.aiming).get();
@@ -1478,14 +1530,18 @@ private:
 			{
 				throw InvalidSelfAim("only bomb weapons can do that");
 			}
+
+			aimingWeapon = true;
 		}
 
+		if (aimingWeapon) this->invertAutofire(autofire, false);
 		Input::mouseClick(MouseButton::Left, room.rect.center(), false);
+		if (aimingWeapon) this->invertAutofire(autofire, true);
 	}
 
 	void aimBeam(const AimCommand& aim)
 	{
-		auto&& [id, self, start, end] = aim;
+		auto&& [id, self, autofire, start, end] = aim;
 
 		this->checkInGame("aiming beam");
 		auto&& state = Reader::getState();
@@ -1541,8 +1597,10 @@ private:
 			);
 		}
 
+		this->invertAutofire(autofire, false);
 		Input::mouseClick(MouseButton::Left, room.rect.topLeft() + start, false);
 		Input::mouseClick(MouseButton::Left, room.rect.topLeft() + end, false);
+		this->invertAutofire(autofire, true);
 	}
 
 	void saveStations()
@@ -1624,16 +1682,6 @@ bool Input::empty()
 	return impl.empty();
 }
 
-bool Input::queued(const Input::Ret& input)
-{
-	return impl.queued(input);
-}
-
-bool Input::pop(const Input::Ret& input)
-{
-	return impl.remove(input);
-}
-
 bool Input::ready()
 {
 	return good;
@@ -1674,21 +1722,26 @@ void Input::clear()
 	impl.clear();
 }
 
-Input::Ret::operator bool() const
-{
-	return queued(*this);
-}
-
 Input::Ret Input::dummy()
 {
 	return {};
 }
 
+Input::Ret Input::wait(double time)
+{
+	return impl.push({
+		.type = Command::Type::Wait,
+		.args = WaitCommand{
+			.time = time
+		},
+	});
+}
+
 Input::Ret Input::mouseMove(const Point<int>& pos)
 {
 	return impl.push({
-		.type = Impl::Command::Type::Mouse,
-		.args = Impl::MouseCommand{
+		.type = Command::Type::Mouse,
+		.args = MouseCommand{
 			.button = MouseButton::None,
 			.pos = pos
 		},
@@ -1702,8 +1755,8 @@ Input::Ret Input::mouseDown(
 {
 	mouseMove(pos);
 	return impl.push({
-		.type = Impl::Command::Type::Mouse,
-		.args = Impl::MouseCommand{
+		.type = Command::Type::Mouse,
+		.args = MouseCommand{
 			.button = button,
 			.pos = pos,
 			.shift = shift,
@@ -1719,8 +1772,8 @@ Input::Ret Input::mouseUp(
 {
 	mouseMove(pos);
 	return impl.push({
-		.type = Impl::Command::Type::Mouse,
-		.args = Impl::MouseCommand{
+		.type = Command::Type::Mouse,
+		.args = MouseCommand{
 			.button = button,
 			.pos = pos,
 			.shift = shift,
@@ -1737,8 +1790,8 @@ Input::Ret Input::mouseClick(
 	mouseMove(pos);
 
 	impl.push({
-		.type = Impl::Command::Type::Mouse,
-		.args = Impl::MouseCommand{
+		.type = Command::Type::Mouse,
+		.args = MouseCommand{
 			.button = button,
 			.pos = pos,
 			.shift = shift,
@@ -1747,8 +1800,8 @@ Input::Ret Input::mouseClick(
 	});
 
 	return impl.push({
-		.type = Impl::Command::Type::Mouse,
-		.args = Impl::MouseCommand{
+		.type = Command::Type::Mouse,
+		.args = MouseCommand{
 			.button = button,
 			.pos = pos,
 			.shift = shift,
@@ -1762,8 +1815,8 @@ Input::Ret Input::keyDown(
 	bool shift)
 {
 	return impl.push({
-		.type = Impl::Command::Type::Keyboard,
-		.args = Impl::KeyboardCommand{
+		.type = Command::Type::Keyboard,
+		.args = KeyboardCommand{
 			.key = key,
 			.shift = shift,
 			.direction = InputDirection::Down
@@ -1776,8 +1829,8 @@ Input::Ret Input::keyUp(
 	bool shift)
 {
 	return impl.push({
-		.type = Impl::Command::Type::Keyboard,
-		.args = Impl::KeyboardCommand{
+		.type = Command::Type::Keyboard,
+		.args = KeyboardCommand{
 			.key = key,
 			.shift = shift,
 			.direction = InputDirection::Up
@@ -1825,14 +1878,14 @@ const decltype(Settings::hotkeys)& Input::hotkeys()
 Input::Ret Input::text(char ch)
 {
 	return impl.push({
-		.type = Impl::Command::Type::TextInput,
+		.type = Command::Type::TextInput,
 		.args = ch
 	});
 }
 
 Input::Ret Input::text(const std::string& str)
 {
-	Input::Ret last;
+	Input::Ret last{};
 	for (auto&& c : str) last = text(c);
 	return last;
 }
@@ -1840,7 +1893,7 @@ Input::Ret Input::text(const std::string& str)
 Input::Ret Input::textConfirm()
 {
 	return impl.push({
-		.type = Impl::Command::Type::TextEvent,
+		.type = Command::Type::TextEvent,
 		.args = raw::TEXT_CONFIRM
 	});
 }
@@ -1848,7 +1901,7 @@ Input::Ret Input::textConfirm()
 Input::Ret Input::textClear()
 {
 	return impl.push({
-		.type = Impl::Command::Type::TextEvent,
+		.type = Command::Type::TextEvent,
 		.args = raw::TEXT_CLEAR
 	});
 }
@@ -1856,7 +1909,7 @@ Input::Ret Input::textClear()
 Input::Ret Input::textBackspace()
 {
 	return impl.push({
-		.type = Impl::Command::Type::TextEvent,
+		.type = Command::Type::TextEvent,
 		.args = raw::TEXT_BACKSPACE
 	});
 }
@@ -1864,7 +1917,7 @@ Input::Ret Input::textBackspace()
 Input::Ret Input::textDelete()
 {
 	return impl.push({
-		.type = Impl::Command::Type::TextEvent,
+		.type = Command::Type::TextEvent,
 		.args = raw::TEXT_DELETE
 	});
 }
@@ -1872,7 +1925,7 @@ Input::Ret Input::textDelete()
 Input::Ret Input::textLeft()
 {
 	return impl.push({
-		.type = Impl::Command::Type::TextEvent,
+		.type = Command::Type::TextEvent,
 		.args = raw::TEXT_LEFT
 	});
 }
@@ -1880,7 +1933,7 @@ Input::Ret Input::textLeft()
 Input::Ret Input::textRight()
 {
 	return impl.push({
-		.type = Impl::Command::Type::TextEvent,
+		.type = Command::Type::TextEvent,
 		.args = raw::TEXT_RIGHT
 	});
 }
@@ -1888,7 +1941,7 @@ Input::Ret Input::textRight()
 Input::Ret Input::textHome()
 {
 	return impl.push({
-		.type = Impl::Command::Type::TextEvent,
+		.type = Command::Type::TextEvent,
 		.args = raw::TEXT_HOME
 	});
 }
@@ -1896,7 +1949,7 @@ Input::Ret Input::textHome()
 Input::Ret Input::textEnd()
 {
 	return impl.push({
-		.type = Impl::Command::Type::TextEvent,
+		.type = Command::Type::TextEvent,
 		.args = raw::TEXT_END
 	});
 }
@@ -1904,8 +1957,8 @@ Input::Ret Input::textEnd()
 Input::Ret Input::cheat(const std::string& command)
 {
 	return impl.push({
-		.type = Impl::Command::Type::Cheat,
-		.args = Impl::CheatCommand{
+		.type = Command::Type::Cheat,
+		.args = CheatCommand{
 			.command = command
 		}
 	});
@@ -1914,7 +1967,7 @@ Input::Ret Input::cheat(const std::string& command)
 Input::Ret Input::pause(bool on)
 {
 	return impl.push({
-		.type = Impl::Command::Type::Pause,
+		.type = Command::Type::Pause,
 		.args = on
 	});
 }
@@ -1922,7 +1975,7 @@ Input::Ret Input::pause(bool on)
 Input::Ret Input::choice(int which)
 {
 	return impl.push({
-		.type = Impl::Command::Type::EventChoice,
+		.type = Command::Type::EventChoice,
 		.args = which
 	});
 }
@@ -1930,8 +1983,8 @@ Input::Ret Input::choice(int which)
 Input::Ret Input::powerSystem(SystemType system, int set)
 {
 	return impl.push({
-		.type = Impl::Command::Type::PowerSystem,
-		.args = Impl::PowerCommand{
+		.type = Command::Type::PowerSystem,
+		.args = PowerCommand{
 			.system = system,
 			.set = set
 		}
@@ -1941,8 +1994,8 @@ Input::Ret Input::powerSystem(SystemType system, int set)
 Input::Ret Input::powerWeapon(int weapon, bool on)
 {
 	return impl.push({
-		.type = Impl::Command::Type::PowerWeapon,
-		.args = Impl::WeaponCommand{
+		.type = Command::Type::PowerWeapon,
+		.args = WeaponCommand{
 			.weapon = weapon,
 			.on = on
 		}
@@ -1952,8 +2005,8 @@ Input::Ret Input::powerWeapon(int weapon, bool on)
 Input::Ret Input::powerDrone(int drone, bool on)
 {
 	return impl.push({
-		.type = Impl::Command::Type::PowerDrone,
-		.args = Impl::DroneCommand{
+		.type = Command::Type::PowerDrone,
+		.args = DroneCommand{
 			.drone = drone,
 			.on = on
 		}
@@ -1963,8 +2016,8 @@ Input::Ret Input::powerDrone(int drone, bool on)
 Input::Ret Input::selectWeapon(int weapon)
 {
 	return impl.push({
-		.type = Impl::Command::Type::SelectWeapon,
-		.args = Impl::WeaponCommand{
+		.type = Command::Type::SelectWeapon,
+		.args = WeaponCommand{
 			.weapon = weapon
 		}
 	});
@@ -1973,9 +2026,31 @@ Input::Ret Input::selectWeapon(int weapon)
 Input::Ret Input::selectCrew(const std::vector<int>& crew)
 {
 	return impl.push({
-		.type = Impl::Command::Type::SelectCrew,
-		.args = Impl::CrewSelectionCommand{
+		.type = Command::Type::SelectCrew,
+		.args = CrewSelectionCommand{
 			.crew = crew
+		}
+	});
+}
+
+Input::Ret Input::swapWeapons(int slotA, int slotB)
+{
+	return impl.push({
+		.type = Command::Type::SwapWeapons,
+		.args = SwapCommand{
+			.slotA = slotA,
+			.slotB = slotB
+		}
+	});
+}
+
+Input::Ret Input::swapDrones(int slotA, int slotB)
+{
+	return impl.push({
+		.type = Command::Type::SwapDrones,
+		.args = SwapCommand{
+			.slotA = slotA,
+			.slotB = slotB
 		}
 	});
 }
@@ -1983,7 +2058,7 @@ Input::Ret Input::selectCrew(const std::vector<int>& crew)
 Input::Ret Input::autofire(bool on)
 {
 	return impl.push({
-		.type = Impl::Command::Type::Autofire,
+		.type = Command::Type::Autofire,
 		.args = on
 	});
 }
@@ -1991,50 +2066,50 @@ Input::Ret Input::autofire(bool on)
 Input::Ret Input::teleportSend()
 {
 	return impl.push({
-		.type = Impl::Command::Type::TeleportSend
+		.type = Command::Type::TeleportSend
 	});
 }
 
 Input::Ret Input::teleportReturn()
 {
 	return impl.push({
-		.type = Impl::Command::Type::TeleportReturn
+		.type = Command::Type::TeleportReturn
 	});
 }
 
 Input::Ret Input::cloak()
 {
 	return impl.push({
-		.type = Impl::Command::Type::Cloak
+		.type = Command::Type::Cloak
 	});
 }
 
 Input::Ret Input::mindControl()
 {
 	return impl.push({
-		.type = Impl::Command::Type::MindControl
+		.type = Command::Type::MindControl
 	});
 }
 
 Input::Ret Input::setupHack()
 {
 	return impl.push({
-		.type = Impl::Command::Type::SetupHack
+		.type = Command::Type::SetupHack
 	});
 }
 
 Input::Ret Input::hack()
 {
 	return impl.push({
-		.type = Impl::Command::Type::Hack
+		.type = Command::Type::Hack
 	});
 }
 
 Input::Ret Input::door(int door, bool open)
 {
 	return impl.push({
-		.type = Impl::Command::Type::Door,
-		.args = Impl::DoorCommand{
+		.type = Command::Type::Door,
+		.args = DoorCommand{
 			.door = door,
 			.open = open
 		}
@@ -2046,23 +2121,26 @@ Input::Ret Input::doorAll(bool open, bool airlocks)
 	if (open)
 	{
 		return impl.push({
-			.type = Impl::Command::Type::OpenAllDoors,
+			.type = Command::Type::OpenAllDoors,
 			.args = airlocks
 		});
 	}
 
 	return impl.push({
-		.type = Impl::Command::Type::CloseAllDoors,
+		.type = Command::Type::CloseAllDoors,
 	});
 }
 
-Input::Ret Input::aim(int room, bool self)
+Input::Ret Input::aim(
+	int room, bool self,
+	std::optional<bool> autofire)
 {
 	return impl.push({
-		.type = Impl::Command::Type::Aim,
-		.args = Impl::AimCommand{
+		.type = Command::Type::Aim,
+		.args = AimCommand{
 			.room = room,
-			.self = self
+			.self = self,
+			.autofire = autofire
 		}
 	});
 }
@@ -2070,13 +2148,15 @@ Input::Ret Input::aim(int room, bool self)
 Input::Ret Input::aim(
 	int room,
 	const Point<int>& start,
-	const Point<int>& end)
+	const Point<int>& end,
+	std::optional<bool> autofire)
 {
 	return impl.push({
-		.type = Impl::Command::Type::AimBeam,
-		.args = Impl::AimCommand{
+		.type = Command::Type::AimBeam,
+		.args = AimCommand{
 			.room = room,
 			.self = false,
+			.autofire = autofire,
 			.start = start,
 			.end = end
 		}
@@ -2086,8 +2166,8 @@ Input::Ret Input::aim(
 Input::Ret Input::deselect()
 {
 	return impl.push({
-		.type = Impl::Command::Type::Deselect,
-		.args = Impl::DeselectCommand{
+		.type = Command::Type::Deselect,
+		.args = DeselectCommand{
 			.left = true,
 			.right = true
 		}
@@ -2097,8 +2177,8 @@ Input::Ret Input::deselect()
 Input::Ret Input::sendCrew(int room, bool self)
 {
 	return impl.push({
-		.type = Impl::Command::Type::SendCrew,
-		.args = Impl::SendCrewCommand{
+		.type = Command::Type::SendCrew,
+		.args = SendCrewCommand{
 			.room = room,
 			.self = self
 		}
@@ -2108,13 +2188,13 @@ Input::Ret Input::sendCrew(int room, bool self)
 Input::Ret Input::saveStations()
 {
 	return impl.push({
-		.type = Impl::Command::Type::SaveStations
+		.type = Command::Type::SaveStations
 	});
 }
 
 Input::Ret Input::loadStations()
 {
 	return impl.push({
-		.type = Impl::Command::Type::LoadStations
+		.type = Command::Type::LoadStations
 	});
 }

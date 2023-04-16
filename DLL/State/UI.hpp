@@ -68,9 +68,9 @@ struct UpgradesUIState
 		return ::hasSystem(*this, type, which);
 	}
 
-	const Rect<int>& getSystem(SystemType type, int which = 0) const
+	const SystemUpgradeUIState& getSystem(SystemType type, int which = 0) const
 	{
-		return ::getSystem<const Rect<int>&>(*this, type, which);
+		return ::getSystem<const SystemUpgradeUIState&>(*this, type, which);
 	}
 };
 

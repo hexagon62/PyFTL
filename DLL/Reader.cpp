@@ -2251,6 +2251,9 @@ void readUI(State& state, const raw::State& raw)
 			for (size_t i = 0; i < upgrades.vUpgradeBoxes.size(); i++)
 			{
 				auto&& box = *upgrades.vUpgradeBoxes[i];
+
+				if (!box.system) continue;
+
 				auto type = SystemType(box.system->iSystemType);
 				auto&& sys = Reader::getState().game->playerShip->getSystem(type);
 
@@ -2488,15 +2491,15 @@ void readUI(State& state, const raw::State& raw)
 				ui.game->store->currentPage = rawStore.bShowPage2 ? 1 : 0;
 
 				int items = rawStore.sectionCount * Store::HARDCODED_BOXES_PER_SECTION;
-				ui.game->store->fuel = rawStore.vItemBoxes[items + 0]->button.hitbox;
-				ui.game->store->missiles = rawStore.vItemBoxes[items + 1]->button.hitbox;
-				ui.game->store->droneParts = rawStore.vItemBoxes[items + 2]->button.hitbox;
-				ui.game->store->repair = rawStore.vItemBoxes[items + 3]->button.hitbox;
-				ui.game->store->repairAll = rawStore.vItemBoxes[items + 4]->button.hitbox;
+				ui.game->store->fuel = rawStore.vStoreBoxes[items + 0]->button.hitbox;
+				ui.game->store->missiles = rawStore.vStoreBoxes[items + 1]->button.hitbox;
+				ui.game->store->droneParts = rawStore.vStoreBoxes[items + 2]->button.hitbox;
+				ui.game->store->repair = rawStore.vStoreBoxes[items + 3]->button.hitbox;
+				ui.game->store->repairAll = rawStore.vStoreBoxes[items + 4]->button.hitbox;
 
 				for (int i = 0; i < items; i++)
 				{
-					ui.game->store->boxes.push_back(rawStore.vItemBoxes[i]->button.hitbox);
+					ui.game->store->boxes.push_back(rawStore.vStoreBoxes[i]->button.hitbox);
 				}
 
 				if (store->confirming)
@@ -2881,9 +2884,6 @@ void Reader::iterate()
 	Reader::read();
 	if (Input::ready()) Input::iterate();
 }
-
-std::mutex readerMutex;
-std::condition_variable readerCV;
 
 void Reader::poll()
 {

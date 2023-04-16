@@ -29,18 +29,10 @@ public:
 	static constexpr int GAME_WIDTH = 1280;
 	static constexpr int GAME_HEIGHT = 720;
 
-	struct Ret
-	{
-		double time = 0.0;
-		operator bool() const;
-	};
-
 	Input() = delete;
 
 	static void iterate(); // make inputs
 	static bool empty(); // check if no inputs are queued
-	static bool queued(const Input::Ret& input); // check if an input is queued
-	static bool pop(const Input::Ret& input); // dequeue the input, returns false if not in queue
 	static bool ready(); // check if ready
 	static void setReady(bool ready = true); // sets the ready state
 	static void allowHumanMouse(bool allow = true); // sets if human mouse input is allowed
@@ -52,7 +44,10 @@ public:
 	// All inputs below are added to a queue, not done immediately
 	// This is so they're roughly executed sequentially
 
+	using Ret = uintmax_t;
+
 	static Ret dummy();
+	static Ret wait(double time);
 
 	static Ret mouseMove(const Point<int>& pos);
 
@@ -106,8 +101,8 @@ public:
 	static Ret selectWeapon(int weapon);
 	static Ret selectCrew(const std::vector<int>& crew);
 
-	static Ret swapWeapon(int slotA, int slotB);
-	static Ret swapDrone(int slotA, int slotB);
+	static Ret swapWeapons(int slotA, int slotB);
+	static Ret swapDrones(int slotA, int slotB);
 
 	static Ret autofire(bool on = false);
 	static Ret teleportSend();

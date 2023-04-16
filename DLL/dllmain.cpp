@@ -314,7 +314,7 @@ void mainLoop(py::module& pyMain)
             g_gui.runPythonCode();
         }
 
-        if (py::hasattr(pyMain, "on_update"))
+        if (Input::empty() && py::hasattr(pyMain, "on_update"))
         {
             pyMain.attr("on_update")();
         }
