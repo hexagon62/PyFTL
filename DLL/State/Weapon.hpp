@@ -18,6 +18,7 @@ struct Weapon
 	bool fireWhenReady = false;
 	bool artillery = false;
 	bool targetingPlayer = false;
+	bool cargo = false;
 	float firingAngle = 0.f;
 	float entryAngle = 0.f;
 	Point<int> mount;

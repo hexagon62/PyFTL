@@ -22,6 +22,7 @@ struct Game
 {
 	bool justLoaded = false;
 	bool gameOver = false;
+	bool victory = false;
 	bool justJumped = false;
 
 	PauseState pause;

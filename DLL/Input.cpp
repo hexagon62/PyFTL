@@ -97,13 +97,37 @@ public:
 			Pause, EventChoice,
 			PowerSystem, PowerWeapon, PowerDrone,
 			Deselect, SelectWeapon, SelectCrew,
+			SwapWeapon, SwapDrone,
 			Autofire,
 			TeleportSend, TeleportReturn,
 			Cloak, Battery, MindControl,
 			SetupHack, Hack,
 			Door, OpenAllDoors, CloseAllDoors,
 			Aim, AimBeam,
-			SendCrew, SaveStations, LoadStations
+			SendCrew, SaveStations, LoadStations,
+			
+			// Menus opened directly from in-game
+			Jump, ConfirmLeaveCrew,
+			OpenUpgrades, OpenCrewManifest, OpenCargo,
+			OpenStore,
+			OpenMenu,
+
+			// Ship menu stuff
+			UpgradeSystem, UpgradeReactor, UndoUpgrades,
+			RenameCrew, DismissCrew,
+			StowWeapon, StowDrone,
+			Discard, DiscardWeapon, DiscardDrone, DiscardAugment,
+			CloseShipMenu,
+
+			// Store stuff
+			BuyItem,
+			BuyFuel, BuyMissiles, BuyDroneParts,
+			BuyRepair, BuyRepairAll,
+			ConfirmPurchase, CloseStore,
+
+			// Star map stuff
+			JumpToBeacon, CancelJump,
+			OpenSectors, CloseSectors, JumpToSector,
 		};
 
 		Type type = Type::None;

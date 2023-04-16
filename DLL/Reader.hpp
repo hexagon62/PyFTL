@@ -28,7 +28,6 @@ public:
 	static void poll();
 
 	static bool init(); // returns true if successful, false otherwise
-	static bool ready(); // returns true if initialized
 
 	static double now(); // gets the time since start in seconds
 

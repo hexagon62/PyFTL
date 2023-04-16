@@ -81,4 +81,32 @@ struct Ship
 	{
 		return ::getSystem<const System&>(*this, type, which);
 	}
+
+	int systemCount() const
+	{
+		int res = 0;
+		if (this->shields) ++res;
+		if (this->engines) ++res;
+		if (this->medbay) ++res;
+		if (this->clonebay) ++res;
+		if (this->oxygen) ++res;
+		if (this->teleporter) ++res;
+		if (this->cloaking) ++res;
+		res += int(this->artillery.size());
+		if (this->mindControl) ++res;
+		if (this->hacking) ++res;
+		if (this->weapons) ++res;
+		if (this->drones) ++res;
+		return res;
+	}
+
+	int subsystemCount() const
+	{
+		int res = 0;
+		if (this->piloting) ++res;
+		if (this->sensors) ++res;
+		if (this->doorControl) ++res;
+		if (this->battery) ++res;
+		return res;
+	}
 };

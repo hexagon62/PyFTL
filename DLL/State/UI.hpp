@@ -20,41 +20,46 @@ struct StoreUIState
 
 	Rect<int> buy;
 	Rect<int> sell;
-	std::optional<Rect<int>> page1;
-	std::optional<Rect<int>> page2;
+	std::vector<Rect<int>> pages;
+	int currentPage = -1;
 
-	std::optional<Rect<int>> buyFuel;
-	std::optional<Rect<int>> buyMissiles;
-	std::optional<Rect<int>> buyDroneParts;
+	std::optional<Rect<int>> fuel;
+	std::optional<Rect<int>> missiles;
+	std::optional<Rect<int>> droneParts;
 
 	Rect<int> repair;
 	Rect<int> repairAll;
 
 	std::vector<Rect<int>> boxes;
 
-	Rect<int> sellBox;
 	std::optional<ConfirmUIState> confirm;
+};
+
+struct SystemUpgradeUIState
+{
+	Rect<int> box;
+	int upgradeTo = -1;
 };
 
 struct UpgradesUIState
 {
-	std::optional<Rect<int>> shields;
-	std::optional<Rect<int>> engines;
-	std::optional<Rect<int>> oxygen;
-	std::optional<Rect<int>> weapons;
-	std::optional<Rect<int>> drones;
-	std::optional<Rect<int>> medbay;
-	std::optional<Rect<int>> piloting;
-	std::optional<Rect<int>> sensors;
-	std::optional<Rect<int>> doorControl;
-	std::optional<Rect<int>> teleporter;
-	std::optional<Rect<int>> cloaking;
-	std::vector<Rect<int>> artillery;
-	std::optional<Rect<int>> battery;
-	std::optional<Rect<int>> clonebay;
-	std::optional<Rect<int>> mindControl;
-	std::optional<Rect<int>> hacking;
-	Rect<int> reactor;
+	std::optional<SystemUpgradeUIState> shields;
+	std::optional<SystemUpgradeUIState> engines;
+	std::optional<SystemUpgradeUIState> oxygen;
+	std::optional<SystemUpgradeUIState> weapons;
+	std::optional<SystemUpgradeUIState> drones;
+	std::optional<SystemUpgradeUIState> medbay;
+	std::optional<SystemUpgradeUIState> piloting;
+	std::optional<SystemUpgradeUIState> sensors;
+	std::optional<SystemUpgradeUIState> doorControl;
+	std::optional<SystemUpgradeUIState> teleporter;
+	std::optional<SystemUpgradeUIState> cloaking;
+	std::vector<SystemUpgradeUIState> artillery;
+	std::optional<SystemUpgradeUIState> battery;
+	std::optional<SystemUpgradeUIState> clonebay;
+	std::optional<SystemUpgradeUIState> mindControl;
+	std::optional<SystemUpgradeUIState> hacking;
+	SystemUpgradeUIState reactor;
 	Rect<int> undo;
 	Rect<int> accept;
 
@@ -85,8 +90,11 @@ struct CrewManifestUIState
 
 struct CargoUIState
 {
-	std::vector<Rect<int>> boxes;
-	std::optional<Rect<int>> overCapacity;
+	std::vector<Rect<int>> weapons;
+	std::vector<Rect<int>> drones;
+	std::vector<Rect<int>> augments;
+	std::vector<Rect<int>> storage;
+	std::optional<Rect<int>> discard;
 	Rect<int> accept;
 };
 
@@ -119,6 +127,31 @@ struct EventUIState
 	std::pair<float, float> openTime;
 };
 
+struct GameOverUIState
+{
+	Rect<int> stats;
+	Rect<int> restart;
+	Rect<int> hangar;
+	Rect<int> mainMenu;
+	Rect<int> quit;
+};
+
+struct MenuUIState
+{
+	Rect<int> continueButton;
+	Rect<int> mainMenu;
+	Rect<int> hangar;
+	Rect<int> restart;
+	Rect<int> options;
+	Rect<int> controls;
+	Rect<int> quit;
+	Rect<int> difficulty;
+	Rect<int> aeEnabled;
+	std::vector<Rect<int>> achievements;
+	bool showControls = false;
+	std::optional<ConfirmUIState> confirm;
+};
+
 struct GameUIState
 {
 	static constexpr Point<int> HARDCODED_ARMAMENT_BOX_SIZE{ 95, 39 };
@@ -127,8 +160,8 @@ struct GameUIState
 	Point<int> enemyShip;
 
 	Rect<int> ftl;
-	Rect<int> shipMenu;
-	Rect<int> menu;
+	Rect<int> shipButton;
+	Rect<int> menuButton;
 	std::optional<Rect<int>> storeButton;
 
 	std::vector<CrewBoxUIState> crewBoxes;
@@ -165,13 +198,19 @@ struct GameUIState
 	std::optional<Rect<int>> startMindControl;
 	std::optional<Rect<int>> startHack;
 
+	std::optional<Rect<int>> upgradesTab;
+	std::optional<Rect<int>> crewTab;
+	std::optional<Rect<int>> cargoTab;
+
 	std::optional<UpgradesUIState> upgrades;
-	std::optional<CrewManifestUIState> crewManifest;
+	std::optional<CrewManifestUIState> crewMenu;
 	std::optional<ConfirmUIState> leaveCrew;
 	std::optional<CargoUIState> cargo;
 	std::optional<StarMapUIState> starMap;
 	std::optional<EventUIState> event;
 	std::optional<StoreUIState> store;
+	std::optional<MenuUIState> menu;
+	std::optional<GameOverUIState> gameOver;
 
 	bool hasSystem(SystemType type, int which = 0) const
 	{
@@ -182,6 +221,75 @@ struct GameUIState
 	{
 		return ::getSystem<const Rect<int>&>(*this, type, which);
 	}
+};
+
+struct MainMenuUIState
+{
+	Rect<int> continueButton;
+	Rect<int> newGame;
+	Rect<int> tutorial;
+	Rect<int> stats;
+	Rect<int> options;
+	Rect<int> credits;
+	Rect<int> quit;
+	std::optional<ConfirmUIState> confirm;
+};
+
+struct ShipBoxUIState
+{
+	Rect<int> box;
+	std::vector<Rect<int>> achievements;
+};
+
+struct ShipListUIState
+{
+	std::vector<ShipBoxUIState> ships;
+	Rect<int> layoutA, layoutB, layoutC;
+};
+
+struct HangarCrewBoxUIState
+{
+	Rect<int> rename;
+	Rect<int> customize;
+};
+
+struct CustomizeCrewUIState
+{
+	Rect<int> previousStyle, nextStyle;
+	Rect<int> rename;
+	Rect<int> accept;
+};
+
+struct HangarUIState
+{
+	Rect<int> rename;
+	Rect<int> previousShip, nextShip;
+	Rect<int> listShips;
+	Rect<int> randomShip;
+	Rect<int> layoutA, layoutB, layoutC;
+	Rect<int> hideRooms;
+	std::vector<Rect<int>> achievements;
+	std::vector<HangarCrewBoxUIState> crew;
+	std::optional<CustomizeCrewUIState> crewCustomization;
+	Rect<int> easy, normal, hard;
+	Rect<int> start;
+	Rect<int> disableAE;
+	Rect<int> enableAE;
+};
+
+struct StatsUIState
+{
+
+};
+
+struct OptionsUIState
+{
+
+};
+
+struct CreditsUIState
+{
+
 };
 
 using SystemUIRef = std::reference_wrapper<const System>;
@@ -200,4 +308,9 @@ struct UIState
 {
 	MouseState mouse;
 	std::optional<GameUIState> game;
+	std::optional<MainMenuUIState> menu;
+	std::optional<HangarUIState> hangar;
+	std::optional<StatsUIState> stats;
+	std::optional<OptionsUIState> options;
+	std::optional<CreditsUIState> credits;
 };

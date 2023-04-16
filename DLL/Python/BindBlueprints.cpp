@@ -21,6 +21,7 @@ void bindBlueprints(py::module_& module)
 
 	py::class_<Augment, Blueprint>(module, "Augment", "An augmentation")
 		.def_readonly("value", &Augment::value, "The value the game uses to determine the intensity of the effect")
+		.def_readonly("slot", &Augment::slot, "The cargo slot the augment is stored in")
 		.def_readonly("stacking", &Augment::stacking, "Whether or not having duplicates of the augmenet does anything")
 		;
 

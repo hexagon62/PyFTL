@@ -11,6 +11,7 @@
 
 #include <optional>
 #include <memory>
+#include <variant>
 
 struct ShipEvent
 {
@@ -53,29 +54,34 @@ enum class StoreBoxType
 
 struct StoreBox
 {
+	using Item = std::variant<
+		std::monostate,
+		WeaponBlueprint,
+		DroneBlueprint,
+		Augment,
+		CrewBlueprint,
+		SystemBlueprint
+	>;
+
 	StoreBoxType type = StoreBoxType::Invalid;
 	int actualPrice = 0; // may differ from blueprint!
 	int id = 0;
-	bool page2 = false;
 
-	std::optional<WeaponBlueprint> weapon;
-	std::optional<DroneBlueprint> drone; // may be present with drone system!
-	std::optional<Augment> augment;
-	std::optional<CrewBlueprint> crew;
-	std::optional<SystemBlueprint> system;
+	Item item, extra;
 };
 
 struct Store
 {
 	static constexpr int HARDCODED_BOXES_PER_SECTION = 3;
+	static constexpr int HARDCODED_SECTIONS_PER_PAGE = 2;
 
 	std::vector<StoreBox> boxes;
 	std::vector<StoreBoxType> sections;
+	StoreBox* confirming = nullptr;
 	int fuel = 0, fuelCost = 0;
 	int missiles = 0, missileCost = 0;
 	int droneParts = 0, dronePartCost = 0;
 	int repairCost = 0, repairCostFull = 0;
-	bool page2 = false;
 };
 
 struct EventDamage

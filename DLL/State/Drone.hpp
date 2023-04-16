@@ -46,6 +46,7 @@ struct Drone
 	bool dead = false;
 	bool dying = false;
 	bool deployed = false;
+	bool cargo = false;
 	HackLevel hackLevel = HackLevel::None;
 	float hackTime = 0.f;
 	std::pair<float, float> powerUpTimer{ 0.f, 0.f };

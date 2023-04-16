@@ -36,7 +36,7 @@ struct Settings
 	bool frameLimit = false;
 	bool showBeaconPathsOnHover = false;
 	bool colorblindMode = false;
-	bool advancedEditionEnabled = false;
+	bool aeEnabled = false;
 	std::string language = "en";
 	Point<int> screenSize;
 	EventChoiceSelection eventChoiceSelection = EventChoiceSelection::DisableHotkeys;

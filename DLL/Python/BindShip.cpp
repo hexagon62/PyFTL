@@ -57,6 +57,8 @@ void bindShip(py::module_& module)
 		.def_readonly("cargo", &Ship::cargo, "The ship's inventory")
 		.def("has_system", &Ship::hasSystem, "Checks if the specified system is present")
 		.def("get_system", &Ship::getSystem, py::return_value_policy::reference, "Gets the specified system")
+		.def("system_count", &Ship::systemCount, "Gets the number of systems present (excluding subsystems)")
+		.def("subsystem_count", &Ship::subsystemCount, "Gets the number of subsystems present")
 		;
 }
 
