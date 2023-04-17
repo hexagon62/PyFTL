@@ -11,16 +11,17 @@ void bindShip(py::module_& module)
 		.def_readonly("fuel", &Cargo::fuel, "The ship's fuel count")
 		.def_readonly("missiles", &Cargo::missiles, "The ship's missile count")
 		.def_readonly("drone_parts", &Cargo::droneParts, "The ship's drone parts")
-		.def_readonly("weapons", &Cargo::weapons, "The ship's weapons in storage")
-		.def_readonly("drones", &Cargo::drones, "The ship's drones in storage")
-		.def_readonly("augments", &Cargo::augments, "The ship's augments")
+		.def_readonly("storage", &Cargo::storage, "The ship's weapon/drone storage slots")
+		.def_readonly("augments", &Cargo::augments, "The ship's augment slots")
 		.def_readonly("over_capacity", &Cargo::overCapacity, "Items that will be left behind on jump")
 		;
 
 	py::class_<Reactor>(module, "Reactor", "A ship's reactor")
+		.def_readonly_static("HARDCODED_UPGRADE_COSTS", &Reactor::HARDCODED_UPGRADE_COSTS, "The cost to upgrade the reactor to a given level")
 		.def_readonly("total", &Reactor::total, "Total power left in the reactor")
 		.def_readonly("normal", &Reactor::normal, "Normal power left in the reactor")
 		.def_readonly("battery", &Reactor::battery, "Battery power left in the reactor")
+		.def_readonly("level", &Reactor::level, "A pair with the reactor's current level and max level")
 		.def_readonly("cap", &Reactor::cap, "The reactor's power cap")
 		;
 

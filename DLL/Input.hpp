@@ -76,7 +76,8 @@ public:
 	static Ret hotkeyUp(const std::string& hotkey, bool shift = false);
 	static Ret hotkeyPress(const std::string& hotkey, bool shift = false);
 
-	static const decltype(Settings::hotkeys)& hotkeys();
+	using Hotkeys = decltype(Settings::hotkeys);
+	static const Hotkeys& hotkeys();
 
 	static Ret text(char ch);
 	static Ret text(const std::string& str);
@@ -94,7 +95,7 @@ public:
 	static Ret pause(bool on = true);
 	static Ret choice(int which);
 
-	static Ret powerSystem(SystemType system, int set = 0);
+	static Ret powerSystem(SystemType system, int set = 0, int which = 0);
 	static Ret powerWeapon(int weapon, bool on = true);
 	static Ret powerDrone(int drone, bool on = true);
 
@@ -103,6 +104,8 @@ public:
 
 	static Ret swapWeapons(int slotA, int slotB);
 	static Ret swapDrones(int slotA, int slotB);
+
+	static Ret crewAbility();
 
 	static Ret autofire(bool on = false);
 	static Ret teleportSend();
@@ -134,6 +137,31 @@ public:
 	static Ret sendCrew(int room, bool self = true);
 	static Ret saveStations();
 	static Ret loadStations();
+
+	static Ret jump();
+	static Ret leaveCrew(bool yes);
+	static Ret upgrades();
+	static Ret crewManifest();
+	static Ret cargo();
+	static Ret store();
+	static Ret menu();
+
+	static Ret upgradeSystem(SystemType system, int to, int which = 0);
+	static Ret upgradeReactor(int to);
+	static Ret undoUpgrades();
+
+	static Ret renameCrew(int which, const std::string& name);
+	static Ret dismissCrew(int which);
+	static Ret confirmDismissCrew(bool yes);
+
+	static Ret swapCargo(int slotA, int slotB);
+	static Ret swapWeaponCargo(int weaponSlot, int cargoSlot);
+	static Ret swapDroneCargo(int droneSlot, int cargoSlot);
+
+	static Ret discardCargo(int slot);
+	static Ret discardWeapon(int slot);
+	static Ret discardDrone(int slot);
+	static Ret discardAugment(int slot);
 
 private:
 	static Impl impl;

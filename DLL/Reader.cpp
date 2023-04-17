@@ -55,6 +55,7 @@ void readPower(Power& power, const raw::ShipSystem& raw)
 void readSystem(System& system, const raw::ShipSystem& raw)
 {
 	readPower(system.power, raw);
+	system.blueprint = Reader::getState().blueprints.systemBlueprints.at(raw.name.str);
 
 	system.type = SystemType(raw.iSystemType);
 	system.room = raw.roomId;
@@ -590,6 +591,8 @@ void readSystemBlueprint(SystemBlueprint& blueprint, const raw::SystemBlueprint&
 	blueprint.powerStart = raw.startPower;
 	blueprint.powerMax = raw.maxPower;
 	blueprint.upgradeCosts.clear();
+	blueprint.upgradeCosts.emplace_back(0); // for level 0, which is otherwise unreachable
+	blueprint.upgradeCosts.emplace_back(0); // for level 1, which is already unlocked
 
 	for (size_t i = 0; i < raw.upgradeCosts.size(); i++)
 	{
@@ -604,6 +607,7 @@ void readWeaponSystem(WeaponSystem& weapons, const raw::WeaponSystem& raw, const
 
 	weapons.list.clear();
 	weapons.autoFire = false; // set when reading player ship
+	weapons.slotCount = false; // set when reading ship
 
 	for (size_t i = 0; i < raw.weapons.size(); i++)
 	{
@@ -646,6 +650,8 @@ void readDroneSystem(
 	drones.blueprint = Reader::getState().blueprints.systemBlueprints.at("drones");
 
 	drones.list.clear();
+	drones.slotCount = false; // set when reading ship
+
 	for (size_t i = 0; i < raw.drones.size(); i++)
 	{
 		auto& drone = drones.list.emplace_back();
@@ -684,6 +690,10 @@ void readCloakingSystem(CloakingSystem& cloaking, const raw::CloakingSystem& raw
 	cloaking.on = raw.bTurnedOn;
 	cloaking.timer.first = raw.timer.currGoal - raw.timer.currTime;
 	cloaking.timer.second = raw.timer.currGoal;
+	if (cloaking.timer.first <= 0.f)
+	{
+		cloaking.timer.first = cloaking.timer.second;
+	}
 }
 
 void readPilotingSystem(PilotingSystem& piloting, const raw::ShipSystem& raw)
@@ -727,8 +737,14 @@ void readBatterySystem(BatterySystem& battery, const raw::BatterySystem& raw)
 	battery.blueprint = Reader::getState().blueprints.systemBlueprints.at("battery");
 
 	battery.on = raw.bTurnedOn;
+
 	battery.timer.first = raw.timer.currGoal - raw.timer.currTime;
 	battery.timer.second = raw.timer.currGoal;
+	if (battery.timer.first <= 0.f)
+	{
+		battery.timer.first = battery.timer.second;
+	}
+
 	battery.provides = raw.powerState.first * 2;
 	battery.providing = battery.on ? battery.provides : 0;
 }
@@ -739,8 +755,14 @@ void readMindControlSystem(MindControlSystem& mindControl, const raw::MindSystem
 	mindControl.blueprint = Reader::getState().blueprints.systemBlueprints.at("mind");
 
 	mindControl.on = raw.controlTimer.first < raw.controlTimer.second;
+
 	mindControl.timer.first = raw.controlTimer.second - raw.controlTimer.first;
 	mindControl.timer.second = raw.controlTimer.second;
+	if (mindControl.timer.first <= 0.f)
+	{
+		mindControl.timer.first = mindControl.timer.second;
+	}
+
 	mindControl.targetRoom = raw.iQueuedTarget;
 	mindControl.targetingPlayerShip = raw.iQueuedShip == 0;
 	mindControl.canUse = raw.bCanUse;
@@ -759,8 +781,14 @@ void readHackingSystem(
 
 	hacking.on = raw.bHacking;
 	hacking.canUse = raw.bCanHack;
+
 	hacking.timer.first = raw.effectTimer.second - raw.effectTimer.first;
 	hacking.timer.second = raw.effectTimer.second;
+	if (hacking.timer.first <= 0.f)
+	{
+		hacking.timer.first = hacking.timer.second;
+	}
+
 	hacking.target = SystemType(raw.currentSystem ? raw.currentSystem->iSystemType : -1);
 	hacking.queued = SystemType(raw.queuedSystem ? raw.queuedSystem->iSystemType : -1);
 	hacking.drone.start = raw.drone.startingPosition;
@@ -840,7 +868,6 @@ void readRoom(
 	room.fireRepair = 0.f;
 	room.breachRepair = 0.f;
 
-	room.crewMoving.clear();
 	room.crew.clear();
 	room.intruders.clear();
 
@@ -849,12 +876,6 @@ void readRoom(
 		for (auto&& c : v)
 		{
 			if (c.room != room.id) continue;
-
-			if (c.moving)
-			{
-				room.crewMoving.push_back(&c);
-				continue;
-			}
 
 			if (c.intruder)
 			{
@@ -885,7 +906,6 @@ void readRoomSlots(
 	for (auto&& slot : room.slots)
 	{
 		slot.room = &room;
-		slot.crewMoving.clear();
 		slot.crew = nullptr;
 		slot.intruder = nullptr;
 		slot.fire.reset();
@@ -919,21 +939,12 @@ void readRoomSlots(
 		slot.rect.h = Room::HARDCODED_TILE_SIZE;
 
 		// Crew
-		for (auto&& c : room.crewMoving)
-		{
-			if (slot.rect.contains(c->position))
-			{
-				c->slot = slot.id;
-				slot.crewMoving.push_back(c);
-			}
-		}
-
 		for (auto&& c : room.crew)
 		{
 			if (slot.rect.contains(c->position))
 			{
 				c->slot = slot.id;
-				slot.crew = c;
+				if(!c->moving) slot.crew = c;
 			}
 		}
 
@@ -942,7 +953,7 @@ void readRoomSlots(
 			if (slot.rect.contains(c->position))
 			{
 				c->slot = slot.id;
-				slot.intruder = c;
+				if (!c->moving) slot.intruder = c;
 			}
 		}
 	}
@@ -1024,7 +1035,7 @@ void readGenericShipStuff(
 	ship.automated = raw.bAutomated;
 	ship.jumping = raw.bJumping;
 	ship.canJump = raw.lastJumpReady;
-	ship.canInventory = false; // TO DO
+	ship.canInventory = false;
 
 	Point<int> position = ship.player
 		? playerShipPos
@@ -1041,7 +1052,8 @@ void readGenericShipStuff(
 		power.iTempPowerLoss,
 		power.iTempDividePower);
 
-	ship.reactor.level = power.currentPower.second;
+	ship.reactor.level.first = power.currentPower.second;
+	ship.reactor.level.second = Reactor::HARDCODED_MAX_LEVEL;
 	ship.reactor.normal.first = ship.reactor.cap-power.currentPower.first;
 	ship.reactor.normal.second = ship.reactor.cap;
 	ship.reactor.battery.first = power.batteryPower.second - power.batteryPower.first;
@@ -1133,6 +1145,7 @@ void readGenericShipStuff(
 			ship.weapons.emplace();
 			readWeaponSystem(*ship.weapons, *static_cast<raw::WeaponSystem*>(current), position);
 			if (ship.player) ship.weapons->uiBox = int(i);
+			ship.weapons->slotCount = raw.myBlueprint.weaponSlots;
 			break;
 		case SystemType::Drones:
 			ship.drones.emplace();
@@ -1142,6 +1155,7 @@ void readGenericShipStuff(
 				playerShipPos, enemyShipPos,
 				ship.superShields.first);
 			if (ship.player) ship.drones->uiBox = int(i);
+			ship.drones->slotCount = raw.myBlueprint.weaponSlots;
 			break;
 		case SystemType::Medbay:
 			ship.medbay.emplace();
@@ -1236,51 +1250,82 @@ void readPlayerShip(
 	ship.cargo.missiles = gui.shipStatus.lastMissiles;
 	ship.cargo.droneParts = gui.shipStatus.lastDrones;
 
-	ship.cargo.weapons.clear();
-	ship.cargo.drones.clear();
-	ship.cargo.augments.clear();
-	ship.cargo.overCapacity.clear();
+	ship.cargo.storage.clear();
+	ship.cargo.overCapacity = std::monostate{};
 
 	auto&& boxes = gui.equipScreen.vEquipmentBoxes;
-	size_t weaponSlots = gui.shipStatus.ship->myBlueprint.weaponSlots;
-	size_t droneSlots = gui.shipStatus.ship->myBlueprint.droneSlots;
-	size_t storageStart = weaponSlots + droneSlots;
+	const size_t weaponSlots = gui.shipStatus.ship->myBlueprint.weaponSlots;
+	const size_t droneSlots = gui.shipStatus.ship->myBlueprint.droneSlots;
+	const size_t weaponStart = 0;
+	const size_t droneStart = weaponStart + weaponSlots;
+	const size_t augStart = droneStart + droneSlots;
+	const size_t storageStart = augStart + 3;
+	const size_t overCapacity = storageStart + 4;
 
-	// Iterate over cargo boxes (not equipped weapons/drones)
-	for (size_t i = storageStart; i < boxes.size(); i++)
+	// Iterate over cargo boxes (not equipped weapons/drones, or augments)
+	for (size_t i = storageStart; i < overCapacity; i++)
 	{
 		auto&& equipment = boxes[i]->item;
 
 		if (equipment.pWeapon) // weapon
 		{
-			auto&& weapon = boxes[i]->slot >= 4
-				? std::get<Weapon>(ship.cargo.overCapacity.emplace_back(Weapon{}))
-				: ship.cargo.weapons.emplace_back();
-
+			Weapon weapon;
 			readWeapon(weapon, *equipment.pWeapon, { 0, 0 });
 			weapon.cargo = true;
 			weapon.slot = boxes[i]->slot;
+
+			if (boxes[i]->slot >= 4)
+			{
+				ship.cargo.overCapacity = weapon;
+			}
+			else
+			{
+				ship.cargo.storage.emplace_back(weapon);
+			}
 		}
-
-		if (equipment.pDrone) // drone
+		else if (equipment.pDrone) // drone
 		{
-			auto&& drone = boxes[i]->slot >= 4
-				? std::get<Drone>(ship.cargo.overCapacity.emplace_back(Drone{}))
-				: ship.cargo.drones.emplace_back();
-
+			Drone drone;
 			readDrone(drone, *equipment.pDrone, { 0, 0 }, { 0, 0 });
 			drone.cargo = true;
 			drone.slot = boxes[i]->slot;
+
+			if (boxes[i]->slot >= 4)
+			{
+				ship.cargo.overCapacity = drone;
+			}
+			else
+			{
+				ship.cargo.storage.emplace_back(drone);
+			}
 		}
-
-		if (equipment.augment) // augment
+		else // empty
 		{
-			auto&& augment = boxes[i]->slot >= 4
-				? std::get<Augment>(ship.cargo.overCapacity.emplace_back(Augment{}))
-				: ship.cargo.augments.emplace_back();
+			ship.cargo.storage.emplace_back(); // emplace empty slot
+		}
+	}
 
+	// Iterate over augments
+	for (size_t i = augStart; i < storageStart; i++)
+	{
+		auto&& equipment = boxes[i]->item;
+
+		// Augments can't be rearranged and always fill the first available slots
+		// Hence, storing if augment slots are empty is pointless
+		if (equipment.augment)
+		{
+			Augment augment;
 			readAugment(augment, *equipment.augment);
 			augment.slot = boxes[i]->slot;
+
+			if (boxes[i]->slot >= 4)
+			{
+				ship.cargo.overCapacity = augment;
+			}
+			else
+			{
+				ship.cargo.augments.emplace_back(augment);
+			}
 		}
 	}
 
@@ -1306,6 +1351,14 @@ void readPlayerShip(
 	{
 		ship.weapons->autoFire = gui.combatControl.weapControl.autoFiring;
 	}
+
+	auto&& state = Reader::getState();
+
+	bool hazard =
+		state.game->space.environment != EnvironmentType::Normal &&
+		state.game->space.environment != EnvironmentType::Nebula;
+
+	ship.canInventory = !hazard && !state.game->enemyShip;
 }
 
 void readEnemyShip(
@@ -2074,6 +2127,11 @@ void readUI(State& state, const raw::State& raw)
 				crewBoxes[i]->box,
 				crewBoxes[i]->skillBox
 			});
+
+			if (crewBoxes[i]->powerButton.bActive)
+			{
+				ui.game->crewBoxes.back().power = crewBoxes[i]->powerButton.hitbox;
+			}
 		}
 
 		ui.game->saveStations = gui.crewControl.saveStations.hitbox;
@@ -2257,7 +2315,13 @@ void readUI(State& state, const raw::State& raw)
 				auto type = SystemType(box.system->iSystemType);
 				auto&& sys = Reader::getState().game->playerShip->getSystem(type);
 
-				SystemUpgradeUIState s{box.boxButton.hitbox, sys.level.first + box.tempUpgrade};
+				SystemUpgradeUIState s{
+					box.boxButton.hitbox,
+					{
+						sys.level.first,
+						sys.level.first + box.tempUpgrade
+					}
+				};
 
 				switch (type)
 				{
@@ -2280,8 +2344,13 @@ void readUI(State& state, const raw::State& raw)
 				}
 			}
 
+			auto&& reactor = Reader::getState().game->playerShip->reactor;
+
 			ui.game->upgrades->reactor.box = upgrades.reactorButton.hitbox;
-			ui.game->upgrades->reactor.upgradeTo = upgrades.reactorButton.tempUpgrade;
+			ui.game->upgrades->reactor.upgrade = {
+				reactor.level.first,
+				reactor.level.first + upgrades.reactorButton.tempUpgrade
+			};
 
 			ui.game->upgrades->undo = upgrades.undoButton.hitbox;
 			ui.game->upgrades->accept = raw.app->gui->shipScreens.doneButton.hitbox;
@@ -2308,7 +2377,7 @@ void readUI(State& state, const raw::State& raw)
 				});
 			}
 
-			if (crew.confirmingDelete)
+			if (crew.deleteDialog.bOpen)
 			{
 				ui.game->crewMenu->confirm.emplace();
 				ui.game->crewMenu->confirm->yes = crew.deleteDialog.yesButton.hitbox;
@@ -2396,6 +2465,20 @@ void readUI(State& state, const raw::State& raw)
 			ui.game->cargo.reset();
 		}
 
+		if (raw.app->gui->shipScreens.bOpen)
+		{
+			auto&& screens = raw.app->gui->shipScreens;
+			ui.game->upgradesTab = screens.buttons[0]->hitbox;
+			ui.game->crewTab = screens.buttons[1]->hitbox;
+			ui.game->cargoTab = screens.buttons[2]->hitbox;
+		}
+		else
+		{
+			ui.game->upgradesTab.reset();
+			ui.game->crewTab.reset();
+			ui.game->cargoTab.reset();
+		}
+
 		if (raw.app->gui->starMap->bOpen)
 		{
 			auto&& map = raw.app->gui->starMap;
@@ -2469,52 +2552,55 @@ void readUI(State& state, const raw::State& raw)
 				};
 				break;
 			}
-
-			if (state.game->event->store)
-			{
-				auto&& store = state.game->event->store;
-				auto&& rawStore = *state.game->event->_storePtr;
-				auto&& screen = raw.app->gui->storeScreens;
-
-				ui.game->store.emplace();
-				ui.game->store->close = screen.doneButton.hitbox;
-				ui.game->store->buy = screen.buttons[0]->hitbox;
-				ui.game->store->sell = screen.buttons[1]->hitbox;
-				
-				int pageCount = int(store->sections.size() / 2);
-
-				// We only support 2 pages right now
-				// I am generalizing this for future Hyperspace support (hopefully)
-				// And yes, the buttons in FTL are reversed for some reason
-				if (pageCount >= 1) ui.game->store->pages.push_back(rawStore.page2.hitbox);
-				if (pageCount >= 2) ui.game->store->pages.push_back(rawStore.page1.hitbox);
-				ui.game->store->currentPage = rawStore.bShowPage2 ? 1 : 0;
-
-				int items = rawStore.sectionCount * Store::HARDCODED_BOXES_PER_SECTION;
-				ui.game->store->fuel = rawStore.vStoreBoxes[items + 0]->button.hitbox;
-				ui.game->store->missiles = rawStore.vStoreBoxes[items + 1]->button.hitbox;
-				ui.game->store->droneParts = rawStore.vStoreBoxes[items + 2]->button.hitbox;
-				ui.game->store->repair = rawStore.vStoreBoxes[items + 3]->button.hitbox;
-				ui.game->store->repairAll = rawStore.vStoreBoxes[items + 4]->button.hitbox;
-
-				for (int i = 0; i < items; i++)
-				{
-					ui.game->store->boxes.push_back(rawStore.vStoreBoxes[i]->button.hitbox);
-				}
-
-				if (store->confirming)
-				{
-					ui.game->store->confirm.emplace();
-					ui.game->store->confirm->yes = rawStore.confirmDialog.yesButton.hitbox;
-					ui.game->store->confirm->no = rawStore.confirmDialog.noButton.hitbox;
-				}
-
-				ui.game->storeButton = raw.app->gui->storeButton.hitbox;
-			}
 		}
 		else
 		{
 			ui.game->event.reset();
+		}
+
+		if (state.game->event && state.game->event->store)
+		{
+			auto&& store = state.game->event->store;
+			auto&& rawStore = *state.game->event->_storePtr;
+			auto&& screen = raw.app->gui->storeScreens;
+
+			ui.game->store.emplace();
+			ui.game->store->close = screen.doneButton.hitbox;
+			ui.game->store->buy = screen.buttons[0]->hitbox;
+			ui.game->store->sell = screen.buttons[1]->hitbox;
+
+			int pageCount = int(store->sections.size() / 2);
+
+			// We only support 2 pages right now
+			// I am generalizing this for future Hyperspace support (hopefully)
+			// And yes, the buttons in FTL are reversed for some reason
+			if (pageCount >= 1) ui.game->store->pages.push_back(rawStore.page2.hitbox);
+			if (pageCount >= 2) ui.game->store->pages.push_back(rawStore.page1.hitbox);
+			ui.game->store->currentPage = rawStore.bShowPage2 ? 1 : 0;
+
+			int items = rawStore.sectionCount * Store::HARDCODED_BOXES_PER_SECTION;
+			ui.game->store->fuel = rawStore.vStoreBoxes[items + 0]->button.hitbox;
+			ui.game->store->missiles = rawStore.vStoreBoxes[items + 1]->button.hitbox;
+			ui.game->store->droneParts = rawStore.vStoreBoxes[items + 2]->button.hitbox;
+			ui.game->store->repair = rawStore.vStoreBoxes[items + 3]->button.hitbox;
+			ui.game->store->repairAll = rawStore.vStoreBoxes[items + 4]->button.hitbox;
+
+			for (int i = 0; i < items; i++)
+			{
+				ui.game->store->boxes.push_back(rawStore.vStoreBoxes[i]->button.hitbox);
+			}
+
+			if (store->confirming)
+			{
+				ui.game->store->confirm.emplace();
+				ui.game->store->confirm->yes = rawStore.confirmDialog.yesButton.hitbox;
+				ui.game->store->confirm->no = rawStore.confirmDialog.noButton.hitbox;
+			}
+
+			ui.game->storeButton = raw.app->gui->storeButton.hitbox;
+		}
+		else
+		{
 			ui.game->store.reset();
 			ui.game->storeButton.reset();
 		}

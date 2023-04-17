@@ -7,6 +7,8 @@
 
 struct CrewBlueprint : Blueprint
 {
+	static constexpr int HARDCODED_MAX_NAME_LENGTH = 15;
+
 	std::string name, nameLong, species;
 	bool male = false;
 	std::pair<int, int> skillPiloting{ 0, 0 };

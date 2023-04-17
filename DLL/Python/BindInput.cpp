@@ -413,11 +413,14 @@ void bindInput(py::module_& module)
 		&Input::powerSystem,
 		py::arg("system"),
 		py::arg("set") = 0,
-		"Queue a command to change a system's power.\n\n"
+		py::arg("which") = 0,
+		"Queue a command to change a system's power.\n"
+		"Power level will be set to 'set' if possible, otherwise an exception will be thrown.\n"
+		"If multiple of a system are present (i.e. artillery), specify 'which'.\n\n"
 		"Inputs will be tried in the below order:\n"
 		"1) The direct unpower hotkey (if lowering power)\n"
-		"2) The direct power hotkey (+shift if lowering power)\n"
-		"3) The positional unpower hotkey (if lowering power)\n"
+		"2) The positional unpower hotkey (if lowering power)\n"
+		"3) The direct power hotkey (+shift if lowering power)\n"
 		"4) The positional power hotkey (+shift if lowering power)\n"
 		"5) Clicking directly on the system"
 	);
@@ -466,7 +469,9 @@ void bindInput(py::module_& module)
 		&Input::swapWeapons,
 		py::arg("slot_a"),
 		py::arg("slot_b"),
-		"Queue a command to swap two equipped weapons."
+		"Queue a command to swap two equipped weapons.\n"
+		"Works both in-game and in the cargo menu.\n"
+		"Will raise an exception if paused and not in the cargo menu."
 	);
 
 	sub.def(
@@ -475,6 +480,15 @@ void bindInput(py::module_& module)
 		py::arg("slot_a"),
 		py::arg("slot_b"),
 		"Queue a command to swap two equipped drones."
+		"Works both in-game and in the cargo menu.\n"
+		"Will raise an exception if paused and not in the cargo menu."
+	);
+
+	sub.def(
+		"crew_ability",
+		&Input::crewAbility,
+		"Queue a command to use the special abilities of all selected crew.\n"
+		"If a selected crewmember has no special ability, nothing happens."
 	);
 
 	sub.def(
@@ -505,6 +519,13 @@ void bindInput(py::module_& module)
 		"cloak",
 		&Input::cloak,
 		"Queue a command to activate cloaking.\n"
+		"It tries the hotkey, then clicks the button."
+	);
+
+	sub.def(
+		"battery",
+		&Input::battery,
+		"Queue a command to activate the backup battery.\n"
 		"It tries the hotkey, then clicks the button."
 	);
 
@@ -610,6 +631,184 @@ void bindInput(py::module_& module)
 		"Queue a command to load the stations of the player crew.\n"
 		"Tries the hotkey first, then clicks the button."
 	);
+
+	sub.def(
+		"jump",
+		&Input::jump,
+		"Queue a command to jump.\n"
+		"Tries the hotkey first, then clicks the button."
+	);
+
+	sub.def(
+		"leave_crew",
+		&Input::leaveCrew,
+		py::arg("yes"),
+		"Queue a command to answer the dialog to confirm leaving boarding crew behind.\n"
+		"The dialog must have already popped up, or an exception will be raised."
+	);
+
+	sub.def(
+		"upgrades",
+		&Input::upgrades,
+		"Queue a command to open the upgrades menu."
+	);
+
+	sub.def(
+		"crew_manifest",
+		&Input::crewManifest,
+		"Queue a command to open the crew menu."
+	);
+
+	sub.def(
+		"cargo",
+		&Input::cargo,
+		"Queue a command to open the cargo menu."
+	);
+
+	sub.def(
+		"store",
+		&Input::store,
+		"Queue a command to open the store menu."
+	);
+
+	sub.def(
+		"menu",
+		&Input::menu,
+		"Queue a command to open the pause menu."
+	);
+
+	sub.def(
+		"upgrade_system",
+		&Input::upgradeSystem,
+		py::arg("system"),
+		py::arg("to"),
+		py::arg("which") = 0,
+		"Queue a command to upgrade a system to the specified level.\n"
+		"Specify 'which' if there's multiple of that system.\n"
+		"You can also use this to remove upgrades from a system,\n"
+		"so long as you haven't closed the upgrade menu.\n\n"
+		"You must already be in the upgrade menu, or an exception will be raised."
+	);
+
+	sub.def(
+		"upgrade_reactor",
+		&Input::upgradeReactor,
+		py::arg("to"),
+		"Queue a command to upgrade the reactor to the specified level.\n"
+		"You can also use this to remove upgrades from the reactor,\n"
+		"so long as you haven't closed the upgrade menu.\n\n"
+		"You must already be in the upgrade menu, or an exception will be raised."
+	);
+
+	sub.def(
+		"undo_upgrades",
+		&Input::undoUpgrades,
+		"Queue a command to click the button to undo all upgrades.\n"
+		"You must already be in the upgrade menu, or an exception will be raised."
+	);
+
+	sub.def(
+		"rename_crew",
+		&Input::renameCrew,
+		py::arg("which"),
+		py::arg("name"),
+		"Queue a command to rename a crewmember.\n"
+		"You must already be in the crew manifest, or an exception will be raised."
+	);
+
+	sub.def(
+		"dismiss_crew",
+		&Input::dismissCrew,
+		py::arg("which"),
+		"Queue a command to dismiss a crewmember.\n"
+		"You must already be in the crew manifest, or an exception will be raised."
+	);
+
+	sub.def(
+		"confirm_dismiss_crew",
+		&Input::confirmDismissCrew,
+		py::arg("yes"),
+		"Queue a command to confirm dismissing a crewmember.\n"
+		"The confirmation window must be open, or an exception will be raised."
+	);
+
+	sub.def(
+		"swap_cargo",
+		&Input::swapCargo,
+		py::arg("slot_a"),
+		py::arg("slot_b"),
+		"Queue a command to swap two unequipped weapons/drones in storage."
+	);
+
+	sub.def(
+		"swap_weapon_cargo",
+		&Input::swapWeaponCargo,
+		py::arg("weapon_slot"),
+		py::arg("cargo_slot"),
+		"Queue a command to swap an equipped weapon with one in storage."
+	);
+
+	sub.def(
+		"swap_drone_cargo",
+		&Input::swapDroneCargo,
+		py::arg("drone_slot"),
+		py::arg("cargo_slot"),
+		"Queue a command to swap an equipped drone with one in storage."
+	);
+
+	sub.def(
+		"discard_cargo",
+		&Input::discardCargo,
+		py::arg("slot"),
+		"Queue a command to discard the cargo in the specified storage slot.\n"
+		"This leaves items behind at beacons if there's over-capacity.\n"
+		"This also sells items at stores.\n"
+		"If neither of these are the case, an exception is raised."
+	);
+
+	sub.def(
+		"discard_cargo",
+		&Input::discardCargo,
+		py::arg("slot"),
+		"Queue a command to discard the cargo in the specified storage slot.\n"
+		"This leaves cargo behind at beacons if there's over-capacity.\n"
+		"This also sells cargo at stores.\n"
+		"If neither of these are the case, an exception is raised."
+	);
+
+	sub.def(
+		"discard_weapon",
+		&Input::discardWeapon,
+		py::arg("slot"),
+		"Queue a command to discard the weapon in the specified weapon slot.\n"
+		"NOTE: Weapons will automatically shift to the left-most slot afterwards!\n"
+		"This leaves weapons behind at beacons if there's over-capacity.\n"
+		"This also sells weapons at stores.\n"
+		"If neither of these are the case, an exception is raised."
+	);
+
+	sub.def(
+		"discard_drone",
+		&Input::discardDrone,
+		py::arg("slot"),
+		"Queue a command to discard the drone in the specified drone slot.\n"
+		"NOTE: Drones will automatically shift to the left-most slot afterwards!\n"
+		"This leaves drones behind at beacons if there's over-capacity.\n"
+		"This also sells drones at stores.\n"
+		"If neither of these are the case, an exception is raised."
+	);
+
+	sub.def(
+		"discard_augment",
+		&Input::discardAugment,
+		py::arg("slot"),
+		"Queue a command to discard the augment in the specified augment slot.\n"
+		"NOTE: Augments will automatically shift to the left-most slot afterwards!\n"
+		"This leaves augments behind at beacons if there's over-capacity.\n"
+		"This also sells augments at stores.\n"
+		"If neither of these are the case, an exception is raised."
+	);
+
 }
 
 }

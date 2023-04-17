@@ -12,24 +12,48 @@
 #include <variant>
 #include <stdexcept>
 
-using CargoItem = std::variant<std::monostate, Weapon, Drone, Augment>;
+using CargoItem =
+	std::variant<
+		std::monostate,
+		Weapon,
+		Drone
+	>;
+
+using OverCapacityItem =
+	std::variant<
+		std::monostate,
+		Weapon,
+		Drone,
+		Augment
+	>;
 
 struct Cargo
 {
 	int scrap = 0, fuel = 0, missiles = 0, droneParts = 0;
 
-	std::vector<Weapon> weapons;
-	std::vector<Drone> drones;
+	std::vector<CargoItem> storage;
 	std::vector<Augment> augments;
-	std::vector<CargoItem> overCapacity;
+	OverCapacityItem overCapacity;
 };
 
 struct Reactor
 {
+	static constexpr int HARDCODED_MAX_LEVEL = 25;
+
+	static constexpr std::array<int, HARDCODED_MAX_LEVEL+1> HARDCODED_UPGRADE_COSTS{
+		0,
+		30, 30, 30, 30, 30,
+		20, 20, 20, 20, 20,
+		25, 25, 25, 25, 25,
+		30, 30, 30, 30, 30,
+		35, 35, 35, 35, 35
+	};
+
 	std::pair<int, int> total{ 0, 0 };
 	std::pair<int, int> normal{ 0, 0 };
 	std::pair<int, int> battery{ 0, 0 };
-	int level = 0, cap = 0;
+	std::pair<int, int> level{ 0, HARDCODED_MAX_LEVEL };
+	int cap = 0;
 };
 
 struct Ship

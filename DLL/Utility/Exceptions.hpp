@@ -15,6 +15,18 @@ public:
 	{}
 };
 
+struct MenuNotAvailable final : public std::runtime_error
+{
+public:
+	MenuNotAvailable()
+		: std::runtime_error("tried to open a menu that's not available")
+	{}
+
+	MenuNotAvailable(const std::string& what, const std::string& why)
+		: std::runtime_error("tried to open " + what + " but " + why)
+	{}
+};
+
 class InvalidTime final : public std::invalid_argument
 {
 public:
@@ -53,6 +65,16 @@ public:
 	NoEvent()
 		: std::runtime_error(
 			"tried to do an input that requires an active event"
+		)
+	{}
+};
+
+class NoStore final : public std::runtime_error
+{
+public:
+	NoStore()
+		: std::runtime_error(
+			"tried to do an input that requires a store present"
 		)
 	{}
 };
@@ -155,13 +177,36 @@ public:
 	InvalidSlotChoice(const std::string& what, int slot, int count)
 		: std::out_of_range(
 			"tried to use a " + what + " in slot #" + std::to_string(slot) +
-			" but there are only " + std::to_string(count) + " taken slots"
+			" but there are only " + std::to_string(count) + " usable slots"
 		)
 	{}
 
 	InvalidSlotChoice(const std::string& what, int slot, const std::string& why)
 		: std::out_of_range(
 			"tried to use a " + what + " in slot #" + std::to_string(slot) + " but " + why
+		)
+	{}
+};
+
+class InvalidSwap final : public std::out_of_range
+{
+public:
+	InvalidSwap(const std::string& whatA, int slotA, const std::string& whatB, int slotB)
+		: std::out_of_range(
+			"tried to swap " + whatA + " slot #" + std::to_string(slotA+1) +
+			" and " + whatB + " slot #" + std::to_string(slotB+1) +
+			" but both slots are empty or one slot is invalid"
+		)
+	{}
+};
+
+class InvalidDiscard final : public std::out_of_range
+{
+public:
+	InvalidDiscard(const std::string& what, int slot)
+		: std::out_of_range(
+			"tried to discard item in " + what + " slot #" + std::to_string(slot+1) +
+			" but the slot is empty or invalid"
 		)
 	{}
 };
@@ -220,6 +265,51 @@ public:
 	InvalidHackingInput(bool setup, const std::string& why)
 		: std::runtime_error(
 			"tried to " + std::string(setup ? "hack" : "send hacking drone") + " but " + why
+		)
+	{}
+};
+
+class CannotAfford final : public std::invalid_argument
+{
+public:
+	CannotAfford(const std::string& what, int scrap, int cost)
+		: std::invalid_argument(
+			"tried to purchase " + what + " but it costs " + std::to_string(cost) +
+			" scrap and I only have " + std::to_string(scrap) + " scrap"
+		)
+	{}
+};
+
+class InvalidUpgrade final : public std::invalid_argument
+{
+public:
+	InvalidUpgrade(SystemType type, int from, int to, int cap)
+		: std::invalid_argument(
+			"tried to upgrade the " + systemName(type) + " system from levels " +
+			std::to_string(from) + " to " + std::to_string(to) + " which is invalid "
+			"because the system's maximum level is " + std::to_string(cap)
+		)
+	{}
+
+	InvalidUpgrade(SystemType type, int from, int to)
+		: std::invalid_argument(
+			"tried to upgrade the " + systemName(type) + " system from levels " +
+			std::to_string(from) + " to " + std::to_string(to) + " which is invalid"
+		)
+	{}
+
+	InvalidUpgrade(int from, int to, int cap)
+		: std::invalid_argument(
+			"tried to upgrade the reactor from levels " +
+			std::to_string(from) + " to " + std::to_string(to) + " which is invalid "
+			"because the reactor's maximum level is " + std::to_string(cap)
+		)
+	{}
+
+	InvalidUpgrade(int from, int to)
+		: std::invalid_argument(
+			"tried to upgrade the reactor from levels " +
+			std::to_string(from) + " to " + std::to_string(to) + " which is invalid"
 		)
 	{}
 };

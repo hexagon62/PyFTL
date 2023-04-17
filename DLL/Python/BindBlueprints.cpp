@@ -50,6 +50,7 @@ void bindBlueprints(py::module_& module)
 		;
 
 	py::class_<CrewBlueprint, Blueprint>(module, "CrewBlueprint", "A crewmember's blueprint")
+		.def_readonly_static("HARDCODED_MAX_NAME_LENGTH", &CrewBlueprint::HARDCODED_MAX_NAME_LENGTH, "The maximum name length of a crewmember")
 		.def_readonly("name", &CrewBlueprint::name, "The shortened name of the crewmember")
 		.def_readonly("name_long", &CrewBlueprint::nameLong, "The full name of the crewmember")
 		.def_readonly("species", &CrewBlueprint::species, "The species of the crewmember")

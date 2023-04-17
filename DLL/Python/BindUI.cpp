@@ -23,6 +23,11 @@ void bindUI(py::module_& module)
 		.def_readonly("confirm", &StoreUIState::confirm, "The confirmation window that pops up when filling your system slots.\nValid only if present.")
 		;
 
+	py::class_<SystemUpgradeUIState>(module, "SystemUpgradeUIState", "The state of a particular system's upgrade UI")
+		.def_readonly("box", &SystemUpgradeUIState::box, "The hitbox of the upgrade button")
+		.def_readonly("upgrade", &SystemUpgradeUIState::box, "A pair of levels arranged as from-to")
+		;
+
 	py::class_<UpgradesUIState>(module, "UpgradesUIState", "The state of the ship upgrade menu.")
 		.def_readonly("shields", &UpgradesUIState::shields, "The button to upgrade shields.\nValid only if the system is present.")
 		.def_readonly("engines", &UpgradesUIState::shields, "The button to upgrade engines.\nValid only if the system is present.")
@@ -54,10 +59,10 @@ void bindUI(py::module_& module)
 		;
 
 	py::class_<CargoUIState>(module, "CargoUIState", "The state of the ship inventory menu.")
-		.def_readonly("weapons", &CargoUIState::weapons, "The boxes defining the weapon slots")
-		.def_readonly("drones", &CargoUIState::drones, "The boxes defining the drone slots")
+		.def_readonly("weapons", &CargoUIState::weapons, "The boxes defining the weapon system slots")
+		.def_readonly("drones", &CargoUIState::drones, "The boxes defining the drone system slots")
 		.def_readonly("augments", &CargoUIState::augments, "The boxes defining the augment slots")
-		.def_readonly("storage", &CargoUIState::storage, "The boxes defining the storage slots")
+		.def_readonly("storage", &CargoUIState::storage, "The boxes defining the weapon/drone storage slots")
 		.def_readonly("discard", &CargoUIState::discard, "The box where you sell or discard items.\nValid if in the store menu, or there's over-capacity.")
 		.def_readonly("accept", &CargoUIState::accept, "The button to close the menu")
 		;

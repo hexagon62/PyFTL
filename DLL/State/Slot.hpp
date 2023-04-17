@@ -19,7 +19,6 @@ struct Slot
 	bool player = false;
 
 	Room* room = nullptr;
-	std::vector<Crew*> crewMoving;
 	Crew* crew = nullptr;
 	Crew* intruder = nullptr;
 	std::optional<Fire> fire;

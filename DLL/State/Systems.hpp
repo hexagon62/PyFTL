@@ -80,7 +80,7 @@ struct CloakingSystem : System
 	{
 		return this->System::operable() &&
 			this->power.ionLevel == 0 &&
-			this->timer.first <= 0.f;
+			this->timer.first >= this->timer.second;
 	}
 };
 
@@ -101,7 +101,7 @@ struct MindControlSystem : System
 	{
 		return this->System::operable() &&
 			this->power.ionLevel == 0 &&
-			this->timer.first <= 0.f &&
+			this->timer.first >= this->timer.second &&
 			this->canUse;
 	}
 };
@@ -118,7 +118,7 @@ struct HackingSystem : System
 	{
 		return this->System::operable() &&
 			this->power.ionLevel == 0 &&
-			this->timer.first <= 0.f &&
+			this->timer.first >= this->timer.second &&
 			this->canUse;
 	}
 };
@@ -126,12 +126,14 @@ struct HackingSystem : System
 struct WeaponSystem : System
 {
 	std::vector<Weapon> list;
+	int slotCount = 0;
 	bool autoFire = false;
 };
 
 struct DroneSystem : System
 {
 	std::vector<Drone> list;
+	int slotCount = 0;
 };
 
 struct PilotingSystem : System
@@ -161,6 +163,6 @@ struct BatterySystem : System
 	{
 		return this->System::operable() &&
 			this->power.ionLevel == 0 &&
-			this->timer.first <= 0.f;
+			this->timer.first >= this->timer.second;
 	}
 };

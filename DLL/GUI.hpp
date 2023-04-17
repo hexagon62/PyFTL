@@ -450,47 +450,48 @@ private:
                 ImGui::EndMenuBar();
             }
 
-            ImGui::BeginChild("output");
-
-            for (auto&& [text, time, type] : history)
+            if (ImGui::BeginChild("output"))
             {
-                ImGui::PushTextWrapPos(0.f);
-
-                Time(time, GRAY);
-
-                switch (type)
+                for (auto&& [text, time, type] : history)
                 {
-                case TextOutputType::Error:
-                    ImGui::TextColored(ORANGE, text.c_str());
-                    break;
-                case TextOutputType::Internal:
-                    PyFTLMarker(MAGENTA);
-                    ImGui::TextColored(GREEN, text.c_str());
-                    break;
-                case TextOutputType::InternalError:
-                    PyFTLMarker(MAGENTA);
-                    ImGui::TextColored(RED, text.c_str());
-                    break;
-                case TextOutputType::Command:
-                    CommandMarker(MAGENTA);
-                    ImGui::TextColored(CYAN, text.c_str());
-                    break;
-                case TextOutputType::CommandOutput:
-                    Output(text.c_str(), CYAN);
-                    break;
-                case TextOutputType::CommandExtraLines:
-                    CommandExtraLineMarker(MAGENTA);
-                    ImGui::TextColored(CYAN, text.c_str());
-                    break;
-                default:
-                    ImGui::TextColored(WHITE, text.c_str());
+                    ImGui::PushTextWrapPos(0.f);
+
+                    Time(time, GRAY);
+
+                    switch (type)
+                    {
+                    case TextOutputType::Error:
+                        ImGui::TextColored(ORANGE, text.c_str());
+                        break;
+                    case TextOutputType::Internal:
+                        PyFTLMarker(MAGENTA);
+                        ImGui::TextColored(GREEN, text.c_str());
+                        break;
+                    case TextOutputType::InternalError:
+                        PyFTLMarker(MAGENTA);
+                        ImGui::TextColored(RED, text.c_str());
+                        break;
+                    case TextOutputType::Command:
+                        CommandMarker(MAGENTA);
+                        ImGui::TextColored(CYAN, text.c_str());
+                        break;
+                    case TextOutputType::CommandOutput:
+                        Output(text.c_str(), CYAN);
+                        break;
+                    case TextOutputType::CommandExtraLines:
+                        CommandExtraLineMarker(MAGENTA);
+                        ImGui::TextColored(CYAN, text.c_str());
+                        break;
+                    default:
+                        ImGui::TextColored(WHITE, text.c_str());
+                    }
+
+                    ImGui::PopTextWrapPos();
                 }
 
-                ImGui::PopTextWrapPos();
+                if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+                    ImGui::SetScrollHereY(1.0f);
             }
-
-            if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
-                ImGui::SetScrollHereY(1.0f);
 
             ImGui::EndChild();
         }

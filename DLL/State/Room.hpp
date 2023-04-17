@@ -25,7 +25,6 @@ struct Room
 	float oxygen = 0.f;
 	HackLevel hackLevel = HackLevel::None;
 
-	std::vector<Crew*> crewMoving;
 	std::vector<Crew*> crew;
 	std::vector<Crew*> intruders;
 	float fireRepair = 0, breachRepair = 0;
@@ -56,12 +55,6 @@ struct Room
 
 	bool mindControllable(bool ignoreVisibility = false) const
 	{
-		if (visible || ignoreVisibility || !this->intruders.empty())
-			return true;
-
-		for (auto&& c : this->crewMoving)
-			if (c->intruder) return true;
-
-		return false;
+		return (visible || ignoreVisibility) && !this->intruders.empty();
 	}
 };

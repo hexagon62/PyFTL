@@ -72,9 +72,10 @@ public:
 		)
 	{}
 
-	SystemNotInstalled(size_t artilleryIndex, size_t cap)
+	SystemNotInstalled(SystemType type, int which, int cap)
 		: std::out_of_range(
-			"tried to use artillery system #" + std::to_string(artilleryIndex) +
+			"tried to use " + systemName(type) + " #" +
+			std::to_string(which) +
 			" when the ship only has " + std::to_string(cap) + " such systems"
 		)
 	{}
@@ -83,6 +84,11 @@ public:
 template<typename T>
 inline bool hasSystem(const T& obj, SystemType type, int which = 0)
 {
+	if (type != SystemType::Artillery && which != 0)
+	{
+		return false;
+	}
+
 	switch (type)
 	{
 	case SystemType::Shields: return obj.shields.has_value();
@@ -110,29 +116,34 @@ inline bool hasSystem(const T& obj, SystemType type, int which = 0)
 template<typename Ret, typename T>
 inline Ret getSystem(const T& obj, SystemType type, int which = 0)
 {
-	switch (type)
+	if (!hasSystem(obj, type, which))
 	{
-	case SystemType::Shields: return *obj.shields;
-	case SystemType::Engines: return *obj.engines;
-	case SystemType::Oxygen: return *obj.oxygen;
-	case SystemType::Weapons: return *obj.weapons;
-	case SystemType::Drones: return *obj.drones;
-	case SystemType::Medbay: return *obj.medbay;
-	case SystemType::Piloting: return *obj.piloting;
-	case SystemType::Sensors: return *obj.sensors;
-	case SystemType::Doors: return *obj.doorControl;
-	case SystemType::Teleporter: return *obj.teleporter;
-	case SystemType::Cloaking: return *obj.cloaking;
-	case SystemType::Artillery:
-		if (size_t(which) >= obj.artillery.size())
+		if (type == SystemType::Artillery || which > 0)
 		{
-			throw SystemNotInstalled(which, obj.artillery.size());
+			throw SystemNotInstalled(type, which + 1, int(hasSystem(obj, type)));
 		}
-		return obj.artillery.at(which);
-	case SystemType::Battery: return *obj.battery;
-	case SystemType::Clonebay: return *obj.clonebay;
-	case SystemType::MindControl: return *obj.mindControl;
-	case SystemType::Hacking: return *obj.hacking;
+	}
+	else
+	{
+		switch (type)
+		{
+		case SystemType::Shields: return *obj.shields;
+		case SystemType::Engines: return *obj.engines;
+		case SystemType::Oxygen: return *obj.oxygen;
+		case SystemType::Weapons: return *obj.weapons;
+		case SystemType::Drones: return *obj.drones;
+		case SystemType::Medbay: return *obj.medbay;
+		case SystemType::Piloting: return *obj.piloting;
+		case SystemType::Sensors: return *obj.sensors;
+		case SystemType::Doors: return *obj.doorControl;
+		case SystemType::Teleporter: return *obj.teleporter;
+		case SystemType::Cloaking: return *obj.cloaking;
+		case SystemType::Artillery: return obj.artillery.at(which);
+		case SystemType::Battery: return *obj.battery;
+		case SystemType::Clonebay: return *obj.clonebay;
+		case SystemType::MindControl: return *obj.mindControl;
+		case SystemType::Hacking: return *obj.hacking;
+		}
 	}
 
 	throw SystemNotInstalled(type);

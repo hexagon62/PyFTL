@@ -38,7 +38,7 @@ struct StoreUIState
 struct SystemUpgradeUIState
 {
 	Rect<int> box;
-	int upgradeTo = -1;
+	std::pair<int, int> upgrade;
 };
 
 struct UpgradesUIState
@@ -102,6 +102,7 @@ struct CrewBoxUIState
 {
 	Rect<int> box;
 	Rect<int> skills;
+	std::optional<Rect<int>> power;
 };
 
 struct StarMapUIState

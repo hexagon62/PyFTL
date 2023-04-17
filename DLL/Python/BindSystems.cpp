@@ -122,11 +122,13 @@ void bindSystems(py::module_& module)
 
 	py::class_<WeaponSystem, System>(module, "WeaponSystem", "The weapon system")
 		.def_readonly("list", &WeaponSystem::list, "The list of weapons installed")
+		.def_readonly("slot_count", &WeaponSystem::slotCount, "The amount of weapons the system can have")
 		.def_readonly("auto_fire", &WeaponSystem::autoFire, "If auto-fire is toggled to on (player only)")
 		;
 
 	py::class_<DroneSystem, System>(module, "DroneSystem")
 		.def_readonly("list", &DroneSystem::list, "The list of drones installed")
+		.def_readonly("slot_count", &DroneSystem::slotCount, "The amount of drones the system can have")
 		;
 
 	py::class_<PilotingSystem, System>(module, "PilotingSystem", "The piloting system")
@@ -148,7 +150,7 @@ void bindSystems(py::module_& module)
 
 	py::class_<Power>(module, "Power", "The power state of a system")
 		.def_readonly("required", &Power::required, "Required power to use this system.\n0 for drones/systems, since the value depends on the items you have.")
-		.def_readonly("total", &Power::total, "Total power")
+		.def_readonly("total", &Power::total, "A pair of the total power, with the current first, and the maximum second.")
 		.def_readonly("normal", &Power::normal, "Power from reactor")
 		.def_readonly("zoltan", &Power::zoltan, "Power from Zoltan crew")
 		.def_readonly("battery", &Power::battery, "Power from Backup battery")

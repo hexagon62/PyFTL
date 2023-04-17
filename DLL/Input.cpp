@@ -40,6 +40,7 @@ struct PowerCommand
 {
 	SystemType system = SystemType::None;
 	int set = 0;
+	int which = 0;
 };
 
 struct WeaponCommand
@@ -89,6 +90,29 @@ struct SendCrewCommand
 	bool self = false;
 };
 
+struct UpgradeSystemCommand
+{
+	SystemType system;
+	int to = 0;
+	int which = 0;
+};
+
+struct UpgradeReactorCommand
+{
+	int to = 0;
+};
+
+struct RenameCrewCommand
+{
+	int which = -1;
+	std::string name;
+};
+
+struct DiscardCommand
+{
+	int which = -1;
+};
+
 struct Command
 {
 	enum class Type
@@ -106,6 +130,7 @@ struct Command
 		PowerSystem, PowerWeapon, PowerDrone,
 		Deselect, SelectWeapon, SelectCrew,
 		SwapWeapons, SwapDrones,
+		CrewAbility,
 		Autofire,
 		TeleportSend, TeleportReturn,
 		Cloak, Battery, MindControl,
@@ -115,27 +140,27 @@ struct Command
 		SendCrew, SaveStations, LoadStations,
 
 		// Menus opened directly from in-game
-		Jump, ConfirmLeaveCrew,
-		OpenUpgrades, OpenCrewManifest, OpenCargo,
-		OpenStore,
-		OpenMenu,
+		Jump, LeaveCrew,
+		Upgrades, CrewManifest, Cargo,
+		Store, Menu,
 
 		// Ship menu stuff
 		UpgradeSystem, UpgradeReactor, UndoUpgrades,
-		RenameCrew, DismissCrew,
-		StowWeapon, StowDrone,
-		Discard, DiscardWeapon, DiscardDrone, DiscardAugment,
-		CloseShipMenu,
+		RenameCrew, DismissCrew, ConfirmDismissCrew,
+		SwapCargo, SwapWeaponCargo, SwapDroneCargo,
+		DiscardCargo, DiscardWeapon, DiscardDrone, DiscardAugment,
 
 		// Store stuff
 		BuyItem,
 		BuyFuel, BuyMissiles, BuyDroneParts,
 		BuyRepair, BuyRepairAll,
-		ConfirmPurchase, CloseStore,
+		ConfirmPurchase,
 
 		// Star map stuff
-		JumpToBeacon, CancelJump,
-		OpenSectors, CloseSectors, JumpToSector,
+		JumpToBeacon, OpenSectors, JumpToSector,
+
+		// Misc menu stuff
+		CloseMenu
 	};
 
 	Type type = Type::None;
@@ -159,7 +184,11 @@ struct Command
 		AimCommand,
 		CrewSelectionCommand,
 		DeselectCommand,
-		SendCrewCommand
+		SendCrewCommand,
+		UpgradeSystemCommand,
+		UpgradeReactorCommand,
+		RenameCrewCommand,
+		DiscardCommand
 	> args;
 };
 
@@ -212,9 +241,12 @@ public:
 					this->textEvent(std::get<raw::TextEvent>(cmd.args));
 					inputsMade++;
 					break;
-				case Command::Type::Cheat: this->cheat(std::get<CheatCommand>(cmd.args)); break;
+				case Command::Type::Cheat:
+					this->cheat(std::get<CheatCommand>(cmd.args));
+					inputsMade++;
+					break;
 				case Command::Type::Pause: this->pause(std::get<bool>(cmd.args)); break;
-				case Command::Type::EventChoice: this->eventChoice(std::get<int>(cmd.args)); break;
+				case Command::Type::EventChoice: this->choice(std::get<int>(cmd.args)); break;
 				case Command::Type::PowerSystem: this->powerSystem(std::get<PowerCommand>(cmd.args)); break;
 				case Command::Type::PowerWeapon: this->powerWeapon(std::get<WeaponCommand>(cmd.args)); break;
 				case Command::Type::PowerDrone: this->powerDrone(std::get<DroneCommand>(cmd.args)); break;
@@ -223,6 +255,7 @@ public:
 				case Command::Type::SelectCrew: this->selectCrew(std::get<CrewSelectionCommand>(cmd.args)); break;
 				case Command::Type::SwapWeapons: this->swapWeapons(std::get<SwapCommand>(cmd.args)); break;
 				case Command::Type::SwapDrones: this->swapDrones(std::get<SwapCommand>(cmd.args)); break;
+				case Command::Type::CrewAbility: this->crewAbility(); break;
 				case Command::Type::Autofire: this->autofire(std::get<bool>(cmd.args)); break;
 				case Command::Type::TeleportSend: this->teleportSend(); break;
 				case Command::Type::TeleportReturn:this->teleportReturn(); break;
@@ -239,6 +272,26 @@ public:
 				case Command::Type::SendCrew: this->sendCrew(std::get<SendCrewCommand>(cmd.args)); break;
 				case Command::Type::SaveStations: this->saveStations(); break;
 				case Command::Type::LoadStations: this->loadStations(); break;
+				case Command::Type::Jump: this->jump(); break;
+				case Command::Type::LeaveCrew: this->leaveCrew(std::get<bool>(cmd.args)); break;
+				case Command::Type::Upgrades: this->upgrades(); break;
+				case Command::Type::CrewManifest: this->crewManifest(); break;
+				case Command::Type::Cargo: this->cargo(); break;
+				case Command::Type::Store: this->store(); break;
+				case Command::Type::Menu: this->menu(); break;
+				case Command::Type::UpgradeSystem: this->upgradeSystem(std::get<UpgradeSystemCommand>(cmd.args)); break;
+				case Command::Type::UpgradeReactor: this->upgradeReactor(std::get<UpgradeReactorCommand>(cmd.args)); break;
+				case Command::Type::UndoUpgrades: this->undoUpgrades(); break;
+				case Command::Type::RenameCrew: this->renameCrew(std::get<RenameCrewCommand>(cmd.args)); break;
+				case Command::Type::DismissCrew: this->dismissCrew(std::get<DiscardCommand>(cmd.args)); break;
+				case Command::Type::ConfirmDismissCrew: this->confirmDismissCrew(std::get<bool>(cmd.args)); break;
+				case Command::Type::SwapCargo: this->swapCargo(std::get<SwapCommand>(cmd.args)); break;
+				case Command::Type::SwapWeaponCargo: this->swapWeaponCargo(std::get<SwapCommand>(cmd.args)); break;
+				case Command::Type::SwapDroneCargo: this->swapDroneCargo(std::get<SwapCommand>(cmd.args)); break;
+				case Command::Type::DiscardCargo: this->discardCargo(std::get<DiscardCommand>(cmd.args)); break;
+				case Command::Type::DiscardWeapon: this->discardWeapon(std::get<DiscardCommand>(cmd.args)); break;
+				case Command::Type::DiscardDrone: this->discardDrone(std::get<DiscardCommand>(cmd.args)); break;
+				case Command::Type::DiscardAugment: this->discardAugment(std::get<DiscardCommand>(cmd.args)); break;
 				}
 			}
 			catch (const std::exception& e)
@@ -509,7 +562,8 @@ private:
 	}
 
 	// Generic function to try a hotkey and fallback to clicking
-	void hotkeyOr(const char* hotkey, Point<int> fallback)
+	// Returns true/false based on if hotkey was available
+	bool hotkeyOr(const char* hotkey, Point<int> fallback)
 	{
 		// Use if hotkey possible
 		auto k = this->getHotkey(hotkey);
@@ -517,10 +571,11 @@ private:
 		if (k != Key::Unknown)
 		{
 			Input::keyPress(k, false);
-			return;
+			return true;
 		}
 
 		Input::mouseClick(MouseButton::Left, fallback, false);
+		return false;
 	}
 
 	struct PowerHotkey
@@ -542,14 +597,14 @@ private:
 			k = this->getHotkey(systemUnpowerHotkey(sys.type));
 			if (k != Key::Unknown) return { k, false };
 
-			// Then, fallback to direct power key + shift
-			k = this->getHotkey(systemPowerHotkey(sys.type));
-			if (k != Key::Unknown) return { k, true };
-
 			// Then, fallback to positional unpower key
 			int id = sys.uiBox + 1;
 			k = this->getHotkey("un_power_" + std::to_string(id));
 			if (k != Key::Unknown) return { k, false };
+
+			// Then, fallback to direct power key + shift
+			k = this->getHotkey(systemPowerHotkey(sys.type));
+			if (k != Key::Unknown) return { k, true };
 
 			// Then, fallback to positional power key + shift
 			k = this->getHotkey("power_" + std::to_string(id));
@@ -625,7 +680,7 @@ private:
 		Input::mouseClick(MouseButton::Middle, { -1, -1 }, false);
 	}
 
-	void eventChoice(int which)
+	void choice(int which)
 	{
 		auto&& state = Reader::getState();
 		if (!state.game) throw GameNotRunning("picking an event choice");
@@ -649,7 +704,14 @@ private:
 
 			if (!topCenter)
 			{
-				throw InvalidEventChoice(which, "hotkeys are disabled/delayed and the choice is off-screen");
+				if (delay)
+				{
+					Input::wait(event->openTime.first);
+					Input::choice(which);
+					return;
+				}
+
+				throw InvalidEventChoice(which, "hotkeys are disabled and the choice is off-screen");
 			}
 
 			bool center = !impl.offScreen(choice.box.center());
@@ -670,12 +732,12 @@ private:
 	// So yeah, I'll be real glad this helper function exists if it works
 	void powerSystem(const PowerCommand& power)
 	{
-		auto&& [type, set] = power;
+		auto&& [type, set, which] = power;
 
 		this->checkInGame("powering a system");
 
 		auto&& state = Reader::getState();
-		auto&& system = state.game->playerShip->getSystem(type);
+		auto&& system = state.game->playerShip->getSystem(type, which);
 
 		int required = system.power.required;
 
@@ -1098,26 +1160,28 @@ private:
 
 	void swapWeapons(const SwapCommand& cmd)
 	{
-		auto&& [a, b] = cmd;
+		constexpr char act[] = "swapping equipped weapons";
 
-		this->checkInGame("swapping equipped weapons");
 		auto&& state = Reader::getState();
+		if (!state.game) throw GameNotRunning(act);
+		if (state.game->pause.menu && !state.ui.game->cargo) throw WrongMenu(act);
+		if (!state.game->playerShip->weapons) throw SystemNotInstalled(SystemType::Weapons);
 
-		if (!state.game->playerShip->weapons)
+		auto&& weapons = state.ui.game->cargo
+			? state.ui.game->cargo->weapons
+			: state.ui.game->weaponBoxes;
+
+		auto&& [a, b] = cmd;
+		if (a < 0 || a >= int(weapons.size()) || b < 0 || b >= int(weapons.size()))
 		{
-			throw SystemNotInstalled(SystemType::Weapons);
+			throw InvalidSwap("weapon", a, "weapon", b);
 		}
 
-		auto&& weapons = state.ui.game->weaponBoxes;
-
-		if (a < 0 || a >= int(weapons.size()))
+		bool aEmpty = a >= int(state.game->playerShip->weapons->list.size());
+		bool bEmpty = b >= int(state.game->playerShip->weapons->list.size());
+		if (aEmpty && bEmpty)
 		{
-			throw InvalidSlotChoice("weapon", a, "no weapon is there");
-		}
-
-		if (b < 0 || b >= int(weapons.size()))
-		{
-			throw InvalidSlotChoice("weapon", b, "no weapon is there");
+			throw InvalidSwap("weapon", a, "weapon", b);
 		}
 
 		if (a == b) return; // do nothing, no swap needed
@@ -1128,32 +1192,65 @@ private:
 
 	void swapDrones(const SwapCommand& cmd)
 	{
-		auto&& [a, b] = cmd;
+		constexpr char act[] = "swapping equipped drones";
 
-		this->checkInGame("swapping equipped drones");
 		auto&& state = Reader::getState();
+		if (!state.game) throw GameNotRunning(act);
+		if (state.game->pause.menu && !state.ui.game->cargo) throw WrongMenu(act);
+		if (!state.game->playerShip->drones) throw SystemNotInstalled(SystemType::Drones);
 
-		if (!state.game->playerShip->drones)
+		auto&& drones = state.ui.game->cargo
+			? state.ui.game->cargo->drones
+			: state.ui.game->droneBoxes;
+
+		auto&& [a, b] = cmd;
+		if (a < 0 || a >= int(drones.size()) || b < 0 || b >= int(drones.size()))
 		{
-			throw SystemNotInstalled(SystemType::Drones);
+			throw InvalidSwap("drone", a, "drone", b);
 		}
 
-		auto&& drones = state.ui.game->droneBoxes;
-
-		if (a < 0 || a >= int(drones.size()))
+		bool aEmpty = a >= int(state.game->playerShip->drones->list.size());
+		bool bEmpty = b >= int(state.game->playerShip->drones->list.size());
+		if (aEmpty && bEmpty)
 		{
-			throw InvalidSlotChoice("drone", a, "no drone is there");
-		}
-
-		if (b < 0 || b >= int(drones.size()))
-		{
-			throw InvalidSlotChoice("drone", b, "no drone is there");
+			throw InvalidSwap("drone", a, "drone", b);
 		}
 
 		if (a == b) return; // do nothing, no swap needed
 
 		Input::mouseDown(MouseButton::Left, drones[a].center());
 		Input::mouseUp(MouseButton::Left, drones[b].center());
+	}
+
+	void crewAbility()
+	{
+		this->checkInGame("using crew abilities");
+		auto&& state = Reader::getState();
+		
+		// Try to use a hotkey
+		auto hotkey = getHotkey("lockdown");
+
+		if (hotkey != Key::Unknown)
+		{
+			Input::keyDown(hotkey);
+			return;
+		}
+		
+		// If no hotkey, we need to click on all crew buttons individually
+		auto&& crew = state.game->playerCrew;
+
+		for (auto&& c : crew)
+		{
+			if (c.selectionId != -1)
+			{
+				auto&& box = state.ui.game->crewBoxes[c.id];
+
+				if (!box.power) continue;
+
+				Input::mouseMove(box.box.center());
+				Input::mouseClick(MouseButton::Left, box.power->center());
+			}
+		}
 	}
 
 	void autofire(bool on)
@@ -1221,7 +1318,7 @@ private:
 			throw SystemNotInstalled(SystemType::Cloaking);
 		}
 
-		auto&& cloak = *state.game->playerShip->teleporter;
+		auto&& cloak = *state.game->playerShip->cloaking;
 		if (!cloak.operable()) throw SystemInoperable(cloak);
 
 		this->deselect();
@@ -1500,19 +1597,16 @@ private:
 		{
 			auto&& system = std::get<SystemUIRef>(state.ui.mouse.aiming).get();
 
-			if (room.player)
+			if (system.type == SystemType::MindControl)
 			{
-				if (system.type != SystemType::MindControl)
+				if (!room.mindControllable())
 				{
-					throw InvalidSelfAim("only mind control can do that");
+					throw InvalidSelfAim("mind control requires a visible room with intruding crew");
 				}
-				else
-				{
-					if (!room.mindControllable())
-					{
-						throw InvalidSelfAim("mind control requires a visible room with intruding crew");
-					}
-				}
+			}
+			else if (room.player)
+			{
+				throw InvalidSelfAim("only mind control can do that");
 			}
 
 			if (autofire)
@@ -1616,61 +1710,588 @@ private:
 		auto&& state = Reader::getState();
 		this->hotkeyOr("loadPositions", state.ui.game->loadStations.center());
 	}
+
+	void jump()
+	{
+		this->checkInGame("opening jump menu");
+		auto&& state = Reader::getState();
+
+		if (!state.game->playerShip->canJump)
+		{
+			throw MenuNotAvailable("jump menu", "player can't currently jump");
+		}
+
+		this->hotkeyOr("jump", state.ui.game->ftl.center());
+	}
+
+	void leaveCrew(bool confirm)
+	{
+		auto&& state = Reader::getState();
+		constexpr char act[] = "choosing to leave crew behind";
+
+		if (!state.game) throw GameNotRunning(act);
+		if (!state.ui.game->leaveCrew) throw WrongMenu(act);
+
+		auto&& yes = state.ui.game->leaveCrew->yes;
+		auto&& no = state.ui.game->leaveCrew->no;
+
+		Input::mouseClick(MouseButton::Left, confirm ? yes.center() : no.center());
+	}
+
+	void upgrades()
+	{
+		constexpr char act[] = "opening upgrades menu";
+
+		auto&& state = Reader::getState();
+		if (!state.game) throw GameNotRunning(act);
+
+		if (!state.game->playerShip->canInventory)
+		{
+			throw MenuNotAvailable("upgrades menu", "the player is in danger");
+		}
+
+		auto&& tab = state.ui.game->upgradesTab;
+		if (state.game->pause.menu && !tab) throw WrongMenu(act);
+
+		// Already open, nothing to do
+		if (state.ui.game->upgrades) return;
+
+		if (tab)
+		{
+			// Ship screens already open, click tab
+			Input::mouseClick(MouseButton::Left, tab->center());
+			return;
+		}
+
+		// Otherwise, click button
+		// Default tab will be upgrades
+		this->hotkeyOr("ship_info", state.ui.game->shipButton.center());
+	}
+
+	void crewManifest()
+	{
+		constexpr char act[] = "opening crew manifest";
+
+		auto&& state = Reader::getState();
+		if (!state.game) throw GameNotRunning(act);
+
+		if (!state.game->playerShip->canInventory)
+		{
+			throw MenuNotAvailable("upgrades menu", "the player is in danger");
+		}
+
+		auto&& tab = state.ui.game->crewTab;
+		if (state.game->pause.menu && !tab) throw WrongMenu(act);
+
+		// Already open, nothing to do
+		if (state.ui.game->crewMenu) return;
+
+		if (tab)
+		{
+			// Ship screens already open, click tab
+			Input::mouseClick(MouseButton::Left, tab->center());
+			return;
+		}
+
+		// Try to directly hotkey to it
+		bool direct = this->hotkeyOr("ship_crew", state.ui.game->shipButton.center());
+
+		// Otherwise, re-queue this command to click the tab ones the upgrades menu is open
+		if (!direct)
+		{
+			this->push(Command{
+				 .type = Command::Type::CrewManifest
+			});
+		}
+	}
+
+	void cargo()
+	{
+		constexpr char act[] = "opening cargo";
+
+		auto&& state = Reader::getState();
+		if (!state.game) throw GameNotRunning(act);
+
+		if (!state.game->playerShip->canInventory)
+		{
+			throw MenuNotAvailable("upgrades menu", "the player is in danger");
+		}
+
+		auto&& tab = state.ui.game->cargoTab;
+		if (state.game->pause.menu && !tab) throw WrongMenu(act);
+
+		// Already open, nothing to do
+		if (state.ui.game->cargo) return;
+
+		if (tab)
+		{
+			// Ship screens already open, click tab
+			Input::mouseClick(MouseButton::Left, tab->center());
+			return;
+		}
+
+		// Try to directly hotkey to it
+		bool direct = this->hotkeyOr("ship_inv", state.ui.game->shipButton.center());
+
+		// Otherwise, re-queue this command to click the tab ones the upgrades menu is open
+		if (!direct)
+		{
+			this->push(Command{
+				 .type = Command::Type::Cargo
+			});
+		}
+	}
+
+	void store()
+	{
+		constexpr char act[] = "opening store menu";
+
+		auto&& state = Reader::getState();
+		if (!state.game) throw GameNotRunning(act);
+
+		if (!state.game->playerShip->canInventory)
+		{
+			throw MenuNotAvailable("upgrades menu", "the player is in danger");
+		}
+
+		auto&& button = state.ui.game->storeButton;
+		auto&& store = state.ui.game->store;
+
+		if (state.game->pause.menu) throw WrongMenu(act);
+		if (!button || !store) throw NoStore();
+
+		this->hotkeyOr("store", button->center());
+	}
+
+	void menu()
+	{
+		constexpr char act[] = "opening pause menu";
+
+		auto&& state = Reader::getState();
+		if (!state.game) throw GameNotRunning(act);
+		auto&& menu = state.ui.game->menu;
+		if (state.game->pause.menu && !menu) throw WrongMenu(act);
+
+		Input::keyPress(Key::Escape);
+	}
+
+	void upgradeSystem(const UpgradeSystemCommand& cmd)
+	{
+		constexpr char act[] = "upgrading a system";
+
+		auto&& [sys, desired, which] = cmd;
+
+		auto&& state = Reader::getState();
+		if (!state.game) throw GameNotRunning(act);
+		auto&& up = state.ui.game->upgrades;
+		if (!up) throw WrongMenu(act);
+
+		auto&& actualSys = state.game->playerShip->getSystem(sys, which);
+		int max = actualSys.level.second;
+		auto&& box = up->getSystem(sys, which);
+		auto&& [from, to] = box.upgrade;
+
+		if (desired < from) throw InvalidUpgrade(sys, from, desired);
+		if (desired > max) throw InvalidUpgrade(sys, from, desired, max);
+
+		int diff = desired - to;
+
+		if (diff < 0)
+		{
+			for (int i = 0; i > diff; i--)
+			{
+				Input::mouseClick(MouseButton::Right, box.box.center());
+			}
+		}
+		else
+		{
+			int sum = 0;
+			for (int i = to + 1; i <= desired; i++)
+			{
+				sum += actualSys.blueprint.upgradeCosts[i];
+			}
+
+			int scrap = state.game->playerShip->cargo.scrap;
+			if (sum > scrap)
+			{
+				throw CannotAfford(systemName(sys) + " upgrade", scrap, sum);
+			}
+
+			for (int i = 0; i < diff; i++)
+			{
+				Input::mouseClick(MouseButton::Left, box.box.center());
+			}
+		}
+	}
+
+	void upgradeReactor(const UpgradeReactorCommand& cmd)
+	{
+		constexpr char act[] = "upgrading the reactor";
+
+		auto&& [desired] = cmd;
+
+		auto&& state = Reader::getState();
+		if (!state.game) throw GameNotRunning(act);
+		auto&& up = state.ui.game->upgrades;
+		if (!up) throw WrongMenu(act);
+
+		int max = state.game->playerShip->reactor.level.second;
+		auto&& box = up->reactor;
+		auto&& [from, to] = box.upgrade;
+
+		if (desired < from) throw InvalidUpgrade(from, desired);
+		if (desired > max) throw InvalidUpgrade(from, desired, max);
+
+		int diff = desired - to;
+
+		if (diff < 0)
+		{
+			for (int i = 0; i > diff; i--)
+			{
+				Input::mouseClick(MouseButton::Right, box.box.center());
+			}
+		}
+		else
+		{
+			int sum = 0;
+			for (int i = to + 1; i <= desired; i++)
+			{
+				sum += Reactor::HARDCODED_UPGRADE_COSTS[i];
+			}
+
+			int scrap = state.game->playerShip->cargo.scrap;
+			if (sum > scrap)
+			{
+				throw CannotAfford("reactor upgrade", scrap, sum);
+			}
+
+			for (int i = 0; i < diff; i++)
+			{
+				Input::mouseClick(MouseButton::Left, box.box.center());
+			}
+		}
+	}
+
+	void undoUpgrades()
+	{
+		constexpr char act[] = "undoing upgrades";
+
+		auto&& state = Reader::getState();
+		if (!state.game) throw GameNotRunning(act);
+		auto&& up = state.ui.game->upgrades;
+		if (!up) throw WrongMenu(act);
+
+		Input::mouseClick(MouseButton::Left, up->undo.center());
+	}
+
+	void renameCrew(const RenameCrewCommand& cmd)
+	{
+		constexpr char act[] = "renaming crew";
+
+		auto&& state = Reader::getState();
+		if (!state.game) throw GameNotRunning(act);
+		auto&& crew = state.ui.game->crewMenu;
+		if (!crew) throw WrongMenu(act);
+		auto&& confirm = crew->confirm;
+		if (confirm) throw WrongMenu(act);
+
+		auto&& [which, name] = cmd;
+
+		if (name.size() > CrewBlueprint::HARDCODED_MAX_NAME_LENGTH)
+		{
+			throw std::out_of_range("desired crewmember name is too long");
+		}
+
+		auto count = int(crew->boxes.size());
+
+		if (which < 0) throw InvalidCrewBoxChoice(which);
+		if (which >= count) throw InvalidCrewBoxChoice(which, count);
+
+		auto&& rename = crew->boxes[which].rename;
+		Input::mouseClick(MouseButton::Left, rename.center());
+		Input::textClear();
+		Input::text(name);
+		Input::textConfirm();
+	}
+
+	void dismissCrew(const DiscardCommand& cmd)
+	{
+		constexpr char act[] = "dismissing crew";
+
+		auto&& state = Reader::getState();
+		if (!state.game) throw GameNotRunning(act);
+		auto&& crew = state.ui.game->crewMenu;
+		if (!crew) throw WrongMenu(act);
+		auto&& confirm = crew->confirm;
+		if (confirm) throw WrongMenu(act);
+
+		auto&& [which] = cmd;
+		auto count = int(crew->boxes.size());
+
+		if (which < 0) throw InvalidCrewBoxChoice(which);
+		if (which >= count) throw InvalidCrewBoxChoice(which, count);
+		if (count < 2) throw std::runtime_error("need at least 2 crew to be able to dismiss any");
+
+		auto&& dismiss = crew->boxes[which].dismiss;
+		Input::mouseClick(MouseButton::Left, dismiss.center());
+	}
+
+	void confirmDismissCrew(bool yes)
+	{
+		constexpr char act[] = "confirming crew dismissal";
+
+		auto&& state = Reader::getState();
+		if (!state.game) throw GameNotRunning(act);
+		auto&& crew = state.ui.game->crewMenu;
+		if (!crew) throw WrongMenu(act);
+		auto&& confirm = crew->confirm;
+		if (!confirm) throw WrongMenu(act);
+
+		if(yes) Input::mouseClick(MouseButton::Left, confirm->yes.center());
+		else Input::mouseClick(MouseButton::Left, confirm->no.center());
+	}
+
+	void swapCargo(const SwapCommand& cmd)
+	{
+		constexpr char act[] = "swapping cargo";
+
+		auto&& state = Reader::getState();
+		if (!state.game) throw GameNotRunning(act);
+		auto&& cargo = state.ui.game->cargo;
+		if (!cargo) throw WrongMenu(act);
+
+		auto&& [a, b] = cmd;
+		auto&& storage = state.game->playerShip->cargo.storage;
+
+		auto storageCount = int(storage.size());
+		if (a < 0) throw InvalidSlotChoice("storage slot", a);
+		if (a >= storageCount) throw InvalidSlotChoice("storage slot", a, storageCount);
+
+		if (b < 0) throw InvalidSlotChoice("storage slot", b);
+		if (a >= storageCount) throw InvalidSlotChoice("storage slot", b, storageCount);
+
+		bool aEmpty = std::holds_alternative<std::monostate>(storage[a]);
+		bool bEmpty = std::holds_alternative<std::monostate>(storage[b]);
+
+		// Check if swapping two empty slots
+		if (aEmpty && bEmpty)
+		{
+			throw InvalidSwap("cargo", a, "cargo", b);
+		}
+
+		Point<int> first, second;
+
+		if (aEmpty)
+		{
+			first = cargo->storage[b].center();
+			second = cargo->storage[a].center();
+		}
+		else
+		{
+			first = cargo->storage[a].center();
+			second = cargo->storage[b].center();
+		}
+
+		Input::mouseDown(MouseButton::Left, first);
+		Input::mouseUp(MouseButton::Left, second);
+	}
+
+	void swapWeaponCargo(const SwapCommand& cmd)
+	{
+		constexpr char act[] = "swapping weapons and cargo";
+
+		auto&& state = Reader::getState();
+		if (!state.game) throw GameNotRunning(act);
+		auto&& cargo = state.ui.game->cargo;
+		if (!cargo) throw WrongMenu(act);
+
+		auto&& [a, b] = cmd;
+		auto&& weapons = state.game->playerShip->weapons;
+		auto&& storage = state.game->playerShip->cargo.storage;
+
+		if (!weapons) throw SystemNotInstalled(SystemType::Weapons);
+
+		auto weaponCount = int(weapons->slotCount);
+		if (a < 0) throw InvalidSlotChoice("weapon", a);
+		if (a >= weaponCount) throw InvalidSlotChoice("weapon", a, weaponCount);
+
+		auto storageCount = int(storage.size());
+		if (b < 0) throw InvalidSlotChoice("storage slot", b);
+		if (a >= storageCount) throw InvalidSlotChoice("storage slot", b, storageCount);
+
+		// Check if swapping two empty slots
+		bool aEmpty = a >= int(weapons->list.size());
+		bool bEmpty = std::holds_alternative<std::monostate>(storage[b]);
+		if (aEmpty && bEmpty)
+		{
+			throw InvalidSwap("weapon", a, "cargo", b);
+		}
+
+		Point<int> first, second;
+
+		if (aEmpty)
+		{
+			first = cargo->storage[b].center();
+			second = cargo->weapons[a].center();
+		}
+		else
+		{
+			first = cargo->weapons[a].center();
+			second = cargo->storage[b].center();
+		}
+
+		Input::mouseDown(MouseButton::Left, first);
+		Input::mouseUp(MouseButton::Left, second);
+	}
+
+	void swapDroneCargo(const SwapCommand& cmd)
+	{
+		constexpr char act[] = "swapping drones and cargo";
+
+		auto&& state = Reader::getState();
+		if (!state.game) throw GameNotRunning(act);
+		auto&& cargo = state.ui.game->cargo;
+		if (!cargo) throw WrongMenu(act);
+
+		auto&& [a, b] = cmd;
+		auto&& drones = state.game->playerShip->drones;
+		auto&& storage = state.game->playerShip->cargo.storage;
+
+		if (!drones) throw SystemNotInstalled(SystemType::Drones);
+
+		auto droneCount = int(drones->slotCount);
+		if (a < 0) throw InvalidSlotChoice("drone", a);
+		if (a >= droneCount) throw InvalidSlotChoice("drone", a, droneCount);
+
+		auto storageCount = int(storage.size());
+		if (b < 0) throw InvalidSlotChoice("storage slot", b);
+		if (a >= storageCount) throw InvalidSlotChoice("storage slot", b, storageCount);
+
+		// Check if swapping two empty slots
+		bool aEmpty = a >= int(drones->list.size());
+		bool bEmpty = std::holds_alternative<std::monostate>(storage[b]);
+		if (aEmpty && bEmpty)
+		{
+			throw InvalidSwap("weapon", a, "cargo", b);
+		}
+
+		Point<int> first, second;
+
+		if (aEmpty)
+		{
+			first = cargo->storage[b].center();
+			second = cargo->drones[a].center();
+		}
+		else
+		{
+			first = cargo->drones[a].center();
+			second = cargo->storage[b].center();
+		}
+
+		Input::mouseDown(MouseButton::Left, first);
+		Input::mouseUp(MouseButton::Left, second);
+	}
+
+	void discardCargo(const DiscardCommand& cmd)
+	{
+		constexpr char act[] = "discarding cargo";
+
+		auto&& state = Reader::getState();
+		if (!state.game) throw GameNotRunning(act);
+		auto&& cargo = state.ui.game->cargo;
+		if (!cargo) throw WrongMenu(act);
+		auto&& box = cargo->discard;
+		if (!box) throw WrongMenu(act);
+
+		auto&& [which] = cmd;
+		auto&& storage = state.game->playerShip->cargo.storage;
+
+		int storageCount = int(storage.size());
+		if (which < 0) throw InvalidSlotChoice("storage slot", which);
+		if (which >= storageCount) throw InvalidSlotChoice("storage slot", which, storageCount);
+
+		bool empty = std::holds_alternative<std::monostate>(storage[which]);
+		if (empty) throw InvalidSlotChoice("cargo", which);
+
+		Input::mouseDown(MouseButton::Left, cargo->storage[which].center());
+		Input::mouseUp(MouseButton::Left, box->center());
+	}
+
+	void discardWeapon(const DiscardCommand& cmd)
+	{
+		constexpr char act[] = "discarding weapon";
+
+		auto&& state = Reader::getState();
+		if (!state.game) throw GameNotRunning(act);
+		auto&& cargo = state.ui.game->cargo;
+		if (!cargo) throw WrongMenu(act);
+		auto&& box = cargo->discard;
+		if (!box) throw WrongMenu(act);
+
+		auto&& [which] = cmd;
+		auto&& weapons = state.game->playerShip->weapons;
+
+		if (!weapons) throw SystemNotInstalled(SystemType::Weapons);
+
+		int weaponCount = int(weapons->list.size());
+		if (which < 0) throw InvalidSlotChoice("weapon", which);
+		if (which >= weaponCount) throw InvalidSlotChoice("weapon", which, weaponCount);
+
+		Input::mouseDown(MouseButton::Left, cargo->weapons[which].center());
+		Input::mouseUp(MouseButton::Left, box->center());
+	}
+
+	void discardDrone(const DiscardCommand& cmd)
+	{
+		constexpr char act[] = "discarding drone";
+
+		auto&& state = Reader::getState();
+		if (!state.game) throw GameNotRunning(act);
+		auto&& cargo = state.ui.game->cargo;
+		if (!cargo) throw WrongMenu(act);
+		auto&& box = cargo->discard;
+		if (!box) throw WrongMenu(act);
+
+		auto&& [which] = cmd;
+		auto&& drones = state.game->playerShip->drones;
+
+		if (!drones) throw SystemNotInstalled(SystemType::Drones);
+
+		int droneCount = int(drones->list.size());
+		if (which < 0) throw InvalidSlotChoice("drone", which);
+		if (which >= droneCount) throw InvalidSlotChoice("drone", which, droneCount);
+
+		Input::mouseDown(MouseButton::Left, cargo->drones[which].center());
+		Input::mouseUp(MouseButton::Left, box->center());
+	}
+
+	void discardAugment(const DiscardCommand& cmd)
+	{
+		constexpr char act[] = "discarding augment";
+
+		auto&& state = Reader::getState();
+		if (!state.game) throw GameNotRunning(act);
+		auto&& cargo = state.ui.game->cargo;
+		if (!cargo) throw WrongMenu(act);
+		auto&& box = cargo->discard;
+		if (!box) throw WrongMenu(act);
+
+		auto&& [which] = cmd;
+		auto&& augments = state.game->playerShip->cargo.augments;
+
+		int augmentCount = int(augments.size());
+		if (which < 0) throw InvalidSlotChoice("augment", which);
+		if (which >= augmentCount) throw InvalidSlotChoice("augment", which, augmentCount);
+
+		Input::mouseDown(MouseButton::Left, cargo->augments[which].center());
+		Input::mouseUp(MouseButton::Left, box->center());
+	}
 };
 
 Input::Impl Input::impl;
 bool Input::good = false;
 bool Input::humanMouse = true;
 bool Input::humanKeyboard = true;
-
-namespace
-{
-
-const Weapon* weaponAt(int which, bool suppressExceptions = false)
-{
-	auto&& opt = Reader::getState().game->playerShip->weapons;
-
-	if (!opt)
-	{
-		if (!suppressExceptions) throw SystemNotInstalled(SystemType::Weapons);
-		else return nullptr;
-	}
-
-	auto&& weapons = *opt;
-	auto size = int(weapons.list.size());
-
-	if (which < 0 || which >= size)
-	{
-		if (!suppressExceptions) throw InvalidSlotChoice("weapon", which, size);
-		else return nullptr;
-	}
-
-	return &weapons.list.at(which);
-}
-
-const Drone* droneAt(int which, bool suppressExceptions = false)
-{
-	auto&& opt = Reader::getState().game->playerShip->drones;
-
-	if (!opt)
-	{
-		if (!suppressExceptions) throw SystemNotInstalled(SystemType::Drones);
-		else return nullptr;
-	}
-
-	auto&& drones = *opt;
-	auto size = int(drones.list.size());
-
-	if (which < 0 || which >= size)
-	{
-		if (!suppressExceptions) throw InvalidSlotChoice("drone", which, size);
-		else return nullptr;
-	}
-
-	return &drones.list.at(which);
-}
-
-}
 
 void Input::iterate()
 {
@@ -1980,13 +2601,14 @@ Input::Ret Input::choice(int which)
 	});
 }
 
-Input::Ret Input::powerSystem(SystemType system, int set)
+Input::Ret Input::powerSystem(SystemType system, int set, int which)
 {
 	return impl.push({
 		.type = Command::Type::PowerSystem,
 		.args = PowerCommand{
 			.system = system,
-			.set = set
+			.set = set,
+			.which = which
 		}
 	});
 }
@@ -2055,6 +2677,13 @@ Input::Ret Input::swapDrones(int slotA, int slotB)
 	});
 }
 
+Input::Ret Input::crewAbility()
+{
+	return impl.push({
+		.type = Command::Type::CrewAbility
+	});
+}
+
 Input::Ret Input::autofire(bool on)
 {
 	return impl.push({
@@ -2081,6 +2710,13 @@ Input::Ret Input::cloak()
 {
 	return impl.push({
 		.type = Command::Type::Cloak
+	});
+}
+
+Input::Ret Input::battery()
+{
+	return impl.push({
+		.type = Command::Type::Battery
 	});
 }
 
@@ -2196,5 +2832,186 @@ Input::Ret Input::loadStations()
 {
 	return impl.push({
 		.type = Command::Type::LoadStations
+	});
+}
+
+Input::Ret Input::jump()
+{
+	return impl.push({
+		.type = Command::Type::Jump
+	});
+}
+
+Input::Ret Input::leaveCrew(bool yes)
+{
+	return impl.push({
+		.type = Command::Type::LeaveCrew,
+		.args = yes
+	});
+}
+
+Input::Ret Input::upgrades()
+{
+	return impl.push({
+		.type = Command::Type::Upgrades
+	});
+}
+
+Input::Ret Input::crewManifest()
+{
+	return impl.push({
+		.type = Command::Type::CrewManifest
+	});
+}
+
+Input::Ret Input::cargo()
+{
+	return impl.push({
+		.type = Command::Type::Cargo
+	});
+}
+
+Input::Ret Input::store()
+{
+	return impl.push({
+		.type = Command::Type::Store
+	});
+}
+
+Input::Ret Input::menu()
+{
+	return impl.push({
+		.type = Command::Type::Menu
+	});
+}
+
+Input::Ret Input::upgradeSystem(SystemType system, int to, int which)
+{
+	return impl.push({
+		.type = Command::Type::UpgradeSystem,
+		.args = UpgradeSystemCommand{
+			.system = system,
+			.to = to,
+			.which = which
+		}
+	});
+}
+
+Input::Ret Input::upgradeReactor(int to)
+{
+	return impl.push({
+		.type = Command::Type::UpgradeReactor,
+		.args = UpgradeReactorCommand{
+			.to = to
+		}
+	});
+}
+
+Input::Ret Input::undoUpgrades()
+{
+	return impl.push({
+		.type = Command::Type::UndoUpgrades
+	});
+}
+
+Input::Ret Input::renameCrew(int which, const std::string& name)
+{
+	return impl.push({
+		.type = Command::Type::RenameCrew,
+		.args = RenameCrewCommand{
+			.which = which,
+			.name = name
+		}
+	});
+}
+
+Input::Ret Input::dismissCrew(int which)
+{
+	return impl.push({
+		.type = Command::Type::DismissCrew,
+		.args = DiscardCommand{
+			.which = which
+		}
+	});
+}
+
+Input::Ret Input::confirmDismissCrew(bool yes)
+{
+	return impl.push({
+		.type = Command::Type::ConfirmDismissCrew,
+		.args = yes
+	});
+}
+
+Input::Ret Input::swapCargo(int slotA, int slotB)
+{
+	return impl.push({
+		.type = Command::Type::SwapCargo,
+		.args = SwapCommand{
+			.slotA = slotA,
+			.slotB = slotB
+		}
+	});
+}
+
+Input::Ret Input::swapWeaponCargo(int weaponSlot, int cargoSlot)
+{
+	return impl.push({
+		.type = Command::Type::SwapWeaponCargo,
+		.args = SwapCommand{
+			.slotA = weaponSlot,
+			.slotB = cargoSlot
+		}
+	});
+}
+
+Input::Ret Input::swapDroneCargo(int droneSlot, int cargoSlot)
+{
+	return impl.push({
+		.type = Command::Type::SwapDroneCargo,
+		.args = SwapCommand{
+			.slotA = droneSlot,
+			.slotB = cargoSlot
+		}
+	});
+}
+
+Input::Ret Input::discardCargo(int slot)
+{
+	return impl.push({
+		.type = Command::Type::DiscardCargo,
+		.args = DiscardCommand{
+			.which = slot
+		}
+	});
+}
+
+Input::Ret Input::discardWeapon(int slot)
+{
+	return impl.push({
+		.type = Command::Type::DiscardWeapon,
+		.args = DiscardCommand{
+			.which = slot
+		}
+	});
+}
+
+Input::Ret Input::discardDrone(int slot)
+{
+	return impl.push({
+		.type = Command::Type::DiscardDrone,
+		.args = DiscardCommand{
+			.which = slot
+		}
+		});
+}
+
+Input::Ret Input::discardAugment(int slot)
+{
+	return impl.push({
+		.type = Command::Type::DiscardAugment,
+		.args = DiscardCommand{
+			.which = slot
+		}
 	});
 }
